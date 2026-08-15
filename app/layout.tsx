@@ -1,21 +1,11 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
 import Nav from "@/components/Nav";
 import ConfigBanner from "@/components/ConfigBanner";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
+// Fraunces (serif headings) and Inter (sans body) are self-hosted via plain
+// @font-face rules in globals.css rather than next/font — see the comment
+// there for why.
 
 export const metadata: Metadata = {
   title: "Zusammen — Founder Dashboard",
@@ -24,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    <html lang="en">
       <body className="min-h-screen bg-background text-foreground antialiased">
         <div className="flex min-h-screen flex-col lg:flex-row">
           <Nav />
