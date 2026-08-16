@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sprout, Sun, Leaf, Snowflake, Check } from "lucide-react";
+import { Sprout, Sun, Leaf, Snowflake, Check, Mail } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { MarketingCampaign, Season } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
+import EmailComposeModal from "@/components/EmailComposeModal";
 import { SEASON_HU } from "@/lib/labels";
 
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
@@ -21,6 +22,7 @@ export default function MarketingPage() {
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
+  const [composeFor, setComposeFor] = useState<MarketingCampaign | null>(null);
 
   const supabase = getSupabaseClient();
 
@@ -78,9 +80,21 @@ export default function MarketingPage() {
               key={campaign.id}
               campaign={campaign}
               onUpdate={(patch) => updateCampaign(campaign.id, patch)}
+              onEmail={() => setComposeFor(campaign)}
             />
           ))}
         </div>
+      )}
+
+      {composeFor && (
+        <EmailComposeModal
+          title={`Email küldése — ${SEASON_HU[composeFor.season]} kampány`}
+          defaultSubject={`Zusammen — ${SEASON_HU[composeFor.season]} kampány${composeFor.theme ? `: ${composeFor.theme}` : ""}`}
+          defaultBody={
+            composeFor.product_focus ? `Szia!\n\n${composeFor.product_focus}\n\n` : "Szia!\n\n"
+          }
+          onClose={() => setComposeFor(null)}
+        />
       )}
     </>
   );
@@ -89,9 +103,11 @@ export default function MarketingPage() {
 function CampaignCard({
   campaign,
   onUpdate,
+  onEmail,
 }: {
   campaign: MarketingCampaign;
   onUpdate: (patch: Partial<MarketingCampaign>) => void;
+  onEmail: () => void;
 }) {
   const [theme, setTheme] = useState(campaign.theme ?? "");
   const [productFocus, setProductFocus] = useState(campaign.product_focus ?? "");
@@ -118,11 +134,16 @@ function CampaignCard({
           </span>
           <h2 className="font-serif text-xl text-forest">{SEASON_HU[campaign.season]}</h2>
         </div>
-        {saved && (
-          <span className="flex items-center gap-1 text-xs font-medium text-forest">
-            <Check size={13} /> Mentve
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {saved && (
+            <span className="flex items-center gap-1 text-xs font-medium text-forest">
+              <Check size={13} /> Mentve
+            </span>
+          )}
+          <button onClick={onEmail} className="btn btn-ghost !px-2" aria-label="Email küldése">
+            <Mail size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="mt-4">

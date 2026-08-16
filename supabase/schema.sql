@@ -19,9 +19,13 @@ create table if not exists public.suppliers (
   reply_received boolean not null default false,
   notes text,
   email_text text,
+  contact_email text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Added after the initial launch — safe no-op if the column already exists.
+alter table public.suppliers add column if not exists contact_email text;
 
 -- ---------------------------------------------------------------------
 -- Tasks (Kanban board)
@@ -97,6 +101,7 @@ create table if not exists public.future_plans (
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   customer_name text not null,
+  customer_email text,
   product text,
   quantity numeric(12, 2) not null default 1,
   delivery_date date,
@@ -105,6 +110,9 @@ create table if not exists public.orders (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Added after the initial launch — safe no-op if the column already exists.
+alter table public.orders add column if not exists customer_email text;
 
 -- ---------------------------------------------------------------------
 -- Seed the 4 marketing seasons if they don't exist yet

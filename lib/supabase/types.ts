@@ -16,6 +16,7 @@ export interface Supplier {
   reply_received: boolean;
   notes: string | null;
   email_text: string | null;
+  contact_email: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +95,7 @@ export type FuturePlanUpdate = Partial<Omit<FuturePlan, "id" | "created_at">>;
 export interface Order {
   id: string;
   customer_name: string;
+  customer_email: string | null;
   product: string | null;
   quantity: number;
   delivery_date: string | null;

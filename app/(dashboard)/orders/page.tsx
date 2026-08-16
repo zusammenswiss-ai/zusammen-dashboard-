@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash, Mail } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Order, OrderStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import EmailComposeModal from "@/components/EmailComposeModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { ORDER_STATUS_HU } from "@/lib/labels";
@@ -27,6 +28,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
 
 const EMPTY_FORM = {
   customer_name: "",
+  customer_email: "",
   product: "",
   quantity: "1",
   delivery_date: "",
@@ -42,6 +44,7 @@ export default function OrdersPage() {
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filter, setFilter] = useState<OrderStatus | "All">("All");
+  const [composeFor, setComposeFor] = useState<Order | null>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -73,6 +76,7 @@ export default function OrdersPage() {
       .from("orders")
       .insert({
         customer_name: form.customer_name.trim(),
+        customer_email: form.customer_email.trim() || null,
         product: form.product.trim() || null,
         quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
         delivery_date: form.delivery_date || null,
@@ -143,9 +147,9 @@ export default function OrdersPage() {
       {showForm && (
         <form
           onSubmit={addOrder}
-          className="card mb-6 grid animate-fade-in grid-cols-1 gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+          className="card mb-6 grid animate-fade-in grid-cols-1 gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3 lg:items-end"
         >
-          <div className="lg:col-span-2">
+          <div>
             <label className="mb-1 block text-xs font-medium text-muted">Vevő *</label>
             <input
               className="input"
@@ -154,6 +158,16 @@ export default function OrdersPage() {
               value={form.customer_name}
               onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
               placeholder="pl. Müller Boutique, Zürich"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Vevő email</label>
+            <input
+              type="email"
+              className="input"
+              value={form.customer_email}
+              onChange={(e) => setForm((f) => ({ ...f, customer_email: e.target.value }))}
+              placeholder="vevo@example.com"
             />
           </div>
           <div>
@@ -199,7 +213,7 @@ export default function OrdersPage() {
               ))}
             </select>
           </div>
-          <div className="flex gap-2 lg:col-span-5">
+          <div className="flex gap-2 lg:col-span-3">
             <button type="submit" disabled={saving} className="btn btn-primary">
               {saving ? "Mentés…" : "Megrendelés mentése"}
             </button>
@@ -244,12 +258,26 @@ export default function OrdersPage() {
               onToggle={() => setExpanded(expanded === order.id ? null : order.id)}
               onUpdate={(patch) => updateOrder(order.id, patch)}
               onDelete={() => deleteOrder(order.id)}
+              onEmail={() => setComposeFor(order)}
             />
           ))}
         </div>
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {composeFor && (
+        <EmailComposeModal
+          title={`Email küldése — ${composeFor.customer_name}`}
+          defaultTo={composeFor.customer_email ?? ""}
+          defaultSubject="Rendelés visszaigazolása — Zusammen"
+          defaultBody={`Kedves ${composeFor.customer_name}!\n\nKöszönjük a megrendelést${
+            composeFor.product ? ` (${composeFor.product}${composeFor.quantity ? `, ${composeFor.quantity} db` : ""})` : ""
+          }.\n\n`}
+          onClose={() => setComposeFor(null)}
+          onSent={({ to }) => updateOrder(composeFor.id, { customer_email: to })}
+        />
+      )}
     </>
   );
 }
@@ -260,14 +288,22 @@ function OrderRow({
   onToggle,
   onUpdate,
   onDelete,
+  onEmail,
 }: {
   order: Order;
   expanded: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<Order>) => void;
   onDelete: () => void;
+  onEmail: () => void;
 }) {
   const [notes, setNotes] = useState(order.notes ?? "");
+  const [customerEmail, setCustomerEmail] = useState(order.customer_email ?? "");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCustomerEmail(order.customer_email ?? "");
+  }, [order.customer_email]);
 
   return (
     <div className="card overflow-hidden">
@@ -305,21 +341,41 @@ function OrderRow({
           ))}
         </select>
 
+        <button onClick={onEmail} className="btn btn-ghost shrink-0 !px-2" aria-label="Email küldése">
+          <Mail size={15} />
+        </button>
+
         <button onClick={onDelete} className="btn btn-danger shrink-0 !px-2" aria-label="Megrendelés törlése">
           <Trash2 size={15} />
         </button>
       </div>
 
       {expanded && (
-        <div className="border-t border-border bg-ivory-dim/40 p-4 animate-fade-in">
-          <label className="mb-1 block text-xs font-medium text-muted">Megjegyzés</label>
-          <textarea
-            className="textarea min-h-20"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => notes !== (order.notes ?? "") && onUpdate({ notes })}
-            placeholder="Csomagolás, számlázás, egyeztetés…"
-          />
+        <div className="grid grid-cols-1 gap-4 border-t border-border bg-ivory-dim/40 p-4 animate-fade-in sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Vevő email</label>
+            <input
+              type="email"
+              className="input"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              onBlur={() =>
+                customerEmail !== (order.customer_email ?? "") &&
+                onUpdate({ customer_email: customerEmail || null })
+              }
+              placeholder="vevo@example.com"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Megjegyzés</label>
+            <textarea
+              className="textarea min-h-20"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => notes !== (order.notes ?? "") && onUpdate({ notes })}
+              placeholder="Csomagolás, számlázás, egyeztetés…"
+            />
+          </div>
         </div>
       )}
     </div>
