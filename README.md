@@ -15,7 +15,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 |---|---|
 | **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table — every item links straight to its page (tasks deep-link into their detail view) |
 | **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
-| **Beszállítók** (Suppliers) | Manufacturer/supplier contacts — contacted / reply-received checkboxes, notes, optional pasted email text, and a real **Email küldése** button (see below) |
+| **Beszállítók** (Suppliers) | Full supplier profiles grouped by category — basic info (name/category/country), contact details (website/email/phone/WhatsApp), a repeatable products/services list (name, price, MOQ, note per row), contact status (contacted/replied, sent-email text, contract status + valid-until date), general notes, a real **Email küldése** button, and CSV bulk import |
 | **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons) |
 | **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése** |
 | **Pénzügyek** (Finance) | Product rows (price / COGS / units) with auto-computed revenue & margin |
@@ -37,6 +37,22 @@ Suppliers specifically, a successful send also auto-fills the existing
 `RESEND_API_KEY` set — see [Set up email sending](#2-set-up-email-sending-resend)
 below; without it the send button shows a clear error instead of failing
 silently.
+
+**CSV import for Suppliers**: the "Beszállítók importálása CSV-ből"
+button reads a CSV with these columns (a "Minta CSV letöltése" link next
+to the search box downloads a ready-made example with this exact header):
+
+```
+name,category,country,website,email,phone,whatsapp,products,notes
+```
+
+Only `name` is required — every other column can be blank. `products` is
+a single cell with multiple products separated by `;` (e.g.
+`"Kártya 90x60mm; Doboz; Matrica"`), imported as rows with just the name
+filled in — price/MOQ/note can be added afterward from the supplier's
+profile. Every row becomes one new supplier; this is import-only (it
+doesn't match against or update existing suppliers), so re-importing the
+same file creates duplicates.
 
 ## `/landing` — public customer-facing page
 

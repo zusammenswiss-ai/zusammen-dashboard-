@@ -1,32 +1,123 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, ChevronDown, Mail, Users, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Trash2, Mail, Users, Search, Upload } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { Supplier } from "@/lib/supabase/types";
+import type { Supplier, SupplierInsert } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
+import SupplierProfileModal, { type SupplierDraft } from "@/components/SupplierProfileModal";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { CONTRACT_STATUS_HU } from "@/lib/labels";
 
 function bySupplierRecency(a: Supplier, b: Supplier) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 }
 
-const EMPTY_FORM = { name: "", category: "" };
+const CSV_TEMPLATE = `name,category,country,website,email,phone,whatsapp,products,notes
+Alpine Print Co.,Kártyagyártás,Svájc,https://alpineprint.example,info@alpineprint.example,+41 44 123 45 67,+41 79 123 45 67,"Kártya 90x60mm; Doboz; Matrica",Mintát kértünk
+`;
+
+function downloadCsvTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "beszallitok-minta.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Minimal CSV parser — handles quoted fields, embedded commas, and ""
+// escapes, which is enough for a typical Excel/Sheets export.
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      field += char;
+      i++;
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (char === ",") {
+      row.push(field);
+      field = "";
+      i++;
+      continue;
+    }
+    if (char === "\r") {
+      i++;
+      continue;
+    }
+    if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      i++;
+      continue;
+    }
+    field += char;
+    i++;
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+}
+
+function draftToInsert(draft: SupplierDraft): SupplierInsert {
+  return {
+    name: draft.name,
+    category: draft.category.trim() || null,
+    country: draft.country.trim() || null,
+    website: draft.website.trim() || null,
+    contact_email: draft.contact_email.trim() || null,
+    phone: draft.phone.trim() || null,
+    whatsapp: draft.whatsapp.trim() || null,
+    products: draft.products.filter((p) => p.name.trim()),
+    contacted: draft.contacted,
+    reply_received: draft.reply_received,
+    notes: draft.notes.trim() || null,
+    email_text: draft.email_text.trim() || null,
+    contract_status: draft.contract_status,
+    contract_valid_until: draft.contract_valid_until || null,
+  };
+}
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [profileFor, setProfileFor] = useState<Supplier | "new" | null>(null);
   const [composeFor, setComposeFor] = useState<Supplier | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -49,23 +140,11 @@ export default function SuppliersPage() {
     if (supabase) void loadSuppliers();
   }, [supabase, loadSuppliers]);
 
-  async function addSupplier(e: React.FormEvent) {
-    e.preventDefault();
-    if (!supabase || !form.name.trim()) return;
-    setSaving(true);
-    const { data, error } = await supabase
-      .from("suppliers")
-      .insert({ name: form.name.trim(), category: form.category.trim() || null })
-      .select()
-      .single();
-    setSaving(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
+  async function createSupplier(draft: SupplierDraft): Promise<{ error?: string } | void> {
+    if (!supabase) return { error: "Nincs adatbázis-kapcsolat." };
+    const { data, error } = await supabase.from("suppliers").insert(draftToInsert(draft)).select().single();
+    if (error) return { error: error.message };
     if (data) setSuppliers((prev) => [data, ...prev]);
-    setForm(EMPTY_FORM);
-    setShowForm(false);
   }
 
   async function updateSupplier(id: string, patch: Partial<Supplier>) {
@@ -73,6 +152,11 @@ export default function SuppliersPage() {
     if (!supabase) return;
     const { error } = await supabase.from("suppliers").update(patch).eq("id", id);
     if (error) setError(error.message);
+  }
+
+  async function saveProfile(draft: SupplierDraft): Promise<{ error?: string } | void> {
+    if (profileFor === "new") return createSupplier(draft);
+    if (profileFor) await updateSupplier(profileFor.id, draftToInsert(draft));
   }
 
   function deleteSupplier(id: string) {
@@ -90,15 +174,93 @@ export default function SuppliersPage() {
     );
   }
 
+  async function handleCsvFile(file: File) {
+    if (!supabase) return;
+    setImportMessage(null);
+    setError(null);
+
+    const text = await file.text();
+    const rows = parseCSV(text);
+    if (rows.length < 2) {
+      setError("A CSV fájl üres, vagy hiányzik belőle a fejléc sor.");
+      return;
+    }
+
+    const header = rows[0].map((h) => h.trim().toLowerCase());
+    const colIndex = (name: string) => header.indexOf(name);
+    if (colIndex("name") === -1) {
+      setError('A CSV fejlécében kötelező a "name" oszlop.');
+      return;
+    }
+
+    const records: SupplierInsert[] = rows
+      .slice(1)
+      .map((r) => {
+        const get = (col: string) => {
+          const i = colIndex(col);
+          return i >= 0 ? (r[i] ?? "").trim() : "";
+        };
+        const productsStr = get("products");
+        const products = productsStr
+          ? productsStr
+              .split(";")
+              .map((p) => p.trim())
+              .filter(Boolean)
+              .map((n) => ({ id: crypto.randomUUID(), name: n, price: "", moq: "", note: "" }))
+          : [];
+        return {
+          name: get("name"),
+          category: get("category") || null,
+          country: get("country") || null,
+          website: get("website") || null,
+          contact_email: get("email") || null,
+          phone: get("phone") || null,
+          whatsapp: get("whatsapp") || null,
+          products,
+          notes: get("notes") || null,
+        };
+      })
+      .filter((r) => r.name);
+
+    if (records.length === 0) {
+      setError("Nem található érvényes beszállító-sor a CSV-ben (hiányzik a név oszlop értéke?).");
+      return;
+    }
+
+    setImporting(true);
+    const { data, error } = await supabase.from("suppliers").insert(records).select();
+    setImporting(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    if (data) {
+      setSuppliers((prev) => [...data, ...prev].sort(bySupplierRecency));
+      setImportMessage(`${data.length} beszállító importálva.`);
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return suppliers;
     return suppliers.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
-        (s.category ?? "").toLowerCase().includes(q)
+        (s.category ?? "").toLowerCase().includes(q) ||
+        (s.country ?? "").toLowerCase().includes(q)
     );
   }, [suppliers, query]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Supplier[]>();
+    for (const s of filtered) {
+      const key = s.category?.trim() || "Egyéb";
+      const list = map.get(key);
+      if (list) list.push(s);
+      else map.set(key, [s]);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], "hu"));
+  }, [filtered]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -109,64 +271,59 @@ export default function SuppliersPage() {
     );
   }
 
+  const profileSupplier = profileFor === "new" ? null : profileFor;
+
   return (
     <>
       <PageHeader
         title="Beszállítók"
         subtitle="Gyártói és beszállítói kapcsolatok a Zusammen kártyapaklikhoz."
         action={
-          <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Beszállító hozzáadása
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+              <Upload size={16} /> {importing ? "Importálás…" : "Beszállítók importálása CSV-ből"}
+            </button>
+            <button className="btn btn-bronze" onClick={() => setProfileFor("new")}>
+              <Plus size={16} /> Új beszállító hozzáadása
+            </button>
+          </div>
         }
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleCsvFile(file);
+          e.target.value = "";
+        }}
       />
 
       {error && <ErrorBanner message={error} />}
-
-      {showForm && (
-        <form onSubmit={addSupplier} className="card mb-6 flex flex-col gap-3 p-5 animate-fade-in sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-muted">Név *</label>
-            <input
-              className="input"
-              required
-              autoFocus
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="pl. Alpine Print Co."
-            />
-          </div>
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
-            <input
-              className="input"
-              value={form.category}
-              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              placeholder="pl. Nyomtatás, Csomagolás, Dobozok"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "Mentés…" : "Mentés"}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
-              Mégse
-            </button>
-          </div>
-        </form>
-      )}
-
-      {!loading && suppliers.length > 0 && (
-        <div className="relative mb-4 max-w-xs">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            className="input pl-9"
-            placeholder="Beszállítók keresése…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+      {importMessage && (
+        <div className="mb-4 rounded-lg border border-forest/20 bg-forest/5 px-4 py-2.5 text-sm text-forest">
+          {importMessage}
         </div>
       )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {!loading && suppliers.length > 0 && (
+          <div className="relative max-w-xs flex-1">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              className="input pl-9"
+              placeholder="Beszállítók keresése…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+        )}
+        <button onClick={downloadCsvTemplate} className="text-xs font-medium text-bronze hover:underline">
+          Minta CSV letöltése
+        </button>
+      </div>
 
       {loading ? (
         <Spinner />
@@ -174,25 +331,50 @@ export default function SuppliersPage() {
         <EmptyState
           icon={Users}
           title="Még nincs beszállító"
-          description="Add hozzá a gyártókat és nyomdákat, akiket a Zusammen indulásához megkeresel."
+          description="Add hozzá a gyártókat és nyomdákat, akiket a Zusammen indulásához megkeresel, vagy importálj egy CSV listát."
         />
       ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map((supplier) => (
-            <SupplierRow
-              key={supplier.id}
-              supplier={supplier}
-              expanded={expanded === supplier.id}
-              onToggle={() => setExpanded(expanded === supplier.id ? null : supplier.id)}
-              onUpdate={(patch) => updateSupplier(supplier.id, patch)}
-              onDelete={() => deleteSupplier(supplier.id)}
-              onEmail={() => setComposeFor(supplier)}
-            />
+        <div className="flex flex-col gap-8">
+          {grouped.map(([category, items]) => (
+            <div key={category}>
+              <div className="mb-3 flex items-center gap-2">
+                <h2 className="font-serif text-lg text-forest">{category}</h2>
+                <span className="badge bg-ivory-dim text-walnut">{items.length}</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {items.map((supplier) => (
+                  <SupplierRow
+                    key={supplier.id}
+                    supplier={supplier}
+                    onOpen={() => setProfileFor(supplier)}
+                    onUpdate={(patch) => updateSupplier(supplier.id, patch)}
+                    onDelete={() => deleteSupplier(supplier.id)}
+                    onEmail={() => setComposeFor(supplier)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {profileFor && (
+        <SupplierProfileModal
+          supplier={profileSupplier}
+          onClose={() => setProfileFor(null)}
+          onSave={saveProfile}
+          onDelete={
+            profileSupplier
+              ? () => {
+                  deleteSupplier(profileSupplier.id);
+                  setProfileFor(null);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {composeFor && (
         <EmailComposeModal
@@ -216,126 +398,62 @@ export default function SuppliersPage() {
 
 function SupplierRow({
   supplier,
-  expanded,
-  onToggle,
+  onOpen,
   onUpdate,
   onDelete,
   onEmail,
 }: {
   supplier: Supplier;
-  expanded: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
   onUpdate: (patch: Partial<Supplier>) => void;
   onDelete: () => void;
   onEmail: () => void;
 }) {
-  const [notes, setNotes] = useState(supplier.notes ?? "");
-  const [emailText, setEmailText] = useState(supplier.email_text ?? "");
-  const [contactEmail, setContactEmail] = useState(supplier.contact_email ?? "");
-
-  // Sending an email (via the modal) updates email_text/contact_email from
-  // outside this row's own textarea/input — keep the local drafts in sync
-  // when that happens, not just on first mount.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEmailText(supplier.email_text ?? "");
-  }, [supplier.email_text]);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setContactEmail(supplier.contact_email ?? "");
-  }, [supplier.contact_email]);
-
   return (
-    <div className="card overflow-hidden">
-      <div className="flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap">
-        <button
-          onClick={onToggle}
-          className="flex flex-1 items-center gap-3 text-left"
-        >
-          <ChevronDown
-            size={16}
-            className={`shrink-0 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
-          <div className="min-w-0">
-            <p className="truncate font-medium text-forest">{supplier.name}</p>
-            {supplier.category && (
-              <span className="badge mt-1 bg-ivory-dim text-walnut">{supplier.category}</span>
+    <div className="card flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap">
+      <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-forest">{supplier.name}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {supplier.country && <span className="text-xs text-muted">{supplier.country}</span>}
+            {supplier.products.length > 0 && (
+              <span className="badge bg-ivory-dim text-walnut">
+                {supplier.products.length} termék
+              </span>
+            )}
+            {supplier.contract_status !== "None" && (
+              <span className="badge bg-forest/10 text-forest">{CONTRACT_STATUS_HU[supplier.contract_status]}</span>
             )}
           </div>
-        </button>
-
-        <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-forest">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-bronze"
-            checked={supplier.contacted}
-            onChange={(e) => onUpdate({ contacted: e.target.checked })}
-          />
-          Megkeresve
-        </label>
-        <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-forest">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-bronze"
-            checked={supplier.reply_received}
-            onChange={(e) => onUpdate({ reply_received: e.target.checked })}
-          />
-          Válaszolt
-        </label>
-
-        <button onClick={onEmail} className="btn btn-ghost shrink-0 !px-2" aria-label="Email küldése">
-          <Mail size={15} />
-        </button>
-
-        <button
-          onClick={onDelete}
-          className="btn btn-danger shrink-0 !px-2"
-          aria-label="Beszállító törlése"
-        >
-          <Trash2 size={15} />
-        </button>
-      </div>
-
-      {expanded && (
-        <div className="grid grid-cols-1 gap-4 border-t border-border bg-ivory-dim/40 p-4 animate-fade-in sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Kapcsolattartó email</label>
-            <input
-              type="email"
-              className="input"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              onBlur={() =>
-                contactEmail !== (supplier.contact_email ?? "") &&
-                onUpdate({ contact_email: contactEmail || null })
-              }
-              placeholder="kapcsolat@beszallito.com"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
-            <textarea
-              className="textarea min-h-24"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={() => notes !== (supplier.notes ?? "") && onUpdate({ notes })}
-              placeholder="Árazás, minimum rendelési mennyiség, kért minták…"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
-              <Mail size={12} /> Kiküldött email
-            </label>
-            <textarea
-              className="textarea min-h-24 font-mono text-xs"
-              value={emailText}
-              onChange={(e) => setEmailText(e.target.value)}
-              onBlur={() => emailText !== (supplier.email_text ?? "") && onUpdate({ email_text: emailText })}
-              placeholder="Illeszd be ide a releváns email levelezést, vagy küldj emailt a fenti gombbal…"
-            />
-          </div>
         </div>
-      )}
+      </button>
+
+      <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-forest">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-bronze"
+          checked={supplier.contacted}
+          onChange={(e) => onUpdate({ contacted: e.target.checked })}
+        />
+        Megkeresve
+      </label>
+      <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-forest">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-bronze"
+          checked={supplier.reply_received}
+          onChange={(e) => onUpdate({ reply_received: e.target.checked })}
+        />
+        Válaszolt
+      </label>
+
+      <button onClick={onEmail} className="btn btn-ghost shrink-0 !px-2" aria-label="Email küldése">
+        <Mail size={15} />
+      </button>
+
+      <button onClick={onDelete} className="btn btn-danger shrink-0 !px-2" aria-label="Beszállító törlése">
+        <Trash2 size={15} />
+      </button>
     </div>
   );
 }
