@@ -7,7 +7,13 @@ import type { Document } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import UndoToast from "@/components/UndoToast";
+import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
+
+function byDocumentRecency(a: Document, b: Document) {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
 
 const STATUSES = ["Piszkozat", "Felülvizsgálat alatt", "Végleges", "Archiválva"];
 const STORAGE_BUCKET = "documents";
@@ -25,6 +31,7 @@ export default function DocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
+  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const loadDocuments = useCallback(async () => {
     if (!supabase) return;
@@ -98,15 +105,20 @@ export default function DocumentsPage() {
     if (error) setError(error.message);
   }
 
-  async function deleteDocument(doc: Document) {
+  function deleteDocument(doc: Document) {
     if (!supabase) return;
-    if (!confirm(`Törlöd: "${doc.title}"? Ez nem vonható vissza.`)) return;
     setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
-    if (doc.file_path) {
-      await supabase.storage.from(STORAGE_BUCKET).remove([doc.file_path]);
-    }
-    const { error } = await supabase.from("documents").delete().eq("id", doc.id);
-    if (error) setError(error.message);
+    scheduleUndo(
+      `"${doc.title}" törölve.`,
+      async () => {
+        if (doc.file_path) {
+          await supabase.storage.from(STORAGE_BUCKET).remove([doc.file_path]);
+        }
+        const { error } = await supabase.from("documents").delete().eq("id", doc.id);
+        if (error) setError(error.message);
+      },
+      () => setDocuments((prev) => [...prev, doc].sort(byDocumentRecency))
+    );
   }
 
   function fileUrl(doc: Document): string | null {
@@ -272,6 +284,8 @@ export default function DocumentsPage() {
           })}
         </div>
       )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
   );
 }

@@ -7,6 +7,12 @@ import type { Supplier } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import UndoToast from "@/components/UndoToast";
+import { useUndoAction } from "@/lib/useUndoAction";
+
+function bySupplierRecency(a: Supplier, b: Supplier) {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
 
 const EMPTY_FORM = { name: "", category: "" };
 
@@ -21,6 +27,7 @@ export default function SuppliersPage() {
   const [query, setQuery] = useState("");
 
   const supabase = getSupabaseClient();
+  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const loadSuppliers = useCallback(async () => {
     if (!supabase) return;
@@ -66,12 +73,19 @@ export default function SuppliersPage() {
     if (error) setError(error.message);
   }
 
-  async function deleteSupplier(id: string) {
+  function deleteSupplier(id: string) {
     if (!supabase) return;
-    if (!confirm("Törlöd ezt a beszállítót? Ez nem vonható vissza.")) return;
+    const removed = suppliers.find((s) => s.id === id);
+    if (!removed) return;
     setSuppliers((prev) => prev.filter((s) => s.id !== id));
-    const { error } = await supabase.from("suppliers").delete().eq("id", id);
-    if (error) setError(error.message);
+    scheduleUndo(
+      `"${removed.name}" törölve.`,
+      async () => {
+        const { error } = await supabase.from("suppliers").delete().eq("id", id);
+        if (error) setError(error.message);
+      },
+      () => setSuppliers((prev) => [...prev, removed].sort(bySupplierRecency))
+    );
   }
 
   const filtered = useMemo(() => {
@@ -174,6 +188,8 @@ export default function SuppliersPage() {
           ))}
         </div>
       )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
   );
 }

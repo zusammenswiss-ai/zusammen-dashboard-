@@ -7,7 +7,13 @@ import type { FinanceProduct } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import UndoToast from "@/components/UndoToast";
+import { useUndoAction } from "@/lib/useUndoAction";
 import { formatCHF } from "@/lib/format";
+
+function byProductRecency(a: FinanceProduct, b: FinanceProduct) {
+  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+}
 
 export default function FinancePage() {
   const [products, setProducts] = useState<FinanceProduct[]>([]);
@@ -16,6 +22,7 @@ export default function FinancePage() {
   const [adding, setAdding] = useState(false);
 
   const supabase = getSupabaseClient();
+  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const loadProducts = useCallback(async () => {
     if (!supabase) return;
@@ -58,11 +65,19 @@ export default function FinancePage() {
     if (error) setError(error.message);
   }
 
-  async function deleteRow(id: string) {
+  function deleteRow(id: string) {
     if (!supabase) return;
+    const removed = products.find((p) => p.id === id);
+    if (!removed) return;
     setProducts((prev) => prev.filter((p) => p.id !== id));
-    const { error } = await supabase.from("finance_products").delete().eq("id", id);
-    if (error) setError(error.message);
+    scheduleUndo(
+      `"${removed.name}" törölve.`,
+      async () => {
+        const { error } = await supabase.from("finance_products").delete().eq("id", id);
+        if (error) setError(error.message);
+      },
+      () => setProducts((prev) => [...prev, removed].sort(byProductRecency))
+    );
   }
 
   const totals = useMemo(() => {
@@ -157,6 +172,8 @@ export default function FinancePage() {
           </div>
         </>
       )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
   );
 }
