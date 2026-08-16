@@ -72,7 +72,7 @@ export default function LandingPage() {
 // A mountain range with a small heart nestled above its peaks — the
 // brand mark, kept as a plain icon (no baked-in wordmark/tagline) so the
 // surrounding text can still switch between DE and EN.
-function LandingMark({ size = 128 }: { size?: number }) {
+function LandingMark({ size = 128, color = "var(--l-walnut)" }: { size?: number; color?: string }) {
   return (
     <svg
       className="landing-mark"
@@ -84,13 +84,13 @@ function LandingMark({ size = 128 }: { size?: number }) {
     >
       <path
         d="M88 21c-3.5-5-11-4.5-11 2 0 6 11 12 11 12s11-6 11-12c0-6.5-7.5-7-11-2Z"
-        stroke="var(--l-walnut)"
+        stroke={color}
         strokeWidth={4}
         strokeLinejoin="round"
       />
       <path
         d="M8 74 L34 36 L47 52 L60 22 L73 45 L86 18 L99 45 L112 22 L125 52 L138 36 L164 74"
-        stroke="var(--l-walnut)"
+        stroke={color}
         strokeWidth={5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -150,12 +150,17 @@ function HeroScreen({ t, onStory, onSkip }: { t: T; onStory: () => void; onSkip:
   );
 }
 
+// The founder's story used to render as one unbroken ~20-paragraph scroll.
+// It's now split into four short "chapters" the reader steps through, each
+// re-triggering a fade-in so the page feels like it's turning rather than
+// just scrolling.
 function StoryScreen({ t, onNext }: { t: T; onNext: () => void }) {
   const s = t.story;
-  return (
-    <div className="storyscreen">
-      <p className="landing-eyebrow">{s.eyebrow}</p>
-      <h2>{s.title}</h2>
+  const [chapter, setChapter] = useState(0);
+  const isFirstRender = useRef(true);
+
+  const chapters = [
+    <>
       <p className="pullq">{s.pullq}</p>
       <p>{s.p1}</p>
       <div className="linegroup">
@@ -171,6 +176,8 @@ function StoryScreen({ t, onNext }: { t: T; onNext: () => void }) {
           <p key={l}>{l}</p>
         ))}
       </div>
+    </>,
+    <>
       <h3>{s.h3}</h3>
       <p>{s.p5}</p>
       <p>{s.p6}</p>
@@ -178,18 +185,21 @@ function StoryScreen({ t, onNext }: { t: T; onNext: () => void }) {
       <p>{s.p8}</p>
       <p className="emph">{s.emph}</p>
       <p>{s.p9}</p>
+    </>,
+    <>
       <p>{s.p10}</p>
       <p>{s.p11}</p>
       <p>{s.p12}</p>
       <p>{s.p13}</p>
       <p>{s.p14}</p>
       <p>{s.p15}</p>
+    </>,
+    <>
       <p>{s.p16}</p>
       <p>{s.p17}</p>
       <p>{s.p18}</p>
       <p className="emphgreen">{s.emphgreen}</p>
       <p style={{ textAlign: "center", fontStyle: "italic", color: "var(--l-walnut)" }}>{s.closing}</p>
-
       <div className="signature" style={{ justifyContent: "center" }}>
         <SignatureMark />
         <span className="sigtext">
@@ -197,9 +207,41 @@ function StoryScreen({ t, onNext }: { t: T; onNext: () => void }) {
           <span className="role">{s.signatureRole}</span>
         </span>
       </div>
-      <div style={{ textAlign: "center" }}>
-        <button className="landing-btn" onClick={onNext}>
-          {s.cta}
+    </>,
+  ];
+  const isLast = chapter === chapters.length - 1;
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [chapter]);
+
+  return (
+    <div className="storyscreen">
+      <p className="landing-eyebrow">{s.eyebrow}</p>
+      <h2>{s.title}</h2>
+
+      <div className="chapter-content" key={chapter}>
+        {chapters[chapter]}
+      </div>
+
+      <div className="chapter-dots" aria-hidden="true">
+        {chapters.map((_, i) => (
+          <span key={i} className={i === chapter ? "dot filled" : "dot"} />
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        {chapter > 0 && (
+          <button className="landing-btn outline" onClick={() => setChapter((c) => c - 1)}>
+            {s.chapterBack}
+          </button>
+        )}
+        <button className="landing-btn" onClick={() => (isLast ? onNext() : setChapter((c) => c + 1))}>
+          {isLast ? s.cta : s.chapterNext}
         </button>
       </div>
     </div>
@@ -208,35 +250,68 @@ function StoryScreen({ t, onNext }: { t: T; onNext: () => void }) {
 
 function CardScreen({ t, onDone }: { t: T; onDone: () => void }) {
   const [pos, setPos] = useState(0);
+  const [flipped, setFlipped] = useState(false);
   const deck = t.card.deck;
   const item = deck[pos];
   const isLast = pos === deck.length - 1;
+
+  function flip() {
+    setFlipped((f) => !f);
+  }
+
+  function drawNext() {
+    setFlipped(false);
+    setPos((p) => p + 1);
+  }
 
   return (
     <div className="card-view">
       <div className="landing-progress">
         {pos + 1} / {deck.length}
       </div>
-      {item.type === "suit" ? (
-        <div className="landing-card">
-          <div className="question">{item.q}</div>
+
+      <div
+        className="flip-card"
+        role="button"
+        tabIndex={0}
+        aria-pressed={flipped}
+        onClick={flip}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            flip();
+          }
+        }}
+      >
+        <div className={flipped ? "flip-card-inner flipped" : "flip-card-inner"}>
+          <div className="flip-card-front">
+            <LandingMark size={72} color="var(--l-ivory)" />
+            <div className="flip-wordmark">ZUSAMMEN</div>
+          </div>
+          <div className={item.type === "wild" ? "flip-card-back wild" : "flip-card-back"}>
+            {item.type === "suit" ? (
+              <div className="question">{item.q}</div>
+            ) : (
+              <>
+                <div className="wicon">{item.icon}</div>
+                <div className="wname">{item.name}</div>
+                <div className="wtag">{item.tag}</div>
+                <div className="wtask">{item.task}</div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {flipped ? (
+        <div className="card-actions">
+          <button className="landing-btn" onClick={() => (isLast ? onDone() : drawNext())}>
+            {isLast ? t.card.drawLast : t.card.drawNext}
+          </button>
         </div>
       ) : (
-        <div className="landing-card wild">
-          <div className="wicon">{item.icon}</div>
-          <div className="wname">{item.name}</div>
-          <div className="wtag">{item.tag}</div>
-          <div className="wtask">{item.task}</div>
-        </div>
+        <p className="flip-hint">{t.card.tapHint}</p>
       )}
-      <div className="card-actions">
-        <button
-          className="landing-btn"
-          onClick={() => (isLast ? onDone() : setPos((p) => p + 1))}
-        >
-          {isLast ? t.card.drawLast : t.card.drawNext}
-        </button>
-      </div>
     </div>
   );
 }

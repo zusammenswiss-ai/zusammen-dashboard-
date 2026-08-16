@@ -192,21 +192,22 @@
   color: var(--l-walnut);
   margin-bottom: 18px;
 }
-.landing-card {
+
+/* 3D flip card — tap/click (or Enter/Space) toggles .flipped on the inner
+   wrapper, rotating it 180deg so the branded front swaps for the drawn
+   card's face. Re-mounted per-card via React state, not per-mount, so the
+   flip works identically for every card in the deck, not just the first. */
+.flip-card {
   width: 100%;
   aspect-ratio: 5/7;
-  border-radius: 14px;
-  background: var(--l-ivory);
-  border: 1px solid rgba(122, 90, 59, 0.2);
-  box-shadow: 0 18px 40px -18px rgba(35, 51, 40, 0.35);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  padding: 26px;
-  position: relative;
+  perspective: 1400px;
+  cursor: pointer;
   animation: cardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.flip-card:focus-visible {
+  outline: 2px solid var(--l-bronze);
+  outline-offset: 4px;
+  border-radius: 14px;
 }
 @keyframes cardIn {
   from {
@@ -218,33 +219,79 @@
     transform: translateY(0) scale(1);
   }
 }
-.landing-card .question {
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.flip-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(122, 90, 59, 0.2);
+  box-shadow: 0 18px 40px -18px rgba(35, 51, 40, 0.35);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 26px;
+  gap: 10px;
+}
+.flip-card-front {
+  background: var(--l-forest);
+}
+.flip-wordmark {
+  font-family: var(--l-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: var(--l-ivory);
+  opacity: 0.85;
+}
+.flip-card-back {
+  background: var(--l-ivory);
+  transform: rotateY(180deg);
+}
+.flip-card-back .question {
   font-family: var(--l-display);
   font-size: clamp(20px, 3.4vw, 26px);
   line-height: 1.32;
   color: var(--l-forest);
 }
-.landing-card.wild {
+.flip-card-back.wild {
   color: var(--l-ivory);
   gap: 14px;
   background: var(--l-coffee);
 }
-.landing-card.wild .wicon {
+.flip-card-back.wild .wicon {
   font-size: 40px;
 }
-.landing-card.wild .wname {
+.flip-card-back.wild .wname {
   font-family: var(--l-display);
   font-size: 24px;
 }
-.landing-card.wild .wtag {
+.flip-card-back.wild .wtag {
   font-family: var(--l-display);
   font-style: italic;
   font-size: 14px;
   opacity: 0.85;
 }
-.landing-card.wild .wtask {
+.flip-card-back.wild .wtask {
   font-size: 14px;
   max-width: 32ch;
+}
+.flip-hint {
+  font-family: var(--l-mono);
+  font-size: 12px;
+  color: var(--l-walnut);
+  margin: 18px 0 0;
 }
 .card-actions {
   margin-top: 26px;
@@ -572,6 +619,41 @@
   color: #3d4a3f;
   line-height: 1.7;
   margin-bottom: 16px;
+}
+/* Chapter pagination — the story used to be one long scroll; it's now
+   stepped through in short chapters. Re-keyed per chapter in React so
+   this fade-in retriggers on every "Weiter"/"Continue" click, not just
+   once on first mount. */
+.chapter-content {
+  min-height: 220px;
+  animation: chapterIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes chapterIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.chapter-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 26px;
+}
+.chapter-dots .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--l-sand);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.chapter-dots .dot.filled {
+  background: var(--l-walnut);
+  transform: scale(1.2);
 }
 .signature {
   display: flex;
