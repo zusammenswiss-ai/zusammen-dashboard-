@@ -8,6 +8,7 @@ import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import EmailComposeModal from "@/components/EmailComposeModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 
 function bySupplierRecency(a: Supplier, b: Supplier) {
@@ -25,6 +26,7 @@ export default function SuppliersPage() {
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [composeFor, setComposeFor] = useState<Supplier | null>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -184,12 +186,30 @@ export default function SuppliersPage() {
               onToggle={() => setExpanded(expanded === supplier.id ? null : supplier.id)}
               onUpdate={(patch) => updateSupplier(supplier.id, patch)}
               onDelete={() => deleteSupplier(supplier.id)}
+              onEmail={() => setComposeFor(supplier)}
             />
           ))}
         </div>
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {composeFor && (
+        <EmailComposeModal
+          title={`Email küldése — ${composeFor.name}`}
+          defaultTo={composeFor.contact_email ?? ""}
+          defaultSubject="Megkeresés — Zusammen"
+          defaultBody={`Kedves ${composeFor.name} csapat!\n\n`}
+          onClose={() => setComposeFor(null)}
+          onSent={({ to, body }) =>
+            updateSupplier(composeFor.id, {
+              contacted: true,
+              email_text: body,
+              contact_email: to,
+            })
+          }
+        />
+      )}
     </>
   );
 }
@@ -200,15 +220,30 @@ function SupplierRow({
   onToggle,
   onUpdate,
   onDelete,
+  onEmail,
 }: {
   supplier: Supplier;
   expanded: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<Supplier>) => void;
   onDelete: () => void;
+  onEmail: () => void;
 }) {
   const [notes, setNotes] = useState(supplier.notes ?? "");
   const [emailText, setEmailText] = useState(supplier.email_text ?? "");
+  const [contactEmail, setContactEmail] = useState(supplier.contact_email ?? "");
+
+  // Sending an email (via the modal) updates email_text/contact_email from
+  // outside this row's own textarea/input — keep the local drafts in sync
+  // when that happens, not just on first mount.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEmailText(supplier.email_text ?? "");
+  }, [supplier.email_text]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setContactEmail(supplier.contact_email ?? "");
+  }, [supplier.contact_email]);
 
   return (
     <div className="card overflow-hidden">
@@ -248,6 +283,10 @@ function SupplierRow({
           Válaszolt
         </label>
 
+        <button onClick={onEmail} className="btn btn-ghost shrink-0 !px-2" aria-label="Email küldése">
+          <Mail size={15} />
+        </button>
+
         <button
           onClick={onDelete}
           className="btn btn-danger shrink-0 !px-2"
@@ -260,6 +299,20 @@ function SupplierRow({
       {expanded && (
         <div className="grid grid-cols-1 gap-4 border-t border-border bg-ivory-dim/40 p-4 animate-fade-in sm:grid-cols-2">
           <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Kapcsolattartó email</label>
+            <input
+              type="email"
+              className="input"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              onBlur={() =>
+                contactEmail !== (supplier.contact_email ?? "") &&
+                onUpdate({ contact_email: contactEmail || null })
+              }
+              placeholder="kapcsolat@beszallito.com"
+            />
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
             <textarea
               className="textarea min-h-24"
@@ -269,16 +322,16 @@ function SupplierRow({
               placeholder="Árazás, minimum rendelési mennyiség, kért minták…"
             />
           </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
-              <Mail size={12} /> Csatolt email (opcionális)
+              <Mail size={12} /> Kiküldött email
             </label>
             <textarea
               className="textarea min-h-24 font-mono text-xs"
               value={emailText}
               onChange={(e) => setEmailText(e.target.value)}
               onBlur={() => emailText !== (supplier.email_text ?? "") && onUpdate({ email_text: emailText })}
-              placeholder="Illeszd be ide a releváns email levelezést…"
+              placeholder="Illeszd be ide a releváns email levelezést, vagy küldj emailt a fenti gombbal…"
             />
           </div>
         </div>

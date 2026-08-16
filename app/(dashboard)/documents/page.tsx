@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, FolderOpen, Download, Paperclip, FileText } from "lucide-react";
+import { Plus, Trash2, FolderOpen, Download, Paperclip, FileText, Mail } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Document } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import EmailComposeModal from "@/components/EmailComposeModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 
@@ -28,6 +29,7 @@ export default function DocumentsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [composeFor, setComposeFor] = useState<Document | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
@@ -272,6 +274,13 @@ export default function DocumentsPage() {
                     </a>
                   )}
                   <button
+                    onClick={() => setComposeFor(doc)}
+                    className="btn btn-ghost !px-2"
+                    aria-label="Email küldése"
+                  >
+                    <Mail size={15} />
+                  </button>
+                  <button
                     onClick={() => deleteDocument(doc)}
                     className="btn btn-danger !px-2"
                     aria-label="Dokumentum törlése"
@@ -286,6 +295,19 @@ export default function DocumentsPage() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {composeFor && (
+        <EmailComposeModal
+          title={`Email küldése — ${composeFor.title}`}
+          defaultSubject={composeFor.title}
+          defaultBody={
+            fileUrl(composeFor)
+              ? `Szia!\n\nMegosztom veled a következő dokumentumot: ${composeFor.title}\n\n${fileUrl(composeFor)}\n\n`
+              : `Szia!\n\nA "${composeFor.title}" dokumentummal kapcsolatban írok.\n\n`
+          }
+          onClose={() => setComposeFor(null)}
+        />
+      )}
     </>
   );
 }

@@ -15,18 +15,28 @@ in Hungarian; the public `/landing` page (below) is German/English.
 |---|---|
 | **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table — every item links straight to its page (tasks deep-link into their detail view) |
 | **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
-| **Beszállítók** (Suppliers) | Manufacturer/supplier contacts — contacted / reply-received checkboxes, notes, optional pasted email text |
+| **Beszállítók** (Suppliers) | Manufacturer/supplier contacts — contacted / reply-received checkboxes, notes, optional pasted email text, and a real **Email küldése** button (see below) |
 | **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons) |
-| **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes |
+| **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése** |
 | **Pénzügyek** (Finance) | Product rows (price / COGS / units) with auto-computed revenue & margin |
-| **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus |
-| **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage |
+| **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése** |
+| **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails |
+| **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file) |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
 Jövőbeli tervek, Megrendelések) removes the row immediately and shows a
 **Visszavonás** (undo) toast for a few seconds before it's actually deleted
 from Supabase — nothing is lost to a stray click.
+
+**Email küldése** (Suppliers, Megrendelések, Dokumentumok, Marketing): a
+real send button — opens a small compose window (to / subject / message),
+and Küldés actually sends it via [Resend](https://resend.com). On
+Suppliers specifically, a successful send also auto-fills the existing
+"Kiküldött email" field with what was sent and ticks "Megkeresve". Needs
+`RESEND_API_KEY` set — see [Set up email sending](#2-set-up-email-sending-resend)
+below; without it the send button shows a clear error instead of failing
+silently.
 
 ## `/landing` — public customer-facing page
 
@@ -51,7 +61,7 @@ stats pulled from those tables.
    **New query**.
 3. Open [`supabase/schema.sql`](./supabase/schema.sql) from this repo,
    copy its entire contents, paste into the SQL editor, and click **Run**.
-   This creates all 6 tables, seeds the 4 marketing seasons, sets up
+   This creates all the tables, seeds the 4 marketing seasons, sets up
    Row Level Security, and creates the `documents` Storage bucket used
    for file uploads.
 4. Go to **Project Settings → API**. You'll need two values from here:
@@ -77,12 +87,49 @@ with the link.
 
 ---
 
-## 2. Run it locally (optional)
+## 2. Set up email sending (Resend)
+
+The **Email küldése** buttons (Beszállítók, Megrendelések, Dokumentumok,
+Marketing) send real emails through [Resend](https://resend.com) — a
+free-tier-friendly email API. Setup takes about 5 minutes:
+
+1. Go to [resend.com](https://resend.com) → **Sign up** (free — 3,000
+   emails/month, 100/day is plenty for this).
+2. In the Resend dashboard, open **API Keys** → **Create API Key**. Give
+   it any name (e.g. "Zusammen dashboard"), leave permissions as
+   "Full access", and copy the key — it starts with `re_` and is only
+   shown once.
+3. Add it as an environment variable named `RESEND_API_KEY`:
+   - **Locally**: paste it into `.env.local` (see step 2 below).
+   - **On Vercel**: Project → Settings → Environment Variables (same place
+     as the Supabase keys — see the deploy step below).
+
+That's it — sending works immediately using Resend's shared
+`onboarding@resend.dev` sender, with replies routed to
+`zusammen.swiss@gmail.com` (set in `app/api/send-email/route.ts`).
+
+> **About the sender address.** Resend (like every email API) can't send
+> "from" an address on a domain you don't own — so it can't send as
+> `zusammen.swiss@gmail.com` no matter what. `onboarding@resend.dev` is
+> Resend's own shared testing domain: it works with no setup, but
+> recipients will see it's not a custom domain, and Resend may rate-limit
+> or restrict it more than a verified sender. **If/when you have your own
+> domain** (e.g. `zusammenswiss.ch`), verify it in Resend under
+> **Domains → Add Domain** (a few DNS records to add at your domain
+> registrar), then set two more environment variables to switch over —
+> no code changes needed:
+> - `RESEND_FROM_EMAIL` — e.g. `Zusammen <hello@zusammenswiss.ch>`
+> - `RESEND_REPLY_TO` — where replies should land (defaults to
+>   `zusammen.swiss@gmail.com` if unset)
+
+---
+
+## 3. Run it locally (optional)
 
 ```bash
 npm install
 cp .env.example .env.local
-# edit .env.local and paste in your Supabase URL + anon key
+# edit .env.local: paste in your Supabase URL + anon key, and your Resend API key
 npm run dev
 ```
 
@@ -90,7 +137,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 3. Deploy to Vercel (get a real URL)
+## 4. Deploy to Vercel (get a real URL)
 
 1. Push this repo to GitHub (already done if you're reading this from
    your repo).
@@ -103,8 +150,11 @@ Open [http://localhost:3000](http://localhost:3000).
    |---|---|
    | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase Project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon public key |
+   | `RESEND_API_KEY` | your Resend API key (needed for the Email küldése buttons) |
    | `DASHBOARD_USER` *(optional)* | a username, to lock the dashboard |
    | `DASHBOARD_PASSWORD` *(optional)* | a password, to lock the dashboard |
+   | `RESEND_FROM_EMAIL` *(optional)* | only once you've verified your own domain in Resend |
+   | `RESEND_REPLY_TO` *(optional)* | only if replies shouldn't go to zusammen.swiss@gmail.com |
 6. Click **Deploy**. In about a minute you'll get a live URL like
    `https://zusammen-dashboard.vercel.app`.
 
@@ -116,6 +166,7 @@ Every time you push to your main branch, Vercel redeploys automatically.
 
 ```
 app/                    Next.js App Router pages (one folder per tab)
+app/api/send-email/     Server-side route that calls Resend (holds RESEND_API_KEY)
 components/             Shared UI (nav, cards, empty states, feedback)
 lib/supabase/client.ts  Browser Supabase client
 lib/supabase/types.ts   Hand-written types matching supabase/schema.sql
