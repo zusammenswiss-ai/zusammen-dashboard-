@@ -7,16 +7,32 @@ export type TaskPriority = "Low" | "Medium" | "High";
 export type PlanStatus = "Idea" | "Considering" | "Planned";
 export type Season = "Spring" | "Summer" | "Autumn" | "Winter";
 export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
+export type ContractStatus = "None" | "Signed" | "Failed" | "Expired";
+
+export interface SupplierProduct {
+  id: string;
+  name: string;
+  price: string;
+  moq: string;
+  note: string;
+}
 
 export interface Supplier {
   id: string;
   name: string;
   category: string | null;
+  country: string | null;
+  website: string | null;
+  contact_email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  products: SupplierProduct[];
   contacted: boolean;
   reply_received: boolean;
   notes: string | null;
   email_text: string | null;
-  contact_email: string | null;
+  contract_status: ContractStatus;
+  contract_valid_until: string | null;
   created_at: string;
   updated_at: string;
 }

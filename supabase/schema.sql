@@ -15,17 +15,46 @@ create table if not exists public.suppliers (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   category text,
+  country text,
+  website text,
+  contact_email text,
+  phone text,
+  whatsapp text,
+  -- Array of { id, name, price, moq, note } objects — a supplier can offer
+  -- any number of products/services, edited as repeatable rows in the UI.
+  products jsonb not null default '[]'::jsonb,
   contacted boolean not null default false,
   reply_received boolean not null default false,
   notes text,
   email_text text,
-  contact_email text,
+  contract_status text not null default 'None' check (contract_status in ('None', 'Signed', 'Failed', 'Expired')),
+  contract_valid_until date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- Added after the initial launch — safe no-op if the column already exists.
+-- Added after the initial launch — safe no-op if the columns already exist.
 alter table public.suppliers add column if not exists contact_email text;
+alter table public.suppliers add column if not exists country text;
+alter table public.suppliers add column if not exists website text;
+alter table public.suppliers add column if not exists phone text;
+alter table public.suppliers add column if not exists whatsapp text;
+alter table public.suppliers add column if not exists products jsonb not null default '[]'::jsonb;
+alter table public.suppliers add column if not exists contract_status text not null default 'None';
+alter table public.suppliers add column if not exists contract_valid_until date;
+
+-- Guard the check constraint separately so re-running this file never
+-- fails with "constraint already exists".
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'suppliers_contract_status_check'
+  ) then
+    alter table public.suppliers
+      add constraint suppliers_contract_status_check
+      check (contract_status in ('None', 'Signed', 'Failed', 'Expired'));
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- Tasks (Kanban board)

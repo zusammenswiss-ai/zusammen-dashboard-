@@ -1,7 +1,7 @@
 // Hungarian display labels for enum-like values stored in English in
 // Supabase (CHECK constraints reference the English values in schema.sql —
 // translating only the display label avoids a schema migration).
-import type { TaskPriority, PlanStatus, Season, OrderStatus } from "./supabase/types";
+import type { TaskPriority, PlanStatus, Season, OrderStatus, ContractStatus } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
   Low: "Alacsony",
@@ -27,6 +27,13 @@ export const ORDER_STATUS_HU: Record<OrderStatus, string> = {
   Processing: "Feldolgozás alatt",
   Shipped: "Kiszállítva",
   Done: "Teljesítve",
+};
+
+export const CONTRACT_STATUS_HU: Record<ContractStatus, string> = {
+  None: "Nincs",
+  Signed: "Megkötve",
+  Failed: "Nem jött létre",
+  Expired: "Lejárt",
 };
 
 /**
