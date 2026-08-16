@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Mail, Users, Search, Upload } from "lucide-react";
+import { Plus, Trash2, Mail, Users, Search, Upload, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Supplier, SupplierInsert } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -12,6 +12,7 @@ import EmailComposeModal from "@/components/EmailComposeModal";
 import SupplierProfileModal, { type SupplierDraft } from "@/components/SupplierProfileModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { CONTRACT_STATUS_HU } from "@/lib/labels";
+import { toCSV, downloadCSV } from "@/lib/csv";
 
 function bySupplierRecency(a: Supplier, b: Supplier) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -22,13 +23,42 @@ Alpine Print Co.,Kártyagyártás,Svájc,https://alpineprint.example,info@alpine
 `;
 
 function downloadCsvTemplate() {
-  const blob = new Blob([CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "beszallitok-minta.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCSV("beszallitok-minta.csv", CSV_TEMPLATE);
+}
+
+const EXPORT_HEADERS = [
+  "name",
+  "category",
+  "country",
+  "website",
+  "email",
+  "phone",
+  "whatsapp",
+  "products",
+  "contacted",
+  "reply_received",
+  "contract_status",
+  "contract_valid_until",
+  "notes",
+];
+
+function exportSuppliersCSV(suppliers: Supplier[]) {
+  const rows = suppliers.map((s) => [
+    s.name,
+    s.category,
+    s.country,
+    s.website,
+    s.contact_email,
+    s.phone,
+    s.whatsapp,
+    s.products.map((p) => p.name).join("; "),
+    s.contacted,
+    s.reply_received,
+    s.contract_status,
+    s.contract_valid_until,
+    s.notes,
+  ]);
+  downloadCSV("beszallitok.csv", toCSV(EXPORT_HEADERS, rows));
 }
 
 // Minimal CSV parser — handles quoted fields, embedded commas, and ""
@@ -283,6 +313,11 @@ export default function SuppliersPage() {
             <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} disabled={importing}>
               <Upload size={16} /> {importing ? "Importálás…" : "Beszállítók importálása CSV-ből"}
             </button>
+            {suppliers.length > 0 && (
+              <button className="btn btn-ghost" onClick={() => exportSuppliersCSV(suppliers)}>
+                <Download size={16} /> Exportálás CSV-be
+              </button>
+            )}
             <button className="btn btn-bronze" onClick={() => setProfileFor("new")}>
               <Plus size={16} /> Új beszállító hozzáadása
             </button>

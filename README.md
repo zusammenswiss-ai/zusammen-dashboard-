@@ -15,13 +15,13 @@ in Hungarian; the public `/landing` page (below) is German/English.
 |---|---|
 | **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table — every item links straight to its page (tasks deep-link into their detail view) |
 | **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
-| **Beszállítók** (Suppliers) | Full supplier profiles grouped by category — basic info (name/category/country), contact details (website/email/phone/WhatsApp), a repeatable products/services list (name, price, MOQ, note per row), contact status (contacted/replied, sent-email text, contract status + valid-until date), general notes, a real **Email küldése** button, and CSV bulk import |
-| **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons) |
-| **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése** |
-| **Pénzügyek** (Finance) | Product rows (price / COGS / units) with auto-computed revenue & margin |
+| **Beszállítók** (Suppliers) | Full supplier profiles grouped by category — basic info (name/category/country), contact details (website/email/phone/WhatsApp), a repeatable products/services list (name, price, MOQ, note per row), contact status (contacted/replied, sent-email text, contract status + valid-until date), general notes, a real **Email küldése** button, keresés, and CSV bulk import/export |
+| **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee, keresés, CSV export. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons) |
+| **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, egységár, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése**, keresés, CSV export |
+| **Pénzügyek** (Finance) | Planning calculator (price / COGS / units), plus a **Tényleges bevétel** section computed from real Megrendelések egységár data |
 | **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése** |
 | **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails |
-| **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file) |
+| **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
@@ -53,6 +53,21 @@ filled in — price/MOQ/note can be added afterward from the supplier's
 profile. Every row becomes one new supplier; this is import-only (it
 doesn't match against or update existing suppliers), so re-importing the
 same file creates duplicates.
+
+**CSV export** (Beszállítók, Megrendelések, Feladatok): an "Exportálás
+CSV-be" button next to each list downloads everything currently in that
+table as a `.csv` file (UTF-8, Excel-friendly) — handy for backups or
+handing a list to someone outside the dashboard.
+
+**Napi emlékeztető email**: once a day (06:00 UTC by default, see
+`vercel.json`), the app emails a summary of what needs attention —
+overdue/soon-due Feladatok, overdue/soon Megrendelés deliveries, and
+Beszállító contracts expiring within 14 days — to
+`zusammen.swiss@gmail.com` (or `REMINDER_EMAIL_TO` if you set one). This
+runs as a [Vercel Cron Job](https://vercel.com/docs/cron-jobs) calling
+`/api/reminder-email`; see [Set up the reminder
+email](#3-set-up-the-daily-reminder-email-optional) below — it needs one
+more environment variable (`CRON_SECRET`) beyond the email setup above.
 
 ## `/landing` — public customer-facing page
 
@@ -140,7 +155,44 @@ That's it — sending works immediately using Resend's shared
 
 ---
 
-## 3. Run it locally (optional)
+## 3. Set up the daily reminder email (optional)
+
+This reuses the Resend setup above (step 2) to send one summary email a
+day — skip this section if you don't want it; the rest of the app works
+fine without it.
+
+1. Pick any long random string as a shared secret — e.g. run
+   `openssl rand -hex 32` in a terminal, or just mash the keyboard for 30+
+   characters. This is **not** a password you need to remember, only a
+   value both Vercel and this app know.
+2. Add it as an environment variable named `CRON_SECRET` (locally in
+   `.env.local`, and on Vercel — same place as the other keys, see the
+   deploy step below). Vercel automatically sends this as a
+   `Authorization: Bearer …` header when it triggers your cron job, and
+   `app/api/reminder-email/route.ts` checks for it — without it, the
+   route refuses every request (including Vercel's own), so the emails
+   just won't go out until it's set.
+3. That's it — `vercel.json` already defines the schedule (06:00 UTC
+   daily; edit the cron expression there to change it). Vercel picks it
+   up automatically on your next deploy, no dashboard clicking required.
+4. Optional: set `REMINDER_EMAIL_TO` if the summary should go somewhere
+   other than `zusammen.swiss@gmail.com`.
+
+To test it manually before waiting for the schedule:
+
+```bash
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
+  https://your-deployment.vercel.app/api/reminder-email
+```
+
+> **Vercel plan note:** cron jobs are available on Vercel's Hobby (free)
+> plan, but limited to once a day per job — which is exactly what this
+> uses. If your project is on a different plan with different limits,
+> adjust `vercel.json` accordingly.
+
+---
+
+## 4. Run it locally (optional)
 
 ```bash
 npm install
@@ -153,7 +205,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 4. Deploy to Vercel (get a real URL)
+## 5. Deploy to Vercel (get a real URL)
 
 1. Push this repo to GitHub (already done if you're reading this from
    your repo).
@@ -167,10 +219,12 @@ Open [http://localhost:3000](http://localhost:3000).
    | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase Project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon public key |
    | `RESEND_API_KEY` | your Resend API key (needed for the Email küldése buttons) |
+   | `CRON_SECRET` *(optional)* | needed only for the daily reminder email — see step 3 |
    | `DASHBOARD_USER` *(optional)* | a username, to lock the dashboard |
    | `DASHBOARD_PASSWORD` *(optional)* | a password, to lock the dashboard |
    | `RESEND_FROM_EMAIL` *(optional)* | only once you've verified your own domain in Resend |
    | `RESEND_REPLY_TO` *(optional)* | only if replies shouldn't go to zusammen.swiss@gmail.com |
+   | `REMINDER_EMAIL_TO` *(optional)* | only if the daily reminder shouldn't go to zusammen.swiss@gmail.com |
 6. Click **Deploy**. In about a minute you'll get a live URL like
    `https://zusammen-dashboard.vercel.app`.
 
@@ -181,14 +235,17 @@ Every time you push to your main branch, Vercel redeploys automatically.
 ## Project structure
 
 ```
-app/                    Next.js App Router pages (one folder per tab)
-app/api/send-email/     Server-side route that calls Resend (holds RESEND_API_KEY)
-components/             Shared UI (nav, cards, empty states, feedback)
-lib/supabase/client.ts  Browser Supabase client
-lib/supabase/types.ts   Hand-written types matching supabase/schema.sql
-lib/format.ts           Currency/date formatting helpers
-supabase/schema.sql     Full database schema — run once in Supabase
-proxy.ts                Optional Basic Auth lock
+app/                     Next.js App Router pages (one folder per tab)
+app/api/send-email/      Server-side route that calls Resend (holds RESEND_API_KEY)
+app/api/reminder-email/  Daily cron route — due-soon summary via Resend (holds CRON_SECRET)
+components/              Shared UI (nav, cards, empty states, feedback)
+lib/supabase/client.ts   Browser Supabase client
+lib/supabase/types.ts    Hand-written types matching supabase/schema.sql
+lib/format.ts            Currency/date formatting helpers
+lib/csv.ts               CSV export helper (used by Suppliers/Orders/Tasks)
+supabase/schema.sql      Full database schema — run once in Supabase
+vercel.json              Cron schedule for the reminder email
+proxy.ts                 Optional Basic Auth lock
 ```
 
 ## Customizing
