@@ -68,7 +68,7 @@ export default function SuppliersPage() {
 
   async function deleteSupplier(id: string) {
     if (!supabase) return;
-    if (!confirm("Delete this supplier? This can't be undone.")) return;
+    if (!confirm("Törlöd ezt a beszállítót? Ez nem vonható vissza.")) return;
     setSuppliers((prev) => prev.filter((s) => s.id !== id));
     const { error } = await supabase.from("suppliers").delete().eq("id", id);
     if (error) setError(error.message);
@@ -87,8 +87,8 @@ export default function SuppliersPage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Suppliers" />
-        <EmptyState icon={Users} title="Connect Supabase to manage suppliers" />
+        <PageHeader title="Beszállítók" />
+        <EmptyState icon={Users} title="Csatlakoztasd a Supabase-t a beszállítók kezeléséhez" />
       </>
     );
   }
@@ -96,11 +96,11 @@ export default function SuppliersPage() {
   return (
     <>
       <PageHeader
-        title="Suppliers"
-        subtitle="Manufacturer & supplier contacts for the Zusammen card decks."
+        title="Beszállítók"
+        subtitle="Gyártói és beszállítói kapcsolatok a Zusammen kártyapaklikhoz."
         action={
           <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Add supplier
+            <Plus size={16} /> Beszállító hozzáadása
           </button>
         }
       />
@@ -110,31 +110,31 @@ export default function SuppliersPage() {
       {showForm && (
         <form onSubmit={addSupplier} className="card mb-6 flex flex-col gap-3 p-5 animate-fade-in sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-muted">Name *</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Név *</label>
             <input
               className="input"
               required
               autoFocus
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Alpine Print Co."
+              placeholder="pl. Alpine Print Co."
             />
           </div>
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-muted">Category</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
             <input
               className="input"
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              placeholder="e.g. Printing, Packaging, Boxes"
+              placeholder="pl. Nyomtatás, Csomagolás, Dobozok"
             />
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "Saving…" : "Save"}
+              {saving ? "Mentés…" : "Mentés"}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
-              Cancel
+              Mégse
             </button>
           </div>
         </form>
@@ -145,7 +145,7 @@ export default function SuppliersPage() {
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             className="input pl-9"
-            placeholder="Search suppliers…"
+            placeholder="Beszállítók keresése…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -157,8 +157,8 @@ export default function SuppliersPage() {
       ) : suppliers.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="No suppliers yet"
-          description="Add the manufacturers and printers you're reaching out to for the Zusammen launch."
+          title="Még nincs beszállító"
+          description="Add hozzá a gyártókat és nyomdákat, akiket a Zusammen indulásához megkeresel."
         />
       ) : (
         <div className="flex flex-col gap-3">
@@ -220,7 +220,7 @@ function SupplierRow({
             checked={supplier.contacted}
             onChange={(e) => onUpdate({ contacted: e.target.checked })}
           />
-          Contacted
+          Megkeresve
         </label>
         <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-forest">
           <input
@@ -229,13 +229,13 @@ function SupplierRow({
             checked={supplier.reply_received}
             onChange={(e) => onUpdate({ reply_received: e.target.checked })}
           />
-          Replied
+          Válaszolt
         </label>
 
         <button
           onClick={onDelete}
           className="btn btn-danger shrink-0 !px-2"
-          aria-label="Delete supplier"
+          aria-label="Beszállító törlése"
         >
           <Trash2 size={15} />
         </button>
@@ -244,25 +244,25 @@ function SupplierRow({
       {expanded && (
         <div className="grid grid-cols-1 gap-4 border-t border-border bg-ivory-dim/40 p-4 animate-fade-in sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Notes</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
             <textarea
               className="textarea min-h-24"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               onBlur={() => notes !== (supplier.notes ?? "") && onUpdate({ notes })}
-              placeholder="Pricing, MOQs, samples requested…"
+              placeholder="Árazás, minimum rendelési mennyiség, kért minták…"
             />
           </div>
           <div>
             <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
-              <Mail size={12} /> Attached email (optional)
+              <Mail size={12} /> Csatolt email (opcionális)
             </label>
             <textarea
               className="textarea min-h-24 font-mono text-xs"
               value={emailText}
               onChange={(e) => setEmailText(e.target.value)}
               onBlur={() => emailText !== (supplier.email_text ?? "") && onUpdate({ email_text: emailText })}
-              placeholder="Paste the relevant email thread here…"
+              placeholder="Illeszd be ide a releváns email levelezést…"
             />
           </div>
         </div>
