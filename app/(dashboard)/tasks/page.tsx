@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, Pencil, KanbanSquare, CalendarDays, User, X, Check } from "lucide-react";
+import { Plus, Trash2, KanbanSquare, CalendarDays, User, StickyNote } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { TaskItem, TaskPriority, TaskStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import TaskDetailModal from "@/components/TaskDetailModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU } from "@/lib/labels";
@@ -41,10 +42,24 @@ export default function TasksPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
+
+  // Deep link support: /tasks?open=<id>, used by the Overview activity
+  // feed so a task can be opened straight from the main page. Read via
+  // window.location instead of useSearchParams to avoid needing a
+  // Suspense boundary just for this one-time check.
+  useEffect(() => {
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (openId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenTaskId(openId);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   const loadTasks = useCallback(async () => {
     if (!supabase) return;
@@ -101,6 +116,7 @@ export default function TasksPage() {
     if (!supabase) return;
     const removed = tasks.find((t) => t.id === id);
     if (!removed) return;
+    setOpenTaskId((current) => (current === id ? null : current));
     setTasks((prev) => prev.filter((t) => t.id !== id));
     scheduleUndo(
       `"${removed.title}" törölve.`,
@@ -111,6 +127,8 @@ export default function TasksPage() {
       () => setTasks((prev) => [...prev, removed].sort(byTaskRecency))
     );
   }
+
+  const openTask = openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null;
 
   function handleDrop(status: TaskStatus) {
     setDragOverCol(null);
@@ -250,7 +268,7 @@ export default function TasksPage() {
                     onDragStart={(id) => {
                       draggedId.current = id;
                     }}
-                    onUpdate={(patch) => updateTask(task.id, patch)}
+                    onOpen={() => setOpenTaskId(task.id)}
                     onDelete={() => deleteTask(task.id)}
                   />
                 ))}
@@ -264,6 +282,15 @@ export default function TasksPage() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {openTask && (
+        <TaskDetailModal
+          task={openTask}
+          onClose={() => setOpenTaskId(null)}
+          onSave={(patch) => updateTask(openTask.id, patch)}
+          onDelete={() => deleteTask(openTask.id)}
+        />
+      )}
     </>
   );
 }
@@ -271,96 +298,32 @@ export default function TasksPage() {
 function TaskCard({
   task,
   onDragStart,
-  onUpdate,
+  onOpen,
   onDelete,
 }: {
   task: TaskItem;
   onDragStart: (id: string) => void;
-  onUpdate: (patch: Partial<TaskItem>) => void;
+  onOpen: () => void;
   onDelete: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({
-    title: task.title,
-    category: task.category ?? "",
-    priority: task.priority,
-    due_date: task.due_date ?? "",
-    assignee: task.assignee ?? "",
-  });
-
-  function save() {
-    onUpdate({
-      title: draft.title.trim() || task.title,
-      category: draft.category.trim() || null,
-      priority: draft.priority,
-      due_date: draft.due_date || null,
-      assignee: draft.assignee.trim() || null,
-    });
-    setEditing(false);
-  }
-
-  if (editing) {
-    return (
-      <div className="card flex flex-col gap-2 p-3">
-        <input
-          className="input"
-          value={draft.title}
-          onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-        />
-        <input
-          className="input"
-          placeholder="Kategória"
-          value={draft.category}
-          onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
-        />
-        <select
-          className="select"
-          value={draft.priority}
-          onChange={(e) => setDraft((d) => ({ ...d, priority: e.target.value as TaskPriority }))}
-        >
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {PRIORITY_HU[p]}
-            </option>
-          ))}
-        </select>
-        <input
-          type="date"
-          className="input"
-          value={draft.due_date}
-          onChange={(e) => setDraft((d) => ({ ...d, due_date: e.target.value }))}
-        />
-        <input
-          className="input"
-          placeholder="Felelős"
-          value={draft.assignee}
-          onChange={(e) => setDraft((d) => ({ ...d, assignee: e.target.value }))}
-        />
-        <div className="flex gap-2">
-          <button onClick={save} className="btn btn-primary flex-1 !py-1.5">
-            <Check size={14} /> Mentés
-          </button>
-          <button onClick={() => setEditing(false)} className="btn btn-ghost !py-1.5">
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       draggable
       onDragStart={() => onDragStart(task.id)}
-      className="card group cursor-grab p-3 active:cursor-grabbing"
+      onClick={onOpen}
+      className="card group cursor-grab p-3 text-left active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-forest">{task.title}</p>
         <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <button onClick={() => setEditing(true)} className="text-muted hover:text-bronze" aria-label="Szerkesztés">
-            <Pencil size={13} />
-          </button>
-          <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Törlés">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="text-muted hover:text-red-600"
+            aria-label="Törlés"
+          >
             <Trash2 size={13} />
           </button>
         </div>
@@ -371,7 +334,7 @@ function TaskCard({
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
       </div>
 
-      {(task.due_date || task.assignee) && (
+      {(task.due_date || task.assignee || task.notes) && (
         <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
           {task.due_date && (
             <span className="flex items-center gap-1">
@@ -381,6 +344,11 @@ function TaskCard({
           {task.assignee && (
             <span className="flex items-center gap-1">
               <User size={12} /> {task.assignee}
+            </span>
+          )}
+          {task.notes && (
+            <span className="flex items-center gap-1" title="Van megjegyzés">
+              <StickyNote size={12} />
             </span>
           )}
         </div>

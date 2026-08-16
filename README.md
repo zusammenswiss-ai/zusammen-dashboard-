@@ -13,13 +13,20 @@ in Hungarian; the public `/landing` page (below) is German/English.
 
 | Page | What it does |
 |---|---|
-| **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table |
+| **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table — every item links straight to its page (tasks deep-link into their detail view) |
+| **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
 | **Beszállítók** (Suppliers) | Manufacturer/supplier contacts — contacted / reply-received checkboxes, notes, optional pasted email text |
-| **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee |
+| **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons) |
+| **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes |
 | **Pénzügyek** (Finance) | Product rows (price / COGS / units) with auto-computed revenue & margin |
 | **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus |
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
+
+Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
+Jövőbeli tervek, Megrendelések) removes the row immediately and shows a
+**Visszavonás** (undo) toast for a few seconds before it's actually deleted
+from Supabase — nothing is lost to a stray click.
 
 ## `/landing` — public customer-facing page
 

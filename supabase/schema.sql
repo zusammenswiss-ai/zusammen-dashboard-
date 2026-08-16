@@ -34,9 +34,13 @@ create table if not exists public.tasks (
   status text not null default 'Teendő' check (status in ('Teendő', 'Folyamatban', 'Kész')),
   due_date date,
   assignee text,
+  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Added after the initial launch — safe no-op if the column already exists.
+alter table public.tasks add column if not exists notes text;
 
 -- ---------------------------------------------------------------------
 -- Finance — product rows for the revenue/margin calculator
@@ -88,6 +92,21 @@ create table if not exists public.future_plans (
 );
 
 -- ---------------------------------------------------------------------
+-- Orders — customer orders, tracked through to delivery
+-- ---------------------------------------------------------------------
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  customer_name text not null,
+  product text,
+  quantity numeric(12, 2) not null default 1,
+  delivery_date date,
+  status text not null default 'New' check (status in ('New', 'Processing', 'Shipped', 'Done')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
 -- Seed the 4 marketing seasons if they don't exist yet
 -- ---------------------------------------------------------------------
 insert into public.marketing_campaigns (season, theme, product_focus)
@@ -121,6 +140,10 @@ drop trigger if exists set_updated_at on public.marketing_campaigns;
 create trigger set_updated_at before update on public.marketing_campaigns
   for each row execute function public.set_updated_at();
 
+drop trigger if exists set_updated_at on public.orders;
+create trigger set_updated_at before update on public.orders
+  for each row execute function public.set_updated_at();
+
 -- =====================================================================
 -- Row Level Security
 -- ---------------------------------------------------------------------
@@ -138,6 +161,7 @@ alter table public.finance_products enable row level security;
 alter table public.marketing_campaigns enable row level security;
 alter table public.documents enable row level security;
 alter table public.future_plans enable row level security;
+alter table public.orders enable row level security;
 
 drop policy if exists "anon full access" on public.suppliers;
 create policy "anon full access" on public.suppliers for all using (true) with check (true);
@@ -156,6 +180,9 @@ create policy "anon full access" on public.documents for all using (true) with c
 
 drop policy if exists "anon full access" on public.future_plans;
 create policy "anon full access" on public.future_plans for all using (true) with check (true);
+
+drop policy if exists "anon full access" on public.orders;
+create policy "anon full access" on public.orders for all using (true) with check (true);
 
 -- =====================================================================
 -- Storage — bucket for uploaded documents

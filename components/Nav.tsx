@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  CalendarRange,
   Users,
   KanbanSquare,
+  Package,
   Calculator,
   Sprout,
   FolderOpen,
@@ -18,8 +20,10 @@ import { useState } from "react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Áttekintés", icon: LayoutDashboard },
+  { href: "/calendar", label: "Naptár", icon: CalendarRange },
   { href: "/suppliers", label: "Beszállítók", icon: Users },
   { href: "/tasks", label: "Feladatok", icon: KanbanSquare },
+  { href: "/orders", label: "Megrendelések", icon: Package },
   { href: "/finance", label: "Pénzügyek", icon: Calculator },
   { href: "/marketing", label: "Marketing", icon: Sprout },
   { href: "/documents", label: "Dokumentumok", icon: FolderOpen },

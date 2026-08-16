@@ -6,6 +6,7 @@ export type TaskStatus = "Teendő" | "Folyamatban" | "Kész";
 export type TaskPriority = "Low" | "Medium" | "High";
 export type PlanStatus = "Idea" | "Considering" | "Planned";
 export type Season = "Spring" | "Summer" | "Autumn" | "Winter";
+export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
 
 export interface Supplier {
   id: string;
@@ -31,6 +32,7 @@ export interface TaskItem {
   status: TaskStatus;
   due_date: string | null;
   assignee: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -88,6 +90,22 @@ export type FuturePlanInsert = Partial<Omit<FuturePlan, "id" | "created_at">> & 
   title: string;
 };
 export type FuturePlanUpdate = Partial<Omit<FuturePlan, "id" | "created_at">>;
+
+export interface Order {
+  id: string;
+  customer_name: string;
+  product: string | null;
+  quantity: number;
+  delivery_date: string | null;
+  status: OrderStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type OrderInsert = Partial<Omit<Order, "id" | "created_at" | "updated_at">> & {
+  customer_name: string;
+};
+export type OrderUpdate = Partial<Omit<Order, "id" | "created_at">>;
 
 export type LandingLang = "de" | "en";
 
@@ -150,6 +168,12 @@ export interface Database {
         Row: FuturePlan;
         Insert: FuturePlanInsert;
         Update: FuturePlanUpdate;
+        Relationships: [];
+      };
+      orders: {
+        Row: Order;
+        Insert: OrderInsert;
+        Update: OrderUpdate;
         Relationships: [];
       };
       landing_letters: {
