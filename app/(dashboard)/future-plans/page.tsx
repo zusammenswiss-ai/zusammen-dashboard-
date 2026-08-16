@@ -7,7 +7,13 @@ import type { FuturePlan, PlanStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import UndoToast from "@/components/UndoToast";
+import { useUndoAction } from "@/lib/useUndoAction";
 import { PLAN_STATUS_HU } from "@/lib/labels";
+
+function byPlanRecency(a: FuturePlan, b: FuturePlan) {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
 
 const STATUSES: PlanStatus[] = ["Idea", "Considering", "Planned"];
 
@@ -29,6 +35,7 @@ export default function FuturePlansPage() {
   const [filter, setFilter] = useState<PlanStatus | "All">("All");
 
   const supabase = getSupabaseClient();
+  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const loadPlans = useCallback(async () => {
     if (!supabase) return;
@@ -79,12 +86,19 @@ export default function FuturePlansPage() {
     if (error) setError(error.message);
   }
 
-  async function deletePlan(id: string) {
+  function deletePlan(id: string) {
     if (!supabase) return;
-    if (!confirm("Törlöd ezt az ötletet?")) return;
+    const removed = plans.find((p) => p.id === id);
+    if (!removed) return;
     setPlans((prev) => prev.filter((p) => p.id !== id));
-    const { error } = await supabase.from("future_plans").delete().eq("id", id);
-    if (error) setError(error.message);
+    scheduleUndo(
+      `"${removed.title}" törölve.`,
+      async () => {
+        const { error } = await supabase.from("future_plans").delete().eq("id", id);
+        if (error) setError(error.message);
+      },
+      () => setPlans((prev) => [...prev, removed].sort(byPlanRecency))
+    );
   }
 
   const visiblePlans = filter === "All" ? plans : plans.filter((p) => p.status === filter);
@@ -230,6 +244,8 @@ export default function FuturePlansPage() {
           ))}
         </div>
       )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
   );
 }

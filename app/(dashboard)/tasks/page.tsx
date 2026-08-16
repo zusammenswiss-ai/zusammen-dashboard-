@@ -7,8 +7,14 @@ import type { TaskItem, TaskPriority, TaskStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import UndoToast from "@/components/UndoToast";
+import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU } from "@/lib/labels";
+
+function byTaskRecency(a: TaskItem, b: TaskItem) {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
 
 const COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
@@ -38,6 +44,7 @@ export default function TasksPage() {
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
+  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const loadTasks = useCallback(async () => {
     if (!supabase) return;
@@ -90,12 +97,19 @@ export default function TasksPage() {
     if (error) setError(error.message);
   }
 
-  async function deleteTask(id: string) {
+  function deleteTask(id: string) {
     if (!supabase) return;
-    if (!confirm("Törlöd ezt a feladatot?")) return;
+    const removed = tasks.find((t) => t.id === id);
+    if (!removed) return;
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    const { error } = await supabase.from("tasks").delete().eq("id", id);
-    if (error) setError(error.message);
+    scheduleUndo(
+      `"${removed.title}" törölve.`,
+      async () => {
+        const { error } = await supabase.from("tasks").delete().eq("id", id);
+        if (error) setError(error.message);
+      },
+      () => setTasks((prev) => [...prev, removed].sort(byTaskRecency))
+    );
   }
 
   function handleDrop(status: TaskStatus) {
@@ -248,6 +262,8 @@ export default function TasksPage() {
           })}
         </div>
       )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
   );
 }
