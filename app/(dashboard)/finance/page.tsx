@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Calculator } from "lucide-react";
+import { Plus, Trash2, Calculator, Package } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { FinanceProduct } from "@/lib/supabase/types";
+import type { FinanceProduct, Order } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatCHF } from "@/lib/format";
+import { ORDER_STATUS_HU } from "@/lib/labels";
 
 function byProductRecency(a: FinanceProduct, b: FinanceProduct) {
   return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -17,6 +18,7 @@ function byProductRecency(a: FinanceProduct, b: FinanceProduct) {
 
 export default function FinancePage() {
   const [products, setProducts] = useState<FinanceProduct[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -28,12 +30,13 @@ export default function FinancePage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
-      .from("finance_products")
-      .select("*")
-      .order("created_at", { ascending: true });
-    if (error) setError(error.message);
-    else setProducts(data ?? []);
+    const [productsRes, ordersRes] = await Promise.all([
+      supabase.from("finance_products").select("*").order("created_at", { ascending: true }),
+      supabase.from("orders").select("*"),
+    ]);
+    if (productsRes.error) setError(productsRes.error.message);
+    else setProducts(productsRes.data ?? []);
+    if (!ordersRes.error) setOrders(ordersRes.data ?? []);
     setLoading(false);
   }, [supabase]);
 
@@ -88,6 +91,18 @@ export default function FinancePage() {
     return { revenue, cogsTotal, margin, marginPct };
   }, [products]);
 
+  const orderRevenue = useMemo(() => {
+    const priced = orders.filter((o) => o.unit_price != null);
+    const byStatus: Record<string, number> = {};
+    let total = 0;
+    for (const o of priced) {
+      const line = (o.unit_price ?? 0) * o.quantity;
+      total += line;
+      byStatus[o.status] = (byStatus[o.status] ?? 0) + line;
+    }
+    return { total, byStatus, pricedCount: priced.length, missingCount: orders.length - priced.length };
+  }, [orders]);
+
   if (!isSupabaseConfigured) {
     return (
       <>
@@ -101,7 +116,7 @@ export default function FinancePage() {
     <>
       <PageHeader
         title="Pénzügyek"
-        subtitle="Gyors bevétel- és árréskalkulátor a teljes termékpalettádhoz."
+        subtitle="Tervezési kalkulátor a teljes termékpalettádhoz — a valós bevételt lásd lent, a Megrendelések alapján."
         action={
           <button className="btn btn-bronze" onClick={addRow} disabled={adding}>
             <Plus size={16} /> Termék hozzáadása
@@ -110,6 +125,38 @@ export default function FinancePage() {
       />
 
       {error && <ErrorBanner message={error} />}
+
+      {!loading && orders.length > 0 && (
+        <div className="card mb-6 p-5">
+          <div className="flex items-center gap-2">
+            <Package size={16} className="text-bronze" />
+            <h2 className="font-serif text-lg text-forest">Tényleges bevétel — Megrendelésekből</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            A lenti kalkulátortól függetlenül, a Megrendelések fülön rögzített valós egységárak alapján.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <SummaryCard label="Valós bevétel (árazott rendelésekből)" value={formatCHF(orderRevenue.total)} />
+            {(Object.keys(orderRevenue.byStatus) as (keyof typeof orderRevenue.byStatus)[])
+              .sort()
+              .map((status) => (
+                <SummaryCard
+                  key={status}
+                  label={ORDER_STATUS_HU[status as keyof typeof ORDER_STATUS_HU] ?? status}
+                  value={formatCHF(orderRevenue.byStatus[status])}
+                />
+              ))}
+          </div>
+
+          {orderRevenue.missingCount > 0 && (
+            <p className="mt-3 text-xs text-muted">
+              {orderRevenue.missingCount} megrendelésnél nincs megadva egységár — ezek nem szerepelnek a fenti
+              összegben. Add meg a Megrendelések fülön a pontosabb számokért.
+            </p>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <Spinner />

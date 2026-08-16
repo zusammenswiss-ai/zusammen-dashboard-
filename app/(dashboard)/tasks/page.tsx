@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, KanbanSquare, CalendarDays, User, StickyNote } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Trash2, KanbanSquare, CalendarDays, User, StickyNote, Search, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { TaskItem, TaskPriority, TaskStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -12,9 +12,25 @@ import TaskDetailModal from "@/components/TaskDetailModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU } from "@/lib/labels";
+import { toCSV, downloadCSV } from "@/lib/csv";
 
 function byTaskRecency(a: TaskItem, b: TaskItem) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
+const EXPORT_HEADERS = ["title", "category", "priority", "status", "due_date", "assignee", "notes"];
+
+function exportTasksCSV(tasks: TaskItem[]) {
+  const rows = tasks.map((t) => [
+    t.title,
+    t.category,
+    PRIORITY_HU[t.priority],
+    t.status,
+    t.due_date,
+    t.assignee,
+    t.notes,
+  ]);
+  downloadCSV("feladatok.csv", toCSV(EXPORT_HEADERS, rows));
 }
 
 const COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
@@ -43,6 +59,7 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
@@ -130,6 +147,17 @@ export default function TasksPage() {
 
   const openTask = openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null;
 
+  const filteredTasks = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return tasks;
+    return tasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.category ?? "").toLowerCase().includes(q) ||
+        (t.assignee ?? "").toLowerCase().includes(q)
+    );
+  }, [tasks, query]);
+
   function handleDrop(status: TaskStatus) {
     setDragOverCol(null);
     const id = draggedId.current;
@@ -151,13 +179,32 @@ export default function TasksPage() {
         title="Feladatok"
         subtitle="Kanban tábla mindenhez, ami az indulás felé vezet."
         action={
-          <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Feladat hozzáadása
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {tasks.length > 0 && (
+              <button className="btn btn-ghost" onClick={() => exportTasksCSV(tasks)}>
+                <Download size={16} /> Exportálás CSV-be
+              </button>
+            )}
+            <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
+              <Plus size={16} /> Feladat hozzáadása
+            </button>
+          </div>
         }
       />
 
       {error && <ErrorBanner message={error} />}
+
+      {!loading && tasks.length > 0 && (
+        <div className="relative mb-4 max-w-xs">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="input pl-9"
+            placeholder="Feladatok keresése…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
 
       {showForm && (
         <form
@@ -237,10 +284,12 @@ export default function TasksPage() {
           title="Még nincs feladat"
           description="Add hozzá az első indulási feladatot — a Teendő oszlopban jelenik meg."
         />
+      ) : filteredTasks.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {COLUMNS.map((status) => {
-            const columnTasks = tasks.filter((t) => t.status === status);
+            const columnTasks = filteredTasks.filter((t) => t.status === status);
             return (
               <div
                 key={status}

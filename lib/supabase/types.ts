@@ -114,6 +114,7 @@ export interface Order {
   customer_email: string | null;
   product: string | null;
   quantity: number;
+  unit_price: number | null;
   delivery_date: string | null;
   status: OrderStatus;
   notes: string | null;

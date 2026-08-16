@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, FolderOpen, Download, Paperclip, FileText, Mail } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Trash2, FolderOpen, Download, Paperclip, FileText, Mail, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Document } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -30,6 +30,7 @@ export default function DocumentsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [composeFor, setComposeFor] = useState<Document | null>(null);
+  const [query, setQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
@@ -128,6 +129,14 @@ export default function DocumentsPage() {
     return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(doc.file_path).data.publicUrl;
   }
 
+  const filteredDocuments = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return documents;
+    return documents.filter(
+      (d) => d.title.toLowerCase().includes(q) || (d.category ?? "").toLowerCase().includes(q)
+    );
+  }, [documents, query]);
+
   if (!isSupabaseConfigured) {
     return (
       <>
@@ -150,6 +159,18 @@ export default function DocumentsPage() {
       />
 
       {error && <ErrorBanner message={error} />}
+
+      {!loading && documents.length > 0 && (
+        <div className="relative mb-4 max-w-xs">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="input pl-9"
+            placeholder="Dokumentumok keresése…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={addDocument} className="card mb-6 flex flex-col gap-3 p-5 animate-fade-in">
@@ -226,9 +247,11 @@ export default function DocumentsPage() {
           title="Még nincs dokumentum"
           description="Töltsd fel a szerződéseket, márkairányelveket, vagy bármi mást, amit érdemes nyilvántartani."
         />
+      ) : filteredDocuments.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-3">
-          {documents.map((doc) => {
+          {filteredDocuments.map((doc) => {
             const url = fileUrl(doc);
             return (
               <div key={doc.id} className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash, Mail } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash, Mail, Search, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Order, OrderStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -10,8 +10,34 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import { useUndoAction } from "@/lib/useUndoAction";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCHF } from "@/lib/format";
 import { ORDER_STATUS_HU } from "@/lib/labels";
+import { toCSV, downloadCSV } from "@/lib/csv";
+
+const EXPORT_HEADERS = [
+  "customer_name",
+  "customer_email",
+  "product",
+  "quantity",
+  "unit_price",
+  "delivery_date",
+  "status",
+  "notes",
+];
+
+function exportOrdersCSV(orders: Order[]) {
+  const rows = orders.map((o) => [
+    o.customer_name,
+    o.customer_email,
+    o.product,
+    o.quantity,
+    o.unit_price,
+    o.delivery_date,
+    ORDER_STATUS_HU[o.status],
+    o.notes,
+  ]);
+  downloadCSV("megrendelesek.csv", toCSV(EXPORT_HEADERS, rows));
+}
 
 function byOrderRecency(a: Order, b: Order) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -31,6 +57,7 @@ const EMPTY_FORM = {
   customer_email: "",
   product: "",
   quantity: "1",
+  unit_price: "",
   delivery_date: "",
   status: "New" as OrderStatus,
 };
@@ -44,6 +71,7 @@ export default function OrdersPage() {
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filter, setFilter] = useState<OrderStatus | "All">("All");
+  const [query, setQuery] = useState("");
   const [composeFor, setComposeFor] = useState<Order | null>(null);
 
   const supabase = getSupabaseClient();
@@ -72,6 +100,7 @@ export default function OrdersPage() {
     if (!supabase || !form.customer_name.trim()) return;
     setSaving(true);
     const quantity = Number(form.quantity);
+    const unitPrice = Number(form.unit_price);
     const { data, error } = await supabase
       .from("orders")
       .insert({
@@ -79,6 +108,7 @@ export default function OrdersPage() {
         customer_email: form.customer_email.trim() || null,
         product: form.product.trim() || null,
         quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        unit_price: form.unit_price.trim() && Number.isFinite(unitPrice) ? unitPrice : null,
         delivery_date: form.delivery_date || null,
         status: form.status,
       })
@@ -116,10 +146,17 @@ export default function OrdersPage() {
     );
   }
 
-  const visibleOrders = useMemo(
-    () => (filter === "All" ? orders : orders.filter((o) => o.status === filter)),
-    [orders, filter]
-  );
+  const visibleOrders = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return orders.filter((o) => {
+      const matchesFilter = filter === "All" || o.status === filter;
+      const matchesQuery =
+        !q ||
+        o.customer_name.toLowerCase().includes(q) ||
+        (o.product ?? "").toLowerCase().includes(q);
+      return matchesFilter && matchesQuery;
+    });
+  }, [orders, filter, query]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -136,9 +173,16 @@ export default function OrdersPage() {
         title="Megrendelések"
         subtitle="Vevői megrendelések nyomon követése a beérkezéstől a kiszállításig."
         action={
-          <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Megrendelés hozzáadása
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {orders.length > 0 && (
+              <button className="btn btn-ghost" onClick={() => exportOrdersCSV(orders)}>
+                <Download size={16} /> Exportálás CSV-be
+              </button>
+            )}
+            <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
+              <Plus size={16} /> Megrendelés hozzáadása
+            </button>
+          </div>
         }
       />
 
@@ -191,6 +235,18 @@ export default function OrdersPage() {
             />
           </div>
           <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Egységár (CHF)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="input"
+              value={form.unit_price}
+              onChange={(e) => setForm((f) => ({ ...f, unit_price: e.target.value }))}
+              placeholder="pl. 24.90"
+            />
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-medium text-muted">Szállítási határidő</label>
             <input
               type="date"
@@ -222,6 +278,18 @@ export default function OrdersPage() {
             </button>
           </div>
         </form>
+      )}
+
+      {!loading && orders.length > 0 && (
+        <div className="relative mb-4 max-w-xs">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="input pl-9"
+            placeholder="Megrendelések keresése…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
       )}
 
       {!loading && orders.length > 0 && (
@@ -299,11 +367,16 @@ function OrderRow({
 }) {
   const [notes, setNotes] = useState(order.notes ?? "");
   const [customerEmail, setCustomerEmail] = useState(order.customer_email ?? "");
+  const [unitPrice, setUnitPrice] = useState(order.unit_price != null ? String(order.unit_price) : "");
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomerEmail(order.customer_email ?? "");
   }, [order.customer_email]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnitPrice(order.unit_price != null ? String(order.unit_price) : "");
+  }, [order.unit_price]);
 
   return (
     <div className="card overflow-hidden">
@@ -320,6 +393,11 @@ function OrderRow({
               <span className="flex items-center gap-1">
                 <Hash size={11} /> {order.quantity}
               </span>
+              {order.unit_price != null && (
+                <span className="font-medium text-forest">
+                  {formatCHF(order.unit_price * order.quantity)}
+                </span>
+              )}
               {order.delivery_date && (
                 <span className="flex items-center gap-1">
                   <CalendarDays size={11} /> {formatDate(order.delivery_date)}
@@ -364,6 +442,23 @@ function OrderRow({
                 onUpdate({ customer_email: customerEmail || null })
               }
               placeholder="vevo@example.com"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Egységár (CHF)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="input"
+              value={unitPrice}
+              onChange={(e) => setUnitPrice(e.target.value)}
+              onBlur={() => {
+                const parsed = Number(unitPrice);
+                const next = unitPrice.trim() && Number.isFinite(parsed) ? parsed : null;
+                if (next !== order.unit_price) onUpdate({ unit_price: next });
+              }}
+              placeholder="pl. 24.90"
             />
           </div>
           <div>

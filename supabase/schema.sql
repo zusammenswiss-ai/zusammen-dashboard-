@@ -133,6 +133,10 @@ create table if not exists public.orders (
   customer_email text,
   product text,
   quantity numeric(12, 2) not null default 1,
+  -- Actual sold price per unit — separate from finance_products.price
+  -- (the planning calculator) so real revenue can differ from what was
+  -- originally planned (discounts, custom deals, etc).
+  unit_price numeric(12, 2),
   delivery_date date,
   status text not null default 'New' check (status in ('New', 'Processing', 'Shipped', 'Done')),
   notes text,
@@ -140,8 +144,9 @@ create table if not exists public.orders (
   updated_at timestamptz not null default now()
 );
 
--- Added after the initial launch — safe no-op if the column already exists.
+-- Added after the initial launch — safe no-op if the columns already exist.
 alter table public.orders add column if not exists customer_email text;
+alter table public.orders add column if not exists unit_price numeric(12, 2);
 
 -- ---------------------------------------------------------------------
 -- Seed the 4 marketing seasons if they don't exist yet
