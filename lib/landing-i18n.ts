@@ -94,6 +94,9 @@ export const landingT = {
       placeholder: "Schreib ein paar Zeilen...",
       privacy:
         "Was du schreibst, wird anonym auf der nächsten Seite auch anderen gezeigt — schreib nichts Identifizierendes hinein.",
+      emailSelf: "Per E-Mail an dich selbst senden",
+      saveKeepsake: "Als Andenken speichern",
+      mailSubject: "Mein ZUSAMMEN-Versprechen",
       cta: "Weiter",
     },
     box: {
@@ -310,6 +313,9 @@ export const landingT = {
       placeholder: "Write a few lines...",
       privacy:
         "What you write will be shown anonymously to others on the next page — don't include anything identifying.",
+      emailSelf: "Email it to yourself",
+      saveKeepsake: "Save as a keepsake",
+      mailSubject: "My ZUSAMMEN promise",
       cta: "Continue",
     },
     box: {

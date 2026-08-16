@@ -145,8 +145,7 @@
   margin: 0 auto 20px;
 }
 .landing-mark {
-  width: 72px;
-  height: 72px;
+  display: block;
   margin: 0 auto 20px;
 }
 .phonefree {
@@ -319,6 +318,23 @@
   color: #4a4a42;
   margin-bottom: 20px;
   line-height: 1.6;
+}
+.keepsake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.keepsake-actions .landing-btn {
+  flex: 1 1 auto;
+}
+
+/* Printable Gold Card keepsake — hidden on screen, shown only via
+   window.print() (see @media print below). Kept in normal DOM flow so
+   it always reflects the visitor's current draft text. */
+.print-letter {
+  display: none;
 }
 
 /* PACKAGE BUILDER */
@@ -814,4 +830,68 @@
   padding: 8px 0;
   border-bottom: 1px dashed rgba(122, 90, 59, 0.2);
   font-style: italic;
+}
+
+/* PRINTABLE KEEPSAKE — only rendered when the browser's print dialog is
+   open (triggered by the "save as keepsake" button calling
+   window.print()). Everything else on the page is hidden for that pass
+   so only this card ends up on the printed page / saved PDF. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-letter,
+  .print-letter * {
+    visibility: visible;
+  }
+  .print-letter {
+    display: block;
+    position: absolute;
+    inset: 0;
+    padding: 48px 40px;
+  }
+  .print-letter-inner {
+    max-width: 480px;
+    margin: 0 auto;
+    text-align: center;
+    border: 1.5px solid var(--l-walnut);
+    border-radius: 14px;
+    padding: 48px 36px;
+  }
+  .print-wordmark {
+    font-family: var(--l-display);
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: 0.08em;
+    color: var(--l-walnut);
+    margin-top: 14px;
+  }
+  .print-tagline {
+    font-family: var(--l-display);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--l-walnut);
+    margin-top: 4px;
+  }
+  .print-divider {
+    width: 64px;
+    height: 1px;
+    background: var(--l-walnut);
+    margin: 22px auto;
+    opacity: 0.5;
+  }
+  .print-body {
+    font-family: var(--l-display);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--l-forest);
+    white-space: pre-wrap;
+  }
+  .print-date {
+    font-family: var(--l-mono);
+    font-size: 11px;
+    color: var(--l-walnut);
+    margin-top: 28px;
+  }
 }

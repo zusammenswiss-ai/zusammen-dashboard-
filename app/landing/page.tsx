@@ -69,21 +69,31 @@ export default function LandingPage() {
   );
 }
 
-function LandingMark({ size = 72 }: { size?: number }) {
+// A mountain range with a small heart nestled above its peaks — the
+// brand mark, kept as a plain icon (no baked-in wordmark/tagline) so the
+// surrounding text can still switch between DE and EN.
+function LandingMark({ size = 128 }: { size?: number }) {
   return (
     <svg
       className="landing-mark"
       width={size}
-      height={size}
-      viewBox="0 0 100 100"
+      height={size / 2}
+      viewBox="0 0 200 100"
       fill="none"
       aria-hidden="true"
     >
-      <circle cx="50" cy="50" r="48" fill="#233328" />
-      <path d="M22 66 L40 36 L52 54 L60 42 L78 66 Z" fill="#F3EFE7" opacity="0.95" />
       <path
-        d="M50 48 C50 44 46 42 43 44.5 C40.5 46.5 40.5 50 43 52.5 L50 59 L57 52.5 C59.5 50 59.5 46.5 57 44.5 C54 42 50 44 50 48 Z"
-        fill="#C8A96B"
+        d="M88 21c-3.5-5-11-4.5-11 2 0 6 11 12 11 12s11-6 11-12c0-6.5-7.5-7-11-2Z"
+        stroke="var(--l-walnut)"
+        strokeWidth={4}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 74 L34 36 L47 52 L60 22 L73 45 L86 18 L99 45 L112 22 L125 52 L138 36 L164 74"
+        stroke="var(--l-walnut)"
+        strokeWidth={5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -233,9 +243,9 @@ function CardScreen({ t, onDone }: { t: T; onDone: () => void }) {
 
 function LetterScreen({ t, lang, onNext }: { t: T; lang: LandingLang; onNext: () => void }) {
   const [text, setText] = useState("");
+  const trimmed = text.trim();
 
   async function submit() {
-    const trimmed = text.trim();
     if (trimmed) {
       const supabase = getSupabaseClient();
       if (supabase) {
@@ -247,6 +257,15 @@ function LetterScreen({ t, lang, onNext }: { t: T; lang: LandingLang; onNext: ()
     }
     onNext();
   }
+
+  const mailtoHref = `mailto:?subject=${encodeURIComponent(t.letter.mailSubject)}&body=${encodeURIComponent(
+    text
+  )}`;
+  const today = new Date().toLocaleDateString(lang === "de" ? "de-CH" : "en-GB", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
     <div className="letterscreen">
@@ -273,9 +292,33 @@ function LetterScreen({ t, lang, onNext }: { t: T; lang: LandingLang; onNext: ()
         placeholder={t.letter.placeholder}
       />
       <p className="privacy">{t.letter.privacy}</p>
+
+      {trimmed && (
+        <div className="keepsake-actions">
+          <a className="landing-btn outline" href={mailtoHref}>
+            {t.letter.emailSelf}
+          </a>
+          <button type="button" className="landing-btn outline" onClick={() => window.print()}>
+            {t.letter.saveKeepsake}
+          </button>
+        </div>
+      )}
+
       <button className="landing-btn gold" onClick={submit}>
         {t.letter.cta}
       </button>
+
+      {/* Hidden except when printing — see @media print in landing.css */}
+      <div className="print-letter" aria-hidden="true">
+        <div className="print-letter-inner">
+          <LandingMark size={100} />
+          <p className="print-wordmark">ZUSAMMEN</p>
+          <p className="print-tagline">Where conversations become memories.</p>
+          <div className="print-divider" />
+          <p className="print-body">{trimmed || "…"}</p>
+          <p className="print-date">{today}</p>
+        </div>
+      </div>
     </div>
   );
 }
