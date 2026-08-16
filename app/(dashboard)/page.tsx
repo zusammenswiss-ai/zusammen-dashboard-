@@ -16,6 +16,8 @@ import StatCard from "@/components/StatCard";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import { formatCHF, timeAgo } from "@/lib/format";
+import { PLAN_STATUS_HU } from "@/lib/labels";
+import type { PlanStatus } from "@/lib/supabase/types";
 
 type ActivityItem = {
   id: string;
@@ -94,28 +96,28 @@ export default function OverviewPage() {
             id: `supplier-${s.id}`,
             kind: "supplier" as const,
             title: s.name,
-            detail: s.category ? `New supplier · ${s.category}` : "New supplier",
+            detail: s.category ? `Új beszállító · ${s.category}` : "Új beszállító",
             timestamp: s.created_at,
           })),
           ...tasks.slice(0, 5).map((t) => ({
             id: `task-${t.id}`,
             kind: "task" as const,
             title: t.title,
-            detail: `Task · ${t.status}`,
+            detail: `Feladat · ${t.status}`,
             timestamp: t.updated_at,
           })),
           ...documents.slice(0, 5).map((d) => ({
             id: `document-${d.id}`,
             kind: "document" as const,
             title: d.title,
-            detail: "Document added",
+            detail: "Dokumentum hozzáadva",
             timestamp: d.created_at,
           })),
           ...plans.slice(0, 5).map((p) => ({
             id: `plan-${p.id}`,
             kind: "plan" as const,
             title: p.title,
-            detail: `Idea · ${p.status}`,
+            detail: `Ötlet · ${PLAN_STATUS_HU[p.status as PlanStatus]}`,
             timestamp: p.created_at,
           })),
         ]
@@ -124,7 +126,7 @@ export default function OverviewPage() {
 
         setActivity(items);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+        setError(err instanceof Error ? err.message : "Nem sikerült betölteni a dashboard adatait.");
       } finally {
         setLoading(false);
       }
@@ -134,11 +136,11 @@ export default function OverviewPage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Overview" subtitle="Zusammen launch dashboard" />
+        <PageHeader title="Áttekintés" subtitle="Zusammen indulási dashboard" />
         <EmptyState
           icon={Wallet}
-          title="Connect Supabase to get started"
-          description="Add your Supabase URL and anon key to the environment, then reload this page. See the README for step-by-step instructions."
+          title="Csatlakoztasd a Supabase-t a kezdéshez"
+          description="Add hozzá a Supabase URL-t és az anon kulcsot a környezethez, majd tölts be újra. Lépésről lépésre a README-ben találod."
         />
       </>
     );
@@ -147,8 +149,8 @@ export default function OverviewPage() {
   return (
     <>
       <PageHeader
-        title="Overview"
-        subtitle="A snapshot of where the Zusammen launch stands today."
+        title="Áttekintés"
+        subtitle="Pillanatkép arról, hol tart most a Zusammen indulása."
       />
 
       {error && <ErrorBanner message={error} />}
@@ -160,36 +162,36 @@ export default function OverviewPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={Users}
-              label="Suppliers"
+              label="Beszállítók"
               value={stats.suppliersTotal}
-              hint={`${stats.suppliersContacted} contacted · ${stats.suppliersReplied} replied`}
+              hint={`${stats.suppliersContacted} megkeresve · ${stats.suppliersReplied} válaszolt`}
             />
             <StatCard
               icon={KanbanSquare}
-              label="Open tasks"
+              label="Nyitott feladatok"
               value={stats.tasksTodo + stats.tasksInProgress}
-              hint={`${stats.tasksDone} completed`}
+              hint={`${stats.tasksDone} kész`}
             />
             <StatCard
               icon={Wallet}
-              label="Projected revenue"
+              label="Várható bevétel"
               value={formatCHF(stats.revenue)}
-              hint={`${formatCHF(stats.margin)} margin`}
+              hint={`${formatCHF(stats.margin)} árrés`}
             />
             <StatCard
               icon={FolderOpen}
-              label="Documents"
+              label="Dokumentumok"
               value={stats.documentsTotal}
-              hint={`${stats.ideasTotal} future ideas logged`}
+              hint={`${stats.ideasTotal} jövőbeli ötlet rögzítve`}
             />
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2">
-              <h2 className="font-serif text-lg text-forest">Recent activity</h2>
+              <h2 className="font-serif text-lg text-forest">Legutóbbi aktivitás</h2>
               {activity.length === 0 ? (
                 <p className="mt-4 text-sm text-muted">
-                  Nothing logged yet — start by adding a supplier, task, or document.
+                  Még nincs semmi rögzítve — kezdd egy beszállító, feladat vagy dokumentum hozzáadásával.
                 </p>
               ) : (
                 <ul className="mt-4 flex flex-col divide-y divide-border">
@@ -208,7 +210,7 @@ export default function OverviewPage() {
             </div>
 
             <div className="card p-5">
-              <h2 className="font-serif text-lg text-forest">Task board</h2>
+              <h2 className="font-serif text-lg text-forest">Feladattábla</h2>
               <div className="mt-4 flex flex-col gap-3">
                 <TaskProgressRow label="Teendő" value={stats.tasksTodo} color="bg-walnut" />
                 <TaskProgressRow label="Folyamatban" value={stats.tasksInProgress} color="bg-bronze" />
@@ -218,7 +220,7 @@ export default function OverviewPage() {
                 href="/tasks"
                 className="mt-5 inline-block text-sm font-medium text-bronze hover:underline"
               >
-                Open the Kanban board →
+                Kanban tábla megnyitása →
               </a>
             </div>
           </div>

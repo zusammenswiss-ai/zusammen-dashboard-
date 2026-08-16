@@ -3,22 +3,35 @@
 A personal launch-tracking dashboard for **Zusammen**, a Swiss premium
 conversation-card brand. Built for a single user (the founder) — no
 login system, just a private tool to track suppliers, tasks, finances,
-marketing, documents, and future ideas in one place.
+marketing, documents, and future ideas in one place. The dashboard UI is
+in Hungarian; the public `/landing` page (below) is German/English.
 
 **Stack:** Next.js (App Router) + TypeScript + Tailwind CSS · Supabase
 (Postgres + Storage) · deploy target: Vercel.
 
-## Pages
+## Pages (founder dashboard, Hungarian UI)
 
 | Page | What it does |
 |---|---|
-| **Overview** | Quick stats + a recent activity feed pulled from every table |
-| **Suppliers** | Manufacturer/supplier contacts — contacted / reply-received checkboxes, notes, optional pasted email text |
-| **Tasks** | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee |
-| **Finance** | Product rows (price / COGS / units) with auto-computed revenue & margin |
-| **Marketing** | 4 fixed seasonal campaign cards (Spring / Summer / Autumn / Winter) — editable theme & product focus |
-| **Documents** | Simple document library with file upload to Supabase Storage |
-| **Future Plans** | Idea backlog — Idea / Considering / Planned |
+| **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table |
+| **Beszállítók** (Suppliers) | Manufacturer/supplier contacts — contacted / reply-received checkboxes, notes, optional pasted email text |
+| **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee |
+| **Pénzügyek** (Finance) | Product rows (price / COGS / units) with auto-computed revenue & margin |
+| **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus |
+| **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage |
+| **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
+
+## `/landing` — public customer-facing page
+
+A separate, standalone page (no dashboard chrome, no Basic Auth lock even
+if you enable one — see below) at `/landing`, linked from the dashboard
+sidebar. It's an interactive funnel — founder story, a sample card demo,
+a "gold card" letter prompt, a package builder, a short survey — with a
+DE/EN language toggle in the top corner. Survey responses and letters are
+saved to Supabase (`landing_responses`, `landing_letters`); a small
+password-gated "founder view" (bottom-right link, password
+`zusammen2026` — change it in `app/landing/page.tsx`) shows aggregate
+stats pulled from those tables.
 
 ---
 

@@ -8,6 +8,7 @@ import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import { formatDate } from "@/lib/format";
+import { PRIORITY_HU } from "@/lib/labels";
 
 const COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
@@ -91,7 +92,7 @@ export default function TasksPage() {
 
   async function deleteTask(id: string) {
     if (!supabase) return;
-    if (!confirm("Delete this task?")) return;
+    if (!confirm("Törlöd ezt a feladatot?")) return;
     setTasks((prev) => prev.filter((t) => t.id !== id));
     const { error } = await supabase.from("tasks").delete().eq("id", id);
     if (error) setError(error.message);
@@ -106,8 +107,8 @@ export default function TasksPage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Tasks" />
-        <EmptyState icon={KanbanSquare} title="Connect Supabase to manage tasks" />
+        <PageHeader title="Feladatok" />
+        <EmptyState icon={KanbanSquare} title="Csatlakoztasd a Supabase-t a feladatok kezeléséhez" />
       </>
     );
   }
@@ -115,11 +116,11 @@ export default function TasksPage() {
   return (
     <>
       <PageHeader
-        title="Tasks"
-        subtitle="Kanban board for everything on the way to launch."
+        title="Feladatok"
+        subtitle="Kanban tábla mindenhez, ami az indulás felé vezet."
         action={
           <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Add task
+            <Plus size={16} /> Feladat hozzáadása
           </button>
         }
       />
@@ -132,27 +133,27 @@ export default function TasksPage() {
           className="card mb-6 grid animate-fade-in grid-cols-1 gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
         >
           <div className="lg:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-muted">Title *</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
             <input
               className="input"
               required
               autoFocus
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Finalize box supplier quote"
+              placeholder="pl. Dobozgyártó ajánlatának véglegesítése"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Category</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
             <input
               className="input"
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              placeholder="e.g. Production"
+              placeholder="pl. Gyártás"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Priority</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Prioritás</label>
             <select
               className="select"
               value={form.priority}
@@ -160,13 +161,13 @@ export default function TasksPage() {
             >
               {PRIORITIES.map((p) => (
                 <option key={p} value={p}>
-                  {p}
+                  {PRIORITY_HU[p]}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Due date</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Határidő</label>
             <input
               type="date"
               className="input"
@@ -176,21 +177,21 @@ export default function TasksPage() {
           </div>
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-muted">Assignee</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Felelős</label>
               <input
                 className="input"
                 value={form.assignee}
                 onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
-                placeholder="Who"
+                placeholder="Ki"
               />
             </div>
           </div>
           <div className="flex gap-2 lg:col-span-5">
             <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "Saving…" : "Add task"}
+              {saving ? "Mentés…" : "Feladat hozzáadása"}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
-              Cancel
+              Mégse
             </button>
           </div>
         </form>
@@ -201,8 +202,8 @@ export default function TasksPage() {
       ) : tasks.length === 0 ? (
         <EmptyState
           icon={KanbanSquare}
-          title="No tasks yet"
-          description="Add your first launch task — it starts in the Teendő column."
+          title="Még nincs feladat"
+          description="Add hozzá az első indulási feladatot — a Teendő oszlopban jelenik meg."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -240,7 +241,7 @@ export default function TasksPage() {
                   />
                 ))}
                 {columnTasks.length === 0 && (
-                  <p className="px-1 text-xs text-muted">Drop tasks here</p>
+                  <p className="px-1 text-xs text-muted">Húzd ide a feladatokat</p>
                 )}
               </div>
             );
@@ -292,7 +293,7 @@ function TaskCard({
         />
         <input
           className="input"
-          placeholder="Category"
+          placeholder="Kategória"
           value={draft.category}
           onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
         />
@@ -303,7 +304,7 @@ function TaskCard({
         >
           {PRIORITIES.map((p) => (
             <option key={p} value={p}>
-              {p}
+              {PRIORITY_HU[p]}
             </option>
           ))}
         </select>
@@ -315,13 +316,13 @@ function TaskCard({
         />
         <input
           className="input"
-          placeholder="Assignee"
+          placeholder="Felelős"
           value={draft.assignee}
           onChange={(e) => setDraft((d) => ({ ...d, assignee: e.target.value }))}
         />
         <div className="flex gap-2">
           <button onClick={save} className="btn btn-primary flex-1 !py-1.5">
-            <Check size={14} /> Save
+            <Check size={14} /> Mentés
           </button>
           <button onClick={() => setEditing(false)} className="btn btn-ghost !py-1.5">
             <X size={14} />
@@ -340,17 +341,17 @@ function TaskCard({
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-forest">{task.title}</p>
         <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <button onClick={() => setEditing(true)} className="text-muted hover:text-bronze" aria-label="Edit">
+          <button onClick={() => setEditing(true)} className="text-muted hover:text-bronze" aria-label="Szerkesztés">
             <Pencil size={13} />
           </button>
-          <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Delete">
+          <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Törlés">
             <Trash2 size={13} />
           </button>
         </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className={`badge ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</span>
+        <span className={`badge ${PRIORITY_STYLES[task.priority]}`}>{PRIORITY_HU[task.priority]}</span>
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
       </div>
 

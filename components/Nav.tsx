@@ -12,17 +12,18 @@ import {
   Lightbulb,
   Menu,
   X,
+  Rocket,
 } from "lucide-react";
 import { useState } from "react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/suppliers", label: "Suppliers", icon: Users },
-  { href: "/tasks", label: "Tasks", icon: KanbanSquare },
-  { href: "/finance", label: "Finance", icon: Calculator },
+  { href: "/", label: "Áttekintés", icon: LayoutDashboard },
+  { href: "/suppliers", label: "Beszállítók", icon: Users },
+  { href: "/tasks", label: "Feladatok", icon: KanbanSquare },
+  { href: "/finance", label: "Pénzügyek", icon: Calculator },
   { href: "/marketing", label: "Marketing", icon: Sprout },
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/future-plans", label: "Future Plans", icon: Lightbulb },
+  { href: "/documents", label: "Dokumentumok", icon: FolderOpen },
+  { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
 ];
 
 export default function Nav() {
@@ -36,7 +37,7 @@ export default function Nav() {
         <Brand />
         <button
           onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle navigation"
+          aria-label="Navigáció megnyitása/bezárása"
           className="rounded-md p-2 text-ivory hover:bg-forest-light"
         >
           {open ? <X size={20} /> : <Menu size={20} />}
@@ -52,7 +53,7 @@ export default function Nav() {
         <div className="hidden px-6 py-7 lg:block">
           <Brand />
         </div>
-        <nav className="flex flex-col gap-1 px-3 pb-6 lg:px-4">
+        <nav className="flex flex-col gap-1 px-3 pb-3 lg:px-4">
           {NAV_ITEMS.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -74,8 +75,22 @@ export default function Nav() {
             );
           })}
         </nav>
+        <div className="px-3 pb-6 lg:px-4">
+          <div className="border-t border-ivory/10 pt-3">
+            <Link
+              href="/landing"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-bronze-light transition-colors hover:bg-forest-light hover:text-ivory"
+            >
+              <Rocket size={17} strokeWidth={2} />
+              Landing oldal
+            </Link>
+          </div>
+        </div>
         <div className="hidden px-6 pb-6 text-xs leading-relaxed text-ivory/40 lg:block">
-          Zusammen — premium Swiss conversation cards. Founder dashboard, v1.
+          Zusammen — prémium svájci beszélgetőkártyák. Alapítói dashboard, v1.
         </div>
       </aside>
     </>

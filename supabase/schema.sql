@@ -183,3 +183,37 @@ drop policy if exists "documents bucket anon delete" on storage.objects;
 create policy "documents bucket anon delete"
   on storage.objects for delete
   using (bucket_id = 'documents');
+
+-- =====================================================================
+-- Landing page (/landing) — public customer-facing funnel
+-- ---------------------------------------------------------------------
+-- Unlike the rest of this schema, these two tables are written to by
+-- anonymous site visitors (not just the founder), and the "founder view"
+-- on /landing reads aggregate stats back out using the same anon key.
+-- =====================================================================
+create table if not exists public.landing_letters (
+  id uuid primary key default gen_random_uuid(),
+  letter_text text not null,
+  lang text not null default 'en' check (lang in ('de', 'en')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.landing_responses (
+  id uuid primary key default gen_random_uuid(),
+  would_buy text,
+  price_range text,
+  idea text,
+  email text,
+  box_items text[] not null default '{}',
+  lang text not null default 'en' check (lang in ('de', 'en')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.landing_letters enable row level security;
+alter table public.landing_responses enable row level security;
+
+drop policy if exists "anon full access" on public.landing_letters;
+create policy "anon full access" on public.landing_letters for all using (true) with check (true);
+
+drop policy if exists "anon full access" on public.landing_responses;
+create policy "anon full access" on public.landing_responses for all using (true) with check (true);

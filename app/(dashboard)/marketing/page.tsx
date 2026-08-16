@@ -6,6 +6,7 @@ import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { MarketingCampaign, Season } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
+import { SEASON_HU } from "@/lib/labels";
 
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
 
@@ -54,7 +55,7 @@ export default function MarketingPage() {
     return (
       <>
         <PageHeader title="Marketing" />
-        <p className="text-sm text-muted">Connect Supabase to plan seasonal campaigns.</p>
+        <p className="text-sm text-muted">Csatlakoztasd a Supabase-t a szezonális kampányok tervezéséhez.</p>
       </>
     );
   }
@@ -63,7 +64,7 @@ export default function MarketingPage() {
     <>
       <PageHeader
         title="Marketing"
-        subtitle="Seasonal campaign planning for the four Zusammen launches of the year."
+        subtitle="Szezonális kampánytervezés a Zusammen négy éves kampányához."
       />
 
       {error && <ErrorBanner message={error} />}
@@ -115,34 +116,34 @@ function CampaignCard({
           <span className={`flex h-10 w-10 items-center justify-center rounded-full ${accent}`}>
             <Icon size={19} />
           </span>
-          <h2 className="font-serif text-xl text-forest">{campaign.season}</h2>
+          <h2 className="font-serif text-xl text-forest">{SEASON_HU[campaign.season]}</h2>
         </div>
         {saved && (
           <span className="flex items-center gap-1 text-xs font-medium text-forest">
-            <Check size={13} /> Saved
+            <Check size={13} /> Mentve
           </span>
         )}
       </div>
 
       <div className="mt-4">
-        <label className="mb-1 block text-xs font-medium text-muted">Theme</label>
+        <label className="mb-1 block text-xs font-medium text-muted">Téma</label>
         <input
           className="input"
           value={theme}
           onChange={(e) => setTheme(e.target.value)}
           onBlur={commit}
-          placeholder="Campaign theme…"
+          placeholder="Kampány témája…"
         />
       </div>
 
       <div className="mt-3">
-        <label className="mb-1 block text-xs font-medium text-muted">Product focus</label>
+        <label className="mb-1 block text-xs font-medium text-muted">Termékfókusz</label>
         <textarea
           className="textarea min-h-24"
           value={productFocus}
           onChange={(e) => setProductFocus(e.target.value)}
           onBlur={commit}
-          placeholder="Which products / bundles are we pushing this season?"
+          placeholder="Milyen termékeket / csomagokat tolunk előtérbe ebben a szezonban?"
         />
       </div>
     </div>

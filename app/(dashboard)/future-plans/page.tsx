@@ -7,6 +7,7 @@ import type { FuturePlan, PlanStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import { PLAN_STATUS_HU } from "@/lib/labels";
 
 const STATUSES: PlanStatus[] = ["Idea", "Considering", "Planned"];
 
@@ -80,7 +81,7 @@ export default function FuturePlansPage() {
 
   async function deletePlan(id: string) {
     if (!supabase) return;
-    if (!confirm("Delete this idea?")) return;
+    if (!confirm("Törlöd ezt az ötletet?")) return;
     setPlans((prev) => prev.filter((p) => p.id !== id));
     const { error } = await supabase.from("future_plans").delete().eq("id", id);
     if (error) setError(error.message);
@@ -91,8 +92,8 @@ export default function FuturePlansPage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Future Plans" />
-        <EmptyState icon={Lightbulb} title="Connect Supabase to log future ideas" />
+        <PageHeader title="Jövőbeli tervek" />
+        <EmptyState icon={Lightbulb} title="Csatlakoztasd a Supabase-t az ötletek rögzítéséhez" />
       </>
     );
   }
@@ -100,11 +101,11 @@ export default function FuturePlansPage() {
   return (
     <>
       <PageHeader
-        title="Future Plans"
-        subtitle="An idea backlog for what comes after launch."
+        title="Jövőbeli tervek"
+        subtitle="Ötletgyűjtő arra, mi jöhet az indulás után."
         action={
           <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Add idea
+            <Plus size={16} /> Ötlet hozzáadása
           </button>
         }
       />
@@ -115,28 +116,28 @@ export default function FuturePlansPage() {
         <form onSubmit={addPlan} className="card mb-6 flex flex-col gap-3 p-5 animate-fade-in">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-muted">Title *</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
               <input
                 className="input"
                 required
                 autoFocus
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Corporate gifting bundles"
+                placeholder="pl. Céges ajándékcsomagok"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Category</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
               <input
                 className="input"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder="e.g. Product, Channel"
+                placeholder="pl. Termék, Csatorna"
               />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Status</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Állapot</label>
             <div className="flex gap-2">
               {STATUSES.map((s) => (
                 <button
@@ -149,26 +150,26 @@ export default function FuturePlansPage() {
                       : "border-border bg-white text-muted"
                   }`}
                 >
-                  {s}
+                  {PLAN_STATUS_HU[s]}
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Description</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Leírás</label>
             <textarea
               className="textarea min-h-20"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="What's the idea, and why might it matter?"
+              placeholder="Mi az ötlet, és miért lehet fontos?"
             />
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "Saving…" : "Save idea"}
+              {saving ? "Mentés…" : "Ötlet mentése"}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
-              Cancel
+              Mégse
             </button>
           </div>
         </form>
@@ -184,7 +185,7 @@ export default function FuturePlansPage() {
                 filter === s ? "border-forest bg-forest text-ivory" : "border-border bg-white text-muted"
               }`}
             >
-              {s}
+              {s === "All" ? "Összes" : PLAN_STATUS_HU[s]}
             </button>
           ))}
         </div>
@@ -195,8 +196,8 @@ export default function FuturePlansPage() {
       ) : plans.length === 0 ? (
         <EmptyState
           icon={Lightbulb}
-          title="No ideas logged yet"
-          description="Capture anything worth revisiting after launch — new products, channels, partnerships."
+          title="Még nincs rögzített ötlet"
+          description="Gyűjts össze mindent, amit érdemes lehet újragondolni az indulás után — új termékek, csatornák, partnerségek."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -207,7 +208,7 @@ export default function FuturePlansPage() {
                 <button
                   onClick={() => deletePlan(plan.id)}
                   className="shrink-0 text-muted hover:text-red-600"
-                  aria-label="Delete idea"
+                  aria-label="Ötlet törlése"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -221,7 +222,7 @@ export default function FuturePlansPage() {
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {PLAN_STATUS_HU[s]}
                   </option>
                 ))}
               </select>

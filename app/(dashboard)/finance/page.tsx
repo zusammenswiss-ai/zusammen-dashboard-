@@ -40,7 +40,7 @@ export default function FinancePage() {
     setAdding(true);
     const { data, error } = await supabase
       .from("finance_products")
-      .insert({ name: "New product", price: 0, cogs: 0, units: 0 })
+      .insert({ name: "Új termék", price: 0, cogs: 0, units: 0 })
       .select()
       .single();
     setAdding(false);
@@ -76,8 +76,8 @@ export default function FinancePage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Finance" />
-        <EmptyState icon={Calculator} title="Connect Supabase to use the calculator" />
+        <PageHeader title="Pénzügyek" />
+        <EmptyState icon={Calculator} title="Csatlakoztasd a Supabase-t a kalkulátor használatához" />
       </>
     );
   }
@@ -85,11 +85,11 @@ export default function FinancePage() {
   return (
     <>
       <PageHeader
-        title="Finance"
-        subtitle="Quick revenue & margin calculator across your product line."
+        title="Pénzügyek"
+        subtitle="Gyors bevétel- és árréskalkulátor a teljes termékpalettádhoz."
         action={
           <button className="btn btn-bronze" onClick={addRow} disabled={adding}>
-            <Plus size={16} /> Add product
+            <Plus size={16} /> Termék hozzáadása
           </button>
         }
       />
@@ -101,8 +101,8 @@ export default function FinancePage() {
       ) : products.length === 0 ? (
         <EmptyState
           icon={Calculator}
-          title="No products yet"
-          description="Add a product row to start calculating revenue and margin."
+          title="Még nincs termék"
+          description="Adj hozzá egy terméksort, hogy elkezdhesd számolni a bevételt és az árrést."
         />
       ) : (
         <>
@@ -110,12 +110,12 @@ export default function FinancePage() {
             <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3 font-medium">Product</th>
-                  <th className="px-4 py-3 font-medium">Price (CHF)</th>
-                  <th className="px-4 py-3 font-medium">COGS (CHF)</th>
-                  <th className="px-4 py-3 font-medium">Units</th>
-                  <th className="px-4 py-3 font-medium">Revenue</th>
-                  <th className="px-4 py-3 font-medium">Margin</th>
+                  <th className="px-4 py-3 font-medium">Termék</th>
+                  <th className="px-4 py-3 font-medium">Ár (CHF)</th>
+                  <th className="px-4 py-3 font-medium">Önköltség (CHF)</th>
+                  <th className="px-4 py-3 font-medium">Darabszám</th>
+                  <th className="px-4 py-3 font-medium">Bevétel</th>
+                  <th className="px-4 py-3 font-medium">Árrés</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -132,7 +132,7 @@ export default function FinancePage() {
               <tfoot>
                 <tr className="border-t-2 border-forest/15 bg-ivory-dim/50 font-medium text-forest">
                   <td className="px-4 py-3" colSpan={4}>
-                    Totals
+                    Összesen
                   </td>
                   <td className="px-4 py-3">{formatCHF(totals.revenue)}</td>
                   <td className="px-4 py-3">
@@ -148,10 +148,10 @@ export default function FinancePage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <SummaryCard label="Total revenue" value={formatCHF(totals.revenue)} />
-            <SummaryCard label="Total COGS" value={formatCHF(totals.cogsTotal)} />
+            <SummaryCard label="Teljes bevétel" value={formatCHF(totals.revenue)} />
+            <SummaryCard label="Teljes önköltség" value={formatCHF(totals.cogsTotal)} />
             <SummaryCard
-              label="Gross margin"
+              label="Bruttó árrés"
               value={`${formatCHF(totals.margin)} · ${totals.marginPct.toFixed(1)}%`}
             />
           </div>
@@ -207,7 +207,7 @@ function FinanceRow({
         {formatCHF(margin)}
       </td>
       <td className="px-4 py-2 text-right">
-        <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Delete row">
+        <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Sor törlése">
           <Trash2 size={15} />
         </button>
       </td>

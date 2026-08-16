@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 // Optional single-user protection: if DASHBOARD_USER and DASHBOARD_PASSWORD
-// are both set as environment variables, every page requires a browser
-// Basic Auth prompt with those credentials. If either is unset, the
-// dashboard stays open (useful for local dev).
+// are both set as environment variables, every founder-dashboard page
+// requires a browser Basic Auth prompt with those credentials. If either is
+// unset, the dashboard stays open (useful for local dev).
+//
+// /landing is the public, customer-facing page and is always excluded — see
+// the matcher below — so it (and the fonts/images it loads) stays reachable
+// by visitors even when the dashboard itself is locked down.
 export function proxy(request: NextRequest) {
   const user = process.env.DASHBOARD_USER;
   const password = process.env.DASHBOARD_PASSWORD;
@@ -34,5 +38,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/((?!_next/static|_next/image|favicon.ico).*)",
+  matcher: "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images).*)",
 };

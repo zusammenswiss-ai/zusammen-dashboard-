@@ -9,10 +9,10 @@ import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import { formatDate } from "@/lib/format";
 
-const STATUSES = ["Draft", "Needs review", "Final", "Archived"];
+const STATUSES = ["Piszkozat", "Felülvizsgálat alatt", "Végleges", "Archiválva"];
 const STORAGE_BUCKET = "documents";
 
-const EMPTY_FORM = { title: "", category: "", status: "Draft", notes: "" };
+const EMPTY_FORM = { title: "", category: "", status: "Piszkozat", notes: "" };
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -85,7 +85,7 @@ export default function DocumentsPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       setShowForm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save document.");
+      setError(err instanceof Error ? err.message : "Nem sikerült menteni a dokumentumot.");
     } finally {
       setSaving(false);
     }
@@ -100,7 +100,7 @@ export default function DocumentsPage() {
 
   async function deleteDocument(doc: Document) {
     if (!supabase) return;
-    if (!confirm(`Delete "${doc.title}"? This can't be undone.`)) return;
+    if (!confirm(`Törlöd: "${doc.title}"? Ez nem vonható vissza.`)) return;
     setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
     if (doc.file_path) {
       await supabase.storage.from(STORAGE_BUCKET).remove([doc.file_path]);
@@ -117,8 +117,8 @@ export default function DocumentsPage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Documents" />
-        <EmptyState icon={FolderOpen} title="Connect Supabase to manage documents" />
+        <PageHeader title="Dokumentumok" />
+        <EmptyState icon={FolderOpen} title="Csatlakoztasd a Supabase-t a dokumentumok kezeléséhez" />
       </>
     );
   }
@@ -126,11 +126,11 @@ export default function DocumentsPage() {
   return (
     <>
       <PageHeader
-        title="Documents"
-        subtitle="Brand assets, contracts, and reference files in one place."
+        title="Dokumentumok"
+        subtitle="Márkaanyagok, szerződések és referenciafájlok egy helyen."
         action={
           <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Add document
+            <Plus size={16} /> Dokumentum hozzáadása
           </button>
         }
       />
@@ -141,27 +141,27 @@ export default function DocumentsPage() {
         <form onSubmit={addDocument} className="card mb-6 flex flex-col gap-3 p-5 animate-fade-in">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Title *</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
               <input
                 className="input"
                 required
                 autoFocus
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Supplier agreement — Alpine Print Co."
+                placeholder="pl. Beszállítói szerződés — Alpine Print Co."
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Category</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
               <input
                 className="input"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder="e.g. Legal, Brand, Finance"
+                placeholder="pl. Jogi, Márka, Pénzügy"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Status</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Állapot</label>
               <select
                 className="select"
                 value={form.status}
@@ -175,7 +175,7 @@ export default function DocumentsPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">File (optional)</label>
+              <label className="mb-1 block text-xs font-medium text-muted">Fájl (opcionális)</label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -185,20 +185,20 @@ export default function DocumentsPage() {
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Notes</label>
+            <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
             <textarea
               className="textarea min-h-20"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              placeholder="Context, version, who to follow up with…"
+              placeholder="Kontextus, verzió, kivel kell egyeztetni…"
             />
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "Saving…" : "Save document"}
+              {saving ? "Mentés…" : "Dokumentum mentése"}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
-              Cancel
+              Mégse
             </button>
           </div>
         </form>
@@ -209,8 +209,8 @@ export default function DocumentsPage() {
       ) : documents.length === 0 ? (
         <EmptyState
           icon={FolderOpen}
-          title="No documents yet"
-          description="Upload contracts, brand guidelines, or anything else worth keeping track of."
+          title="Még nincs dokumentum"
+          description="Töltsd fel a szerződéseket, márkairányelveket, vagy bármi mást, amit érdemes nyilvántartani."
         />
       ) : (
         <div className="flex flex-col gap-3">
@@ -239,7 +239,7 @@ export default function DocumentsPage() {
                 <div className="flex shrink-0 items-center gap-2">
                   <select
                     className="select w-auto text-xs"
-                    value={doc.status ?? "Draft"}
+                    value={doc.status ?? "Piszkozat"}
                     onChange={(e) => updateStatus(doc.id, e.target.value)}
                   >
                     {STATUSES.map((s) => (
@@ -254,7 +254,7 @@ export default function DocumentsPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn btn-ghost !px-2"
-                      aria-label="Download"
+                      aria-label="Letöltés"
                     >
                       <Download size={15} />
                     </a>
@@ -262,7 +262,7 @@ export default function DocumentsPage() {
                   <button
                     onClick={() => deleteDocument(doc)}
                     className="btn btn-danger !px-2"
-                    aria-label="Delete document"
+                    aria-label="Dokumentum törlése"
                   >
                     <Trash2 size={15} />
                   </button>

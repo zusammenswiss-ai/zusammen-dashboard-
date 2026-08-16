@@ -1,6 +1,6 @@
 import { Loader2, AlertCircle } from "lucide-react";
 
-export function Spinner({ label = "Loading…" }: { label?: string }) {
+export function Spinner({ label = "Betöltés…" }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
       <Loader2 size={16} className="animate-spin" />

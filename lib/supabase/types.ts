@@ -89,6 +89,30 @@ export type FuturePlanInsert = Partial<Omit<FuturePlan, "id" | "created_at">> & 
 };
 export type FuturePlanUpdate = Partial<Omit<FuturePlan, "id" | "created_at">>;
 
+export type LandingLang = "de" | "en";
+
+export interface LandingLetter {
+  id: string;
+  letter_text: string;
+  lang: LandingLang;
+  created_at: string;
+}
+export type LandingLetterInsert = Partial<Omit<LandingLetter, "id" | "created_at">> & {
+  letter_text: string;
+};
+
+export interface LandingResponse {
+  id: string;
+  would_buy: string | null;
+  price_range: string | null;
+  idea: string | null;
+  email: string | null;
+  box_items: string[];
+  lang: LandingLang;
+  created_at: string;
+}
+export type LandingResponseInsert = Partial<Omit<LandingResponse, "id" | "created_at">>;
+
 export interface Database {
   public: {
     Tables: {
@@ -126,6 +150,18 @@ export interface Database {
         Row: FuturePlan;
         Insert: FuturePlanInsert;
         Update: FuturePlanUpdate;
+        Relationships: [];
+      };
+      landing_letters: {
+        Row: LandingLetter;
+        Insert: LandingLetterInsert;
+        Update: Partial<LandingLetter>;
+        Relationships: [];
+      };
+      landing_responses: {
+        Row: LandingResponse;
+        Insert: LandingResponseInsert;
+        Update: Partial<LandingResponse>;
         Relationships: [];
       };
     };
