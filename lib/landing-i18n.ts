@@ -69,10 +69,13 @@ export const landingT = {
       closing: "Aber das ist erst der Anfang der Geschichte.",
       signatureRole: "Gründerin, ZUSAMMEN",
       cta: "Alles klar, lass es uns ausprobieren",
+      chapterNext: "Weiter",
+      chapterBack: "Zurück",
     },
     card: {
       drawNext: "Ziehe die nächste Karte",
       drawLast: "Weiter zur Gold Card",
+      tapHint: "Tippe auf die Karte, um sie umzudrehen",
       deck: [
         { type: "suit" as const, q: "Was war das Erste, das dich an mir fasziniert hat?" },
         {
@@ -288,10 +291,13 @@ export const landingT = {
       closing: "But this is only the beginning of the story.",
       signatureRole: "Founder, ZUSAMMEN",
       cta: "Alright, let's try it",
+      chapterNext: "Continue",
+      chapterBack: "Back",
     },
     card: {
       drawNext: "Draw the next card",
       drawLast: "Continue to the Gold Card",
+      tapHint: "Tap the card to flip it",
       deck: [
         { type: "suit" as const, q: "What was the first thing that caught your attention about me?" },
         {
