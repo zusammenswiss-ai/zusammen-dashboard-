@@ -167,7 +167,7 @@ export default function TasksPage() {
   if (!isSupabaseConfigured) {
     return (
       <>
-        <PageHeader title="Feladatok" />
+        <PageHeader title="Feladatok" backHref="/" />
         <EmptyState icon={KanbanSquare} title="Csatlakoztasd a Supabase-t a feladatok kezeléséhez" />
       </>
     );
@@ -178,6 +178,7 @@ export default function TasksPage() {
       <PageHeader
         title="Feladatok"
         subtitle="Kanban tábla mindenhez, ami az indulás felé vezet."
+        backHref="/"
         action={
           <div className="flex flex-wrap gap-2">
             {tasks.length > 0 && (
