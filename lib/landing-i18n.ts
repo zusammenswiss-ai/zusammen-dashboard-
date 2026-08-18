@@ -7,6 +7,7 @@ export type { LandingLang };
 
 export const LANDING_SCREENS = [
   "hero",
+  "intro",
   "story",
   "card",
   "letter",
@@ -32,6 +33,32 @@ export const landingT = {
         "Der ganze Weg: ca. 6–8 Minuten — oder springe direkt zu den Karten, wenn du jetzt keine Zeit für die Geschichte hast.",
       storyButton: "Warum ich das gebaut habe, und wohin es führt",
       skipLink: "Oder springe direkt zu den Karten →",
+    },
+    intro: {
+      eyebrow: "Bevor du beginnst",
+      title: "Kurz erklärt: Was ist ZUSAMMEN?",
+      p1: "ZUSAMMEN ist ein Kartenspiel, das dabei hilft, die Handys wegzulegen und wirklich beieinander zu sein — kein digitales Erlebnis, sondern ein physisches Ritual für zwei Menschen an einem Tisch.",
+      items: [
+        {
+          key: "cards",
+          icon: "♠",
+          name: "3 Beispielkarten",
+          desc: "Du ziehst gleich drei Karten aus dem echten Deck — genau wie im fertigen Spiel.",
+        },
+        {
+          key: "box",
+          icon: "📦",
+          name: "Die ganze Box",
+          desc: "Danach zeigen wir dir, was sonst noch alles dazugehört.",
+        },
+        {
+          key: "voice",
+          icon: "💬",
+          name: "Deine Meinung zählt",
+          desc: "Am Ende kannst du uns sagen, was dir wichtig wäre — das Produkt entsteht mit euch.",
+        },
+      ],
+      cta: "Los geht's, zeig mir die Karten",
     },
     story: {
       eyebrow: "Die Geschichte der Gründerin",
@@ -254,6 +281,32 @@ export const landingT = {
         "Full journey: about 6–8 minutes — or jump straight to the cards if you don't have time for the story right now.",
       storyButton: "Why I built this, and where it's going",
       skipLink: "Or jump straight to the cards →",
+    },
+    intro: {
+      eyebrow: "Before you begin",
+      title: "A quick word on what ZUSAMMEN is",
+      p1: "ZUSAMMEN is a card game that helps you put your phones away and truly be present with each other — not a digital experience, but a physical ritual for two people at a table.",
+      items: [
+        {
+          key: "cards",
+          icon: "♠",
+          name: "3 sample cards",
+          desc: "You'll draw three cards from the real deck in a moment — exactly as they appear in the finished game.",
+        },
+        {
+          key: "box",
+          icon: "📦",
+          name: "The whole box",
+          desc: "After that, we'll show you everything else that comes with it.",
+        },
+        {
+          key: "voice",
+          icon: "💬",
+          name: "Your voice matters",
+          desc: "At the end you can tell us what matters to you — this product is being built with you.",
+        },
+      ],
+      cta: "Let's go, show me the cards",
     },
     story: {
       eyebrow: "The founder's story",

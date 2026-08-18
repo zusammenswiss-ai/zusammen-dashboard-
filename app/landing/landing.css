@@ -798,15 +798,18 @@
 .journeybox p + p {
   margin-top: 12px;
 }
-.communityscreen {
+.communityscreen,
+.introscreen {
   max-width: 560px;
   text-align: center;
 }
-.communityscreen h2 {
+.communityscreen h2,
+.introscreen h2 {
   font-size: clamp(26px, 4vw, 34px);
   margin-bottom: 10px;
 }
-.communityscreen > p {
+.communityscreen > p,
+.introscreen > p {
   font-size: 14.5px;
   color: #4a4a42;
   max-width: 48ch;

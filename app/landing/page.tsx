@@ -47,7 +47,8 @@ export default function LandingPage() {
       </div>
 
       <div className="landing-stage">
-        {screen === "hero" && <HeroScreen t={t} onStory={() => goTo("story")} onSkip={() => goTo("card")} />}
+        {screen === "hero" && <HeroScreen t={t} onStory={() => goTo("story")} onSkip={() => goTo("intro")} />}
+        {screen === "intro" && <IntroScreen t={t} onNext={() => goTo("card")} />}
         {screen === "story" && <StoryScreen t={t} onNext={() => goTo("card")} />}
         {screen === "card" && <CardScreen t={t} onDone={() => goTo("letter")} />}
         {screen === "letter" && (
@@ -244,6 +245,36 @@ function StoryScreen({ t, onNext }: { t: T; onNext: () => void }) {
           {isLast ? s.cta : s.chapterNext}
         </button>
       </div>
+    </div>
+  );
+}
+
+// Shown only to visitors who use the hero's "skip the story" link — without
+// it they'd land straight in the card demo with zero context on what
+// ZUSAMMEN even is, just clicking buttons blind. Readers of the full
+// StoryScreen already get this (and much more), so they bypass this screen
+// entirely and go straight from story to card.
+function IntroScreen({ t, onNext }: { t: T; onNext: () => void }) {
+  const i = t.intro;
+  return (
+    <div className="introscreen">
+      <p className="landing-eyebrow">{i.eyebrow}</p>
+      <h2>{i.title}</h2>
+      <p>{i.p1}</p>
+      <div className="commlist">
+        {i.items.map((item) => (
+          <div key={item.key} className="commitem">
+            <span className="cicon">{item.icon}</span>
+            <div>
+              <strong>{item.name}</strong>
+              <span>{item.desc}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className="landing-btn gold" onClick={onNext}>
+        {i.cta}
+      </button>
     </div>
   );
 }
