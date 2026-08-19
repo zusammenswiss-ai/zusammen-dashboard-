@@ -253,6 +253,48 @@ create policy "documents bucket anon delete"
   on storage.objects for delete
   using (bucket_id = 'documents');
 
+-- ---------------------------------------------------------------------
+-- Card assets — versioned print-ready card ZIP files, per language
+-- ---------------------------------------------------------------------
+create table if not exists public.card_assets (
+  id uuid primary key default gen_random_uuid(),
+  language text not null,
+  version text not null,
+  file_url text not null,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.card_assets enable row level security;
+
+drop policy if exists "anon full access" on public.card_assets;
+create policy "anon full access" on public.card_assets for all using (true) with check (true);
+
+-- Storage — bucket for the uploaded card-asset ZIP files
+insert into storage.buckets (id, name, public)
+values ('card-assets', 'card-assets', true)
+on conflict (id) do nothing;
+
+drop policy if exists "card-assets bucket anon read" on storage.objects;
+create policy "card-assets bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'card-assets');
+
+drop policy if exists "card-assets bucket anon write" on storage.objects;
+create policy "card-assets bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'card-assets');
+
+drop policy if exists "card-assets bucket anon update" on storage.objects;
+create policy "card-assets bucket anon update"
+  on storage.objects for update
+  using (bucket_id = 'card-assets');
+
+drop policy if exists "card-assets bucket anon delete" on storage.objects;
+create policy "card-assets bucket anon delete"
+  on storage.objects for delete
+  using (bucket_id = 'card-assets');
+
 -- =====================================================================
 -- Landing page (/landing) — public customer-facing funnel
 -- ---------------------------------------------------------------------

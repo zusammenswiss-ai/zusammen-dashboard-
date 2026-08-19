@@ -22,6 +22,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése** |
 | **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails |
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
+| **Kártya-fájlok** (Card assets) | Versioned print-ready card ZIP files, grouped by language (HU/DE/EN) — upload a new version with a version label and optional notes, download any past version, and the most recent upload per language is flagged **Legújabb** |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
@@ -93,8 +94,10 @@ stats pulled from those tables.
 3. Open [`supabase/schema.sql`](./supabase/schema.sql) from this repo,
    copy its entire contents, paste into the SQL editor, and click **Run**.
    This creates all the tables, seeds the 4 marketing seasons, sets up
-   Row Level Security, and creates the `documents` Storage bucket used
-   for file uploads.
+   Row Level Security, and creates the `documents` and `card-assets`
+   Storage buckets used for file uploads. Safe to re-run any time you pull
+   schema changes — every statement is guarded so it won't fail or
+   duplicate data on a second run.
 4. Go to **Project Settings → API**. You'll need two values from here:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`

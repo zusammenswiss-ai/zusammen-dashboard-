@@ -126,6 +126,21 @@ export type OrderInsert = Partial<Omit<Order, "id" | "created_at" | "updated_at"
 };
 export type OrderUpdate = Partial<Omit<Order, "id" | "created_at">>;
 
+export interface CardAsset {
+  id: string;
+  language: string;
+  version: string;
+  file_url: string;
+  notes: string | null;
+  created_at: string;
+}
+export type CardAssetInsert = Partial<Omit<CardAsset, "id" | "created_at">> & {
+  language: string;
+  version: string;
+  file_url: string;
+};
+export type CardAssetUpdate = Partial<Omit<CardAsset, "id" | "created_at">>;
+
 export type LandingLang = "de" | "en";
 
 export interface LandingLetter {
@@ -193,6 +208,12 @@ export interface Database {
         Row: Order;
         Insert: OrderInsert;
         Update: OrderUpdate;
+        Relationships: [];
+      };
+      card_assets: {
+        Row: CardAsset;
+        Insert: CardAssetInsert;
+        Update: CardAssetUpdate;
         Relationships: [];
       };
       landing_letters: {

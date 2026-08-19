@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Lightbulb,
   ClipboardList,
+  Archive,
   Menu,
   X,
   Rocket,
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { href: "/marketing", label: "Marketing", icon: Sprout },
   { href: "/demand", label: "Igényfelmérés", icon: ClipboardList },
   { href: "/documents", label: "Dokumentumok", icon: FolderOpen },
+  { href: "/card-assets", label: "Kártya-fájlok", icon: Archive },
   { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
 ];
 
