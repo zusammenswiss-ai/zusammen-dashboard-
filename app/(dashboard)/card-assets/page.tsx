@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Archive, Download, FileArchive } from "lucide-react";
+import JSZip from "jszip";
+import { Plus, Trash2, Archive, Download, FileArchive, FolderUp } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CardAsset } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -44,8 +45,12 @@ export default function CardAssetsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState<"file" | "folder">("file");
+  const [zipping, setZipping] = useState(false);
+  const [folderInfo, setFolderInfo] = useState<{ name: string; count: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -68,9 +73,54 @@ export default function CardAssetsPage() {
     if (supabase) void loadAssets();
   }, [supabase, loadAssets]);
 
+  function switchSource(next: "file" | "folder") {
+    setSource(next);
+    setFile(null);
+    setFolderInfo(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (folderInputRef.current) folderInputRef.current.value = "";
+  }
+
+  function resetForm() {
+    setForm(EMPTY_FORM);
+    setShowForm(false);
+    switchSource("file");
+  }
+
+  // Storage upload takes one file, so a folder is zipped client-side first
+  // (preserving its subfolder structure via webkitRelativePath) and then
+  // handled exactly like a regular ZIP pick below — bigger folders will
+  // take a moment here since it all happens in the browser.
+  async function handleFolderChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setZipping(true);
+    setError(null);
+    try {
+      const zip = new JSZip();
+      for (const f of files) {
+        const relPath = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+        zip.file(relPath, f);
+      }
+      const firstRelPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath;
+      const folderName = firstRelPath?.split("/")[0] || "mappa";
+      const blob = await zip.generateAsync({ type: "blob" });
+      setFile(new File([blob], `${folderName}.zip`, { type: "application/zip" }));
+      setFolderInfo({ name: folderName, count: files.length });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nem sikerült tömöríteni a mappát.");
+    } finally {
+      setZipping(false);
+    }
+  }
+
   async function addAsset(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase || !form.version.trim() || !file) return;
+    if (!supabase || !form.version.trim()) return;
+    if (!file) {
+      setError("Válassz egy ZIP-fájlt vagy egy mappát a feltöltéshez.");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -96,10 +146,7 @@ export default function CardAssetsPage() {
       if (insertError) throw insertError;
 
       if (data) setAssets((prev) => [data, ...prev]);
-      setForm(EMPTY_FORM);
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setShowForm(false);
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nem sikerült feltölteni a fájlt.");
     } finally {
@@ -198,15 +245,69 @@ export default function CardAssetsPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">ZIP-fájl *</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip,application/zip,application/x-zip-compressed"
-                required
-                className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-xs font-medium text-muted">
+                  {source === "file" ? "ZIP-fájl *" : "Mappa *"}
+                </label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => switchSource("file")}
+                    className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                      source === "file" ? "bg-forest text-ivory" : "text-muted hover:bg-ivory-dim"
+                    }`}
+                  >
+                    ZIP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchSource("folder")}
+                    className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                      source === "folder" ? "bg-forest text-ivory" : "text-muted hover:bg-ivory-dim"
+                    }`}
+                  >
+                    Mappa
+                  </button>
+                </div>
+              </div>
+              {source === "file" ? (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  required
+                  className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              ) : (
+                <>
+                  <input
+                    ref={(el) => {
+                      folderInputRef.current = el;
+                      // webkitdirectory/directory aren't in React's typed
+                      // input attributes, so they're set imperatively here.
+                      if (el) {
+                        el.setAttribute("webkitdirectory", "");
+                        el.setAttribute("directory", "");
+                      }
+                    }}
+                    type="file"
+                    multiple
+                    className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
+                    onChange={handleFolderChange}
+                  />
+                  {zipping && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-muted">
+                      <FolderUp size={12} className="animate-pulse" /> Tömörítés…
+                    </p>
+                  )}
+                  {!zipping && folderInfo && (
+                    <p className="mt-1 text-xs text-forest">
+                      ✓ {folderInfo.count} fájl becsomagolva ({folderInfo.name}.zip)
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </div>
           <div>
@@ -219,18 +320,10 @@ export default function CardAssetsPage() {
             />
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="btn btn-primary">
+            <button type="submit" disabled={saving || zipping} className="btn btn-primary">
               {saving ? "Feltöltés…" : "Feltöltés"}
             </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setShowForm(false);
-                setFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-            >
+            <button type="button" className="btn btn-ghost" onClick={resetForm}>
               Mégse
             </button>
           </div>
