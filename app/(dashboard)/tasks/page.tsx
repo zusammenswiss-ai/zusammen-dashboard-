@@ -320,6 +320,7 @@ export default function TasksPage() {
                     }}
                     onOpen={() => setOpenTaskId(task.id)}
                     onDelete={() => deleteTask(task.id)}
+                    onStatusChange={(status) => updateTask(task.id, { status })}
                   />
                 ))}
                 {columnTasks.length === 0 && (
@@ -350,11 +351,13 @@ function TaskCard({
   onDragStart,
   onOpen,
   onDelete,
+  onStatusChange,
 }: {
   task: TaskItem;
   onDragStart: (id: string) => void;
   onOpen: () => void;
   onDelete: () => void;
+  onStatusChange: (status: TaskStatus) => void;
 }) {
   return (
     <div
@@ -365,18 +368,18 @@ function TaskCard({
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-forest">{task.title}</p>
-        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="text-muted hover:text-red-600"
-            aria-label="Törlés"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
+        {/* Always visible (not hover-gated) — a hover-only reveal is
+            unreachable on touch devices like iPad. */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="shrink-0 p-0.5 text-muted/70 hover:text-red-600"
+          aria-label="Törlés"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -403,6 +406,24 @@ function TaskCard({
           )}
         </div>
       )}
+
+      {/* Touch-friendly alternative to drag-and-drop, which the Kanban
+          board otherwise relies on — native HTML5 drag doesn't work with
+          touch input on iPad/iOS Safari, so this select is the only way
+          to move a card between columns there. */}
+      <select
+        className="select mt-2.5 w-full !py-1 text-xs"
+        value={task.status}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
+        aria-label="Állapot módosítása"
+      >
+        {COLUMNS.map((status) => (
+          <option key={status} value={status}>
+            {status}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
