@@ -126,12 +126,24 @@ export type OrderInsert = Partial<Omit<Order, "id" | "created_at" | "updated_at"
 };
 export type OrderUpdate = Partial<Omit<Order, "id" | "created_at">>;
 
+export type PrintStatus = "Piszkozat" | "Nyomdának elküldve" | "Megrendelve" | "Megérkezett";
+
+export interface CardAssetThumbnail {
+  label: string;
+  url: string;
+}
+
 export interface CardAsset {
   id: string;
   language: string;
   version: string;
   file_url: string;
   notes: string | null;
+  print_status: PrintStatus;
+  supplier_id: string | null;
+  order_date: string | null;
+  quantity: number | null;
+  thumbnails: CardAssetThumbnail[];
   created_at: string;
 }
 export type CardAssetInsert = Partial<Omit<CardAsset, "id" | "created_at">> & {

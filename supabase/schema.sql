@@ -265,6 +265,17 @@ create table if not exists public.card_assets (
   created_at timestamptz not null default now()
 );
 
+-- Added after the initial launch — safe no-op if the columns already exist.
+alter table public.card_assets add column if not exists print_status text not null default 'Piszkozat'
+  check (print_status in ('Piszkozat', 'Nyomdának elküldve', 'Megrendelve', 'Megérkezett'));
+alter table public.card_assets add column if not exists supplier_id uuid references public.suppliers(id) on delete set null;
+alter table public.card_assets add column if not exists order_date date;
+alter table public.card_assets add column if not exists quantity numeric(12, 2);
+-- Array of { label, url } previews auto-extracted from the ZIP on upload
+-- (see app/api/card-assets/process) — front/back/wild/goldcard sample
+-- images, whichever are found.
+alter table public.card_assets add column if not exists thumbnails jsonb not null default '[]'::jsonb;
+
 alter table public.card_assets enable row level security;
 
 drop policy if exists "anon full access" on public.card_assets;

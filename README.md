@@ -22,7 +22,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése** |
 | **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails |
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
-| **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload either a ready-made ZIP or an entire folder (zipped in the browser on the fly, subfolders included) with a version label and optional notes, download any past version, and the most recent upload per language is flagged **Legújabb** |
+| **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload either a ready-made ZIP or an entire folder (zipped in the browser on the fly, subfolders included) with a version label, nyomtatási állapot, optional beszállító/rendelés dátuma/mennyiség and notes. On upload, the server unzips it and pulls out up to 4 preview thumbnails by filename (front/back/wild/goldcard) shown in a small grid on each version. Download any past version; the most recent upload per language is flagged **Legújabb** |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
