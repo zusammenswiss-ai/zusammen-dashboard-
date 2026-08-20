@@ -58,6 +58,21 @@ export type TaskInsert = Partial<Omit<TaskItem, "id" | "created_at" | "updated_a
 };
 export type TaskUpdate = Partial<Omit<TaskItem, "id" | "created_at">>;
 
+export interface TaskTemplate {
+  id: string;
+  title: string;
+  category: string;
+  default_priority: TaskPriority;
+  default_assignee: string | null;
+  notes_template: string | null;
+  created_at: string;
+}
+export type TaskTemplateInsert = Partial<Omit<TaskTemplate, "id" | "created_at">> & {
+  title: string;
+  category: string;
+};
+export type TaskTemplateUpdate = Partial<Omit<TaskTemplate, "id" | "created_at">>;
+
 export interface FinanceProduct {
   id: string;
   name: string;
@@ -190,6 +205,12 @@ export interface Database {
         Row: TaskItem;
         Insert: TaskInsert;
         Update: TaskUpdate;
+        Relationships: [];
+      };
+      task_templates: {
+        Row: TaskTemplate;
+        Insert: TaskTemplateInsert;
+        Update: TaskTemplateUpdate;
         Relationships: [];
       };
       finance_products: {

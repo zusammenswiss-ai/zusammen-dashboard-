@@ -60,6 +60,50 @@ export const CARD_ASSET_THUMB_SLOTS: { key: string; label: string }[] = [
   { key: "goldcard", label: "GoldCard" },
 ];
 
+// Fixed display order for task-template categories — the seeded set,
+// in the order they were specified. Any custom category an editor adds
+// later just sorts alphabetically after these.
+export const TEMPLATE_CATEGORY_ORDER = [
+  "Beszállítók & Gyártás",
+  "Kártya-fájlok",
+  "Marketing",
+  "Gold Card Letters",
+  "Pénzügy",
+  "Jogi & Adminisztráció",
+  "Founder Journey & Közösség",
+];
+
+// Fixed options for a template's default assignee — matches tasks.assignee
+// being free text, but the template picker/editor only offers these.
+export const TEMPLATE_ASSIGNEE_OPTIONS = ["Barbara", "Partner", "Mindketten"];
+
+/**
+ * Groups items by a `category` field, ordering known categories first
+ * (per `order`, in that order) and any others alphabetically after —
+ * shared by the Kártya-fájlok language grouping and the task-template
+ * category grouping.
+ */
+export function groupByCategory<T extends { category: string }>(
+  items: T[],
+  order: string[]
+): { category: string; items: T[] }[] {
+  const byCategory = new Map<string, T[]>();
+  for (const item of items) {
+    const list = byCategory.get(item.category) ?? [];
+    list.push(item);
+    byCategory.set(item.category, list);
+  }
+  const categories = Array.from(byCategory.keys()).sort((a, b) => {
+    const ai = order.indexOf(a);
+    const bi = order.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+  return categories.map((category) => ({ category, items: byCategory.get(category)! }));
+}
+
 /**
  * Category → color/label map shared by the Naptár (calendar) view and
  * anywhere else that needs a consistent legend across data types.

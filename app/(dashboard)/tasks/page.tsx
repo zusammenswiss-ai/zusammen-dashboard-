@@ -1,14 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, KanbanSquare, CalendarDays, User, StickyNote, Search, Download } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  KanbanSquare,
+  CalendarDays,
+  User,
+  StickyNote,
+  Search,
+  Download,
+  LayoutTemplate,
+  Settings,
+} from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { TaskItem, TaskPriority, TaskStatus } from "@/lib/supabase/types";
+import type { TaskItem, TaskPriority, TaskStatus, TaskTemplate } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import TaskDetailModal from "@/components/TaskDetailModal";
+import TemplatePickerModal from "@/components/TemplatePickerModal";
+import TemplateManagerModal from "@/components/TemplateManagerModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU } from "@/lib/labels";
@@ -60,6 +73,9 @@ export default function TasksPage() {
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
@@ -95,6 +111,18 @@ export default function TasksPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (supabase) void loadTasks();
   }, [supabase, loadTasks]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const { data } = await supabase
+        .from("task_templates")
+        .select("*")
+        .order("category")
+        .order("title");
+      setTemplates(data ?? []);
+    })();
+  }, [supabase]);
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
@@ -186,6 +214,17 @@ export default function TasksPage() {
                 <Download size={16} /> Exportálás CSV-be
               </button>
             )}
+            <button
+              onClick={() => setShowTemplateManager(true)}
+              className="btn btn-ghost !px-2"
+              aria-label="Sablonok kezelése"
+              title="Sablonok kezelése"
+            >
+              <Settings size={16} />
+            </button>
+            <button className="btn btn-ghost" onClick={() => setShowTemplatePicker(true)}>
+              <LayoutTemplate size={16} /> Sablonból hozzáadás
+            </button>
             <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
               <Plus size={16} /> Feladat hozzáadása
             </button>
@@ -340,6 +379,22 @@ export default function TasksPage() {
           onClose={() => setOpenTaskId(null)}
           onSave={(patch) => updateTask(openTask.id, patch)}
           onDelete={() => deleteTask(openTask.id)}
+        />
+      )}
+
+      {showTemplatePicker && (
+        <TemplatePickerModal
+          templates={templates}
+          onClose={() => setShowTemplatePicker(false)}
+          onAdded={(newTasks) => setTasks((prev) => [...newTasks, ...prev])}
+        />
+      )}
+
+      {showTemplateManager && (
+        <TemplateManagerModal
+          templates={templates}
+          onClose={() => setShowTemplateManager(false)}
+          onChange={setTemplates}
         />
       )}
     </>
