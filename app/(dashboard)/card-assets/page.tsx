@@ -9,28 +9,13 @@ import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import CardAssetDetailModal from "@/components/CardAssetDetailModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
+import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 
 const STORAGE_BUCKET = "card-assets";
 const LANGUAGES = ["HU", "DE", "EN"];
-
-const PRINT_STATUSES: PrintStatus[] = ["Piszkozat", "Nyomdának elküldve", "Megrendelve", "Megérkezett"];
-const PRINT_STATUS_STYLES: Record<PrintStatus, string> = {
-  Piszkozat: "bg-gray-200 text-gray-700",
-  "Nyomdának elküldve": "bg-yellow-100 text-yellow-800",
-  Megrendelve: "bg-blue-100 text-blue-700",
-  Megérkezett: "bg-green-100 text-green-700",
-};
-
-// Fixed preview slots, filled in by /api/card-assets/process whenever it
-// finds a matching filename in the uploaded ZIP.
-const THUMB_SLOTS: { key: string; label: string }[] = [
-  { key: "front", label: "Front" },
-  { key: "back", label: "Back" },
-  { key: "wild", label: "Wild" },
-  { key: "goldcard", label: "GoldCard" },
-];
 
 const EMPTY_FORM = {
   language: LANGUAGES[0],
@@ -75,6 +60,7 @@ export default function CardAssetsPage() {
   const [zipping, setZipping] = useState(false);
   const [folderInfo, setFolderInfo] = useState<{ name: string; count: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [openAssetId, setOpenAssetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -212,6 +198,7 @@ export default function CardAssetsPage() {
 
   function deleteAsset(asset: CardAsset) {
     if (!supabase) return;
+    setOpenAssetId((current) => (current === asset.id ? null : current));
     setAssets((prev) => prev.filter((a) => a.id !== asset.id));
     scheduleUndo(
       `"${asset.version}" (${asset.language}) törölve.`,
@@ -226,6 +213,7 @@ export default function CardAssetsPage() {
   }
 
   const supplierNameById = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers]);
+  const openAsset = openAssetId ? assets.find((a) => a.id === openAssetId) ?? null : null;
 
   // Grouped by language — fixed languages first in their usual order, then
   // any others (e.g. from old data) alphabetically — newest version on top
@@ -456,10 +444,11 @@ export default function CardAssetsPage() {
                 {versions.map((asset, i) => (
                   <div
                     key={asset.id}
-                    className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-start"
+                    onClick={() => setOpenAssetId(asset.id)}
+                    className="card flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-start"
                   >
                     <div className="grid shrink-0 grid-cols-2 gap-1">
-                      {THUMB_SLOTS.map((slot) => {
+                      {CARD_ASSET_THUMB_SLOTS.map((slot) => {
                         const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
                         return (
                           <div
@@ -505,13 +494,17 @@ export default function CardAssetsPage() {
                         href={asset.file_url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="btn btn-ghost !px-2"
                         aria-label="Letöltés"
                       >
                         <Download size={15} />
                       </a>
                       <button
-                        onClick={() => deleteAsset(asset)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteAsset(asset);
+                        }}
                         className="btn btn-danger !px-2"
                         aria-label="Törlés"
                       >
@@ -527,6 +520,15 @@ export default function CardAssetsPage() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {openAsset && (
+        <CardAssetDetailModal
+          asset={openAsset}
+          supplierName={openAsset.supplier_id ? supplierNameById.get(openAsset.supplier_id) ?? null : null}
+          onClose={() => setOpenAssetId(null)}
+          onDelete={() => deleteAsset(openAsset)}
+        />
+      )}
     </>
   );
 }
