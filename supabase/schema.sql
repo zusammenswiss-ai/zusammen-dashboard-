@@ -76,6 +76,63 @@ create table if not exists public.tasks (
 alter table public.tasks add column if not exists notes text;
 
 -- ---------------------------------------------------------------------
+-- Task templates — presets for the "Sablonból hozzáadás" quick-add on
+-- Feladatok and its "Sablonok kezelése" editor.
+-- ---------------------------------------------------------------------
+create table if not exists public.task_templates (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  category text not null,
+  default_priority text not null default 'Medium' check (default_priority in ('Low', 'Medium', 'High')),
+  default_assignee text,
+  notes_template text,
+  created_at timestamptz not null default now()
+);
+
+-- Guard the unique constraint separately so re-running this file never
+-- fails with "constraint already exists".
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'task_templates_title_category_key'
+  ) then
+    alter table public.task_templates
+      add constraint task_templates_title_category_key unique (title, category);
+  end if;
+end $$;
+
+alter table public.task_templates enable row level security;
+
+drop policy if exists "anon full access" on public.task_templates;
+create policy "anon full access" on public.task_templates for all using (true) with check (true);
+
+-- Seed the starter template set — on conflict do nothing so re-running
+-- this file never duplicates them, and any edits made in the app (via
+-- "Sablonok kezelése") are left alone.
+insert into public.task_templates (title, category, default_priority) values
+  ('Follow-up email küldése, ha 1 hete nincs válasz', 'Beszállítók & Gyártás', 'High'),
+  ('Új árajánlat bekérése', 'Beszállítók & Gyártás', 'Medium'),
+  ('Minta rendelése', 'Beszállítók & Gyártás', 'Medium'),
+  ('Kártya utánnyomás megrendelése', 'Beszállítók & Gyártás', 'High'),
+  ('Travel Pouch utánrendelés', 'Beszállítók & Gyártás', 'Medium'),
+  ('Kártya-fájlok frissítése új verzióval', 'Kártya-fájlok', 'High'),
+  ('Új nyelvi verzió elkészítése', 'Kártya-fájlok', 'Medium'),
+  ('Kártyaszöveg felülvizsgálata teszt-visszajelzések alapján', 'Kártya-fájlok', 'Medium'),
+  ('Heti Instagram-poszt közzététele', 'Marketing', 'Medium'),
+  ('Évszakos Connection Token tervezése/nyomtatása', 'Marketing', 'Medium'),
+  ('Email-kampány kiküldése a feliratkozóknak', 'Marketing', 'High'),
+  ('Demand-test link újra megosztása', 'Marketing', 'Low'),
+  ('Negyedéves levél megírása', 'Gold Card Letters', 'High'),
+  ('Levél-fotó feltöltése a Dashboardba', 'Gold Card Letters', 'Medium'),
+  ('Havi pénzügyi áttekintés / modell frissítése', 'Pénzügy', 'Medium'),
+  ('Negyedéves fedezeti pont ellenőrzése', 'Pénzügy', 'Medium'),
+  ('AHV/Treuhand éves bejelentés ellenőrzése', 'Jogi & Adminisztráció', 'High'),
+  ('Domain megújítás ellenőrzése', 'Jogi & Adminisztráció', 'Low'),
+  ('Beérkezett Feedback-ek átnézése', 'Founder Journey & Közösség', 'Medium'),
+  ('Founder Wall új bejegyzéseinek ellenőrzése', 'Founder Journey & Közösség', 'Low')
+on conflict (title, category) do nothing;
+
+-- ---------------------------------------------------------------------
 -- Finance — product rows for the revenue/margin calculator
 -- ---------------------------------------------------------------------
 create table if not exists public.finance_products (
