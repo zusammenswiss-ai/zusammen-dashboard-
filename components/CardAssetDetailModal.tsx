@@ -2,30 +2,48 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X, Download, Trash2, ListPlus, ImageOff, ArrowRight } from "lucide-react";
+import { X, Download, Trash2, ListPlus, ImageOff, ArrowRight, Plus, ChevronDown } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { CardAsset } from "@/lib/supabase/types";
+import type { CardAsset, PriceQuote } from "@/lib/supabase/types";
 import { PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
+import PriceQuoteForm from "@/components/PriceQuoteForm";
+import PriceQuoteList from "@/components/PriceQuoteList";
 
 /** Full detail view for one card-asset version — opened from a Kártya-fájlok
- * list row. Shows the full (untruncated) notes and lets you spin a Feladat
- * off of it, which then shows up on the Feladatok board like any other. */
+ * list row. Shows the full (untruncated) notes, an expandable "Árajánlatok"
+ * section for supplier price quotes on this version, and lets you spin a
+ * Feladat off of it, which then shows up on the Feladatok board like any
+ * other. */
 export default function CardAssetDetailModal({
   asset,
   supplierName,
+  suppliers,
+  quotes,
+  supplierNameById,
   onClose,
   onDelete,
+  onQuoteCreated,
+  onToggleQuoteSelected,
+  onDeleteQuote,
 }: {
   asset: CardAsset;
   supplierName: string | null;
+  suppliers: { id: string; name: string }[];
+  quotes: PriceQuote[];
+  supplierNameById: Map<string, string>;
   onClose: () => void;
   onDelete: () => void;
+  onQuoteCreated: (quote: PriceQuote) => void;
+  onToggleQuoteSelected: (quote: PriceQuote) => void;
+  onDeleteQuote: (quote: PriceQuote) => void;
 }) {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
   const [createdTaskId, setCreatedTaskId] = useState<string | null>(null);
+  const [showQuotes, setShowQuotes] = useState(false);
+  const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,6 +148,48 @@ export default function CardAssetDetailModal({
           </div>
 
           <p className="mt-4 text-xs text-muted">Feltöltve: {formatDate(asset.created_at)}</p>
+
+          <div className="mt-5 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={() => setShowQuotes((v) => !v)}
+              className="flex w-full items-center justify-between text-left"
+            >
+              <span className="font-serif text-sm text-forest">
+                Árajánlatok{quotes.length > 0 && ` (${quotes.length})`}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`text-muted transition-transform ${showQuotes ? "rotate-180" : ""}`}
+              />
+            </button>
+            {showQuotes && (
+              <div className="mt-3 flex flex-col gap-3">
+                {showQuoteForm ? (
+                  <PriceQuoteForm
+                    cardAssetId={asset.id}
+                    supplierOptions={suppliers}
+                    onCreated={(quote) => {
+                      onQuoteCreated(quote);
+                      setShowQuoteForm(false);
+                    }}
+                    onCancel={() => setShowQuoteForm(false)}
+                  />
+                ) : (
+                  <button className="btn btn-ghost self-start" onClick={() => setShowQuoteForm(true)}>
+                    <Plus size={15} /> Új árajánlat hozzáadása
+                  </button>
+                )}
+                <PriceQuoteList
+                  quotes={quotes}
+                  mode="card"
+                  supplierNameById={supplierNameById}
+                  onToggleSelected={onToggleQuoteSelected}
+                  onDelete={onDeleteQuote}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="mt-5 border-t border-border pt-4">
             {createdTaskId ? (

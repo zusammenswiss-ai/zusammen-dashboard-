@@ -363,6 +363,54 @@ create policy "card-assets bucket anon delete"
   on storage.objects for delete
   using (bucket_id = 'card-assets');
 
+-- ---------------------------------------------------------------------
+-- Price quotes — supplier offers received for a given card-asset version
+-- ---------------------------------------------------------------------
+create table if not exists public.price_quotes (
+  id uuid primary key default gen_random_uuid(),
+  card_asset_id uuid not null references public.card_assets(id) on delete cascade,
+  supplier_id uuid references public.suppliers(id) on delete set null,
+  quantity numeric(12, 2) not null,
+  unit_price numeric(12, 2),
+  currency text,
+  total_price numeric(12, 2),
+  screenshot_url text,
+  notes text,
+  quote_date date not null default current_date,
+  is_selected boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.price_quotes enable row level security;
+
+drop policy if exists "anon full access" on public.price_quotes;
+create policy "anon full access" on public.price_quotes for all using (true) with check (true);
+
+-- Storage — bucket for uploaded price-quote screenshots
+insert into storage.buckets (id, name, public)
+values ('price-quotes', 'price-quotes', true)
+on conflict (id) do nothing;
+
+drop policy if exists "price-quotes bucket anon read" on storage.objects;
+create policy "price-quotes bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'price-quotes');
+
+drop policy if exists "price-quotes bucket anon write" on storage.objects;
+create policy "price-quotes bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'price-quotes');
+
+drop policy if exists "price-quotes bucket anon update" on storage.objects;
+create policy "price-quotes bucket anon update"
+  on storage.objects for update
+  using (bucket_id = 'price-quotes');
+
+drop policy if exists "price-quotes bucket anon delete" on storage.objects;
+create policy "price-quotes bucket anon delete"
+  on storage.objects for delete
+  using (bucket_id = 'price-quotes');
+
 -- =====================================================================
 -- Landing page (/landing) — public customer-facing funnel
 -- ---------------------------------------------------------------------

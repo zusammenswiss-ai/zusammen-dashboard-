@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Mail, Users, Search, Upload, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { Supplier, SupplierInsert } from "@/lib/supabase/types";
+import type { Supplier, SupplierInsert, PriceQuote } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -147,10 +147,13 @@ export default function SuppliersPage() {
   const [composeFor, setComposeFor] = useState<Supplier | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
+  const [cardAssets, setCardAssets] = useState<{ id: string; language: string; version: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
+  const { pending: pendingUndoQuote, schedule: scheduleUndoQuote, undoNow: undoNowQuote } = useUndoAction();
 
   const loadSuppliers = useCallback(async () => {
     if (!supabase) return;
@@ -169,6 +172,20 @@ export default function SuppliersPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (supabase) void loadSuppliers();
   }, [supabase, loadSuppliers]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const [quotesRes, assetsRes] = await Promise.all([
+        supabase.from("price_quotes").select("*").order("created_at", { ascending: false }),
+        supabase.from("card_assets").select("id, language, version"),
+      ]);
+      setPriceQuotes(quotesRes.data ?? []);
+      setCardAssets(
+        (assetsRes.data ?? []).map((a) => ({ id: a.id, language: a.language, version: a.version }))
+      );
+    })();
+  }, [supabase]);
 
   async function createSupplier(draft: SupplierDraft): Promise<{ error?: string } | void> {
     if (!supabase) return { error: "Nincs adatbázis-kapcsolat." };
@@ -269,6 +286,52 @@ export default function SuppliersPage() {
       setImportMessage(`${data.length} beszállító importálva.`);
     }
   }
+
+  function deletePriceQuote(quote: PriceQuote) {
+    if (!supabase) return;
+    setPriceQuotes((prev) => prev.filter((q) => q.id !== quote.id));
+    scheduleUndoQuote(
+      "Árajánlat törölve.",
+      async () => {
+        const { error } = await supabase.from("price_quotes").delete().eq("id", quote.id);
+        if (error) setError(error.message);
+      },
+      () => setPriceQuotes((prev) => [quote, ...prev])
+    );
+  }
+
+  // Mirrors the same exclusivity rule as the Kártya-fájlok page: only one
+  // quote per card asset can be marked as the accepted one.
+  async function toggleQuoteSelected(quote: PriceQuote) {
+    if (!supabase) return;
+    const nextSelected = !quote.is_selected;
+    setPriceQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id === quote.id) return { ...q, is_selected: nextSelected };
+        if (nextSelected && q.card_asset_id === quote.card_asset_id) return { ...q, is_selected: false };
+        return q;
+      })
+    );
+    if (nextSelected) {
+      const { error } = await supabase
+        .from("price_quotes")
+        .update({ is_selected: false })
+        .eq("card_asset_id", quote.card_asset_id)
+        .neq("id", quote.id);
+      if (error) setError(error.message);
+    }
+    const { error } = await supabase.from("price_quotes").update({ is_selected: nextSelected }).eq("id", quote.id);
+    if (error) setError(error.message);
+  }
+
+  const cardAssetOptions = useMemo(
+    () => cardAssets.map((a) => ({ id: a.id, label: `${a.language} — ${a.version}` })),
+    [cardAssets]
+  );
+  const cardAssetLabelById = useMemo(
+    () => new Map(cardAssets.map((a) => [a.id, `${a.language} — ${a.version}`])),
+    [cardAssets]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -394,10 +457,14 @@ export default function SuppliersPage() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+      {pendingUndoQuote && <UndoToast message={pendingUndoQuote.message} onUndo={undoNowQuote} />}
 
       {profileFor && (
         <SupplierProfileModal
           supplier={profileSupplier}
+          quotes={profileSupplier ? priceQuotes.filter((q) => q.supplier_id === profileSupplier.id) : []}
+          cardAssetOptions={cardAssetOptions}
+          cardAssetLabelById={cardAssetLabelById}
           onClose={() => setProfileFor(null)}
           onSave={saveProfile}
           onDelete={
@@ -408,6 +475,9 @@ export default function SuppliersPage() {
                 }
               : undefined
           }
+          onQuoteCreated={(quote) => setPriceQuotes((prev) => [quote, ...prev])}
+          onToggleQuoteSelected={toggleQuoteSelected}
+          onDeleteQuote={deletePriceQuote}
         />
       )}
 
