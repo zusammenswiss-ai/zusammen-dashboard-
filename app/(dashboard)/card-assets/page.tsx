@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import { Plus, Trash2, Archive, Download, FolderUp, ImageOff } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { CardAsset, PrintStatus } from "@/lib/supabase/types";
+import type { CardAsset, PriceQuote, PrintStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -61,11 +61,13 @@ export default function CardAssetsPage() {
   const [folderInfo, setFolderInfo] = useState<{ name: string; count: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [openAssetId, setOpenAssetId] = useState<string | null>(null);
+  const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
+  const { pending: pendingUndoQuote, schedule: scheduleUndoQuote, undoNow: undoNowQuote } = useUndoAction();
 
   const loadAssets = useCallback(async () => {
     if (!supabase) return;
@@ -90,6 +92,17 @@ export default function CardAssetsPage() {
     (async () => {
       const { data } = await supabase.from("suppliers").select("id, name").order("name");
       setSuppliers((data ?? []).map((s) => ({ id: s.id, name: s.name })));
+    })();
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const { data } = await supabase
+        .from("price_quotes")
+        .select("*")
+        .order("created_at", { ascending: false });
+      setPriceQuotes(data ?? []);
     })();
   }, [supabase]);
 
@@ -210,6 +223,43 @@ export default function CardAssetsPage() {
       },
       () => setAssets((prev) => [...prev, asset].sort(byRecency))
     );
+  }
+
+  function deletePriceQuote(quote: PriceQuote) {
+    if (!supabase) return;
+    setPriceQuotes((prev) => prev.filter((q) => q.id !== quote.id));
+    scheduleUndoQuote(
+      "Árajánlat törölve.",
+      async () => {
+        const { error } = await supabase.from("price_quotes").delete().eq("id", quote.id);
+        if (error) setError(error.message);
+      },
+      () => setPriceQuotes((prev) => [quote, ...prev])
+    );
+  }
+
+  // Only one quote per card asset can be "the accepted one" — selecting a
+  // new one clears any previously-selected quote for that same asset.
+  async function toggleQuoteSelected(quote: PriceQuote) {
+    if (!supabase) return;
+    const nextSelected = !quote.is_selected;
+    setPriceQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id === quote.id) return { ...q, is_selected: nextSelected };
+        if (nextSelected && q.card_asset_id === quote.card_asset_id) return { ...q, is_selected: false };
+        return q;
+      })
+    );
+    if (nextSelected) {
+      const { error } = await supabase
+        .from("price_quotes")
+        .update({ is_selected: false })
+        .eq("card_asset_id", quote.card_asset_id)
+        .neq("id", quote.id);
+      if (error) setError(error.message);
+    }
+    const { error } = await supabase.from("price_quotes").update({ is_selected: nextSelected }).eq("id", quote.id);
+    if (error) setError(error.message);
   }
 
   const supplierNameById = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers]);
@@ -520,13 +570,20 @@ export default function CardAssetsPage() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+      {pendingUndoQuote && <UndoToast message={pendingUndoQuote.message} onUndo={undoNowQuote} />}
 
       {openAsset && (
         <CardAssetDetailModal
           asset={openAsset}
           supplierName={openAsset.supplier_id ? supplierNameById.get(openAsset.supplier_id) ?? null : null}
+          suppliers={suppliers}
+          quotes={priceQuotes.filter((q) => q.card_asset_id === openAsset.id)}
+          supplierNameById={supplierNameById}
           onClose={() => setOpenAssetId(null)}
           onDelete={() => deleteAsset(openAsset)}
+          onQuoteCreated={(quote) => setPriceQuotes((prev) => [quote, ...prev])}
+          onToggleQuoteSelected={toggleQuoteSelected}
+          onDeleteQuote={deletePriceQuote}
         />
       )}
     </>

@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { X, Trash2, Plus } from "lucide-react";
-import type { Supplier, SupplierProduct, ContractStatus } from "@/lib/supabase/types";
+import type { Supplier, SupplierProduct, ContractStatus, PriceQuote } from "@/lib/supabase/types";
 import { CONTRACT_STATUS_HU } from "@/lib/labels";
 import { ErrorBanner } from "@/components/Feedback";
+import PriceQuoteForm from "@/components/PriceQuoteForm";
+import PriceQuoteList from "@/components/PriceQuoteList";
 
 const CONTRACT_STATUSES: ContractStatus[] = ["None", "Signed", "Failed", "Expired"];
 
@@ -52,18 +54,31 @@ function emptyProduct(): SupplierProduct {
  * hozzáadása" (supplier=null) and for editing an existing one. */
 export default function SupplierProfileModal({
   supplier,
+  quotes,
+  cardAssetOptions,
+  cardAssetLabelById,
   onClose,
   onSave,
   onDelete,
+  onQuoteCreated,
+  onToggleQuoteSelected,
+  onDeleteQuote,
 }: {
   supplier: Supplier | null;
+  quotes: PriceQuote[];
+  cardAssetOptions: { id: string; label: string }[];
+  cardAssetLabelById: Map<string, string>;
   onClose: () => void;
   onSave: (draft: SupplierDraft) => Promise<{ error?: string } | void>;
   onDelete?: () => void;
+  onQuoteCreated: (quote: PriceQuote) => void;
+  onToggleQuoteSelected: (quote: PriceQuote) => void;
+  onDeleteQuote: (quote: PriceQuote) => void;
 }) {
   const [draft, setDraft] = useState<SupplierDraft>(() => toDraft(supplier));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showQuoteForm, setShowQuoteForm] = useState(false);
   const isNew = supplier === null;
 
   function set<K extends keyof SupplierDraft>(key: K, value: SupplierDraft[K]) {
@@ -237,6 +252,37 @@ export default function SupplierProfileModal({
               <Plus size={13} /> Újabb termék hozzáadása
             </button>
           </Section>
+
+          {!isNew && (
+            <Section title="Kapott árajánlatok">
+              {showQuoteForm ? (
+                <PriceQuoteForm
+                  supplierId={supplier.id}
+                  cardAssetOptions={cardAssetOptions}
+                  onCreated={(quote) => {
+                    onQuoteCreated(quote);
+                    setShowQuoteForm(false);
+                  }}
+                  onCancel={() => setShowQuoteForm(false)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-ghost mb-3 !py-1.5 text-xs"
+                  onClick={() => setShowQuoteForm(true)}
+                >
+                  <Plus size={13} /> Új árajánlat hozzáadása
+                </button>
+              )}
+              <PriceQuoteList
+                quotes={quotes}
+                mode="supplier"
+                cardAssetLabelById={cardAssetLabelById}
+                onToggleSelected={onToggleQuoteSelected}
+                onDelete={onDeleteQuote}
+              />
+            </Section>
+          )}
 
           <Section title="Kapcsolat állapota">
             <div className="flex flex-wrap gap-4">

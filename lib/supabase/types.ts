@@ -168,6 +168,26 @@ export type CardAssetInsert = Partial<Omit<CardAsset, "id" | "created_at">> & {
 };
 export type CardAssetUpdate = Partial<Omit<CardAsset, "id" | "created_at">>;
 
+export interface PriceQuote {
+  id: string;
+  card_asset_id: string;
+  supplier_id: string | null;
+  quantity: number;
+  unit_price: number | null;
+  currency: string | null;
+  total_price: number | null;
+  screenshot_url: string | null;
+  notes: string | null;
+  quote_date: string;
+  is_selected: boolean;
+  created_at: string;
+}
+export type PriceQuoteInsert = Partial<Omit<PriceQuote, "id" | "created_at">> & {
+  card_asset_id: string;
+  quantity: number;
+};
+export type PriceQuoteUpdate = Partial<Omit<PriceQuote, "id" | "created_at">>;
+
 export type LandingLang = "de" | "en";
 
 export interface LandingLetter {
@@ -247,6 +267,12 @@ export interface Database {
         Row: CardAsset;
         Insert: CardAssetInsert;
         Update: CardAssetUpdate;
+        Relationships: [];
+      };
+      price_quotes: {
+        Row: PriceQuote;
+        Insert: PriceQuoteInsert;
+        Update: PriceQuoteUpdate;
         Relationships: [];
       };
       landing_letters: {

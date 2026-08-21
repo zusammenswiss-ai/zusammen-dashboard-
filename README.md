@@ -15,14 +15,14 @@ in Hungarian; the public `/landing` page (below) is German/English.
 |---|---|
 | **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table — every item links straight to its page (tasks deep-link into their detail view) |
 | **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
-| **Beszállítók** (Suppliers) | Full supplier profiles grouped by category — basic info (name/category/country), contact details (website/email/phone/WhatsApp), a repeatable products/services list (name, price, MOQ, note per row), contact status (contacted/replied, sent-email text, contract status + valid-until date), general notes, a real **Email küldése** button, keresés, and CSV bulk import/export |
+| **Beszállítók** (Suppliers) | Full supplier profiles grouped by category — basic info (name/category/country), contact details (website/email/phone/WhatsApp), a repeatable products/services list (name, price, MOQ, note per row), a **Kapott árajánlatok** section listing every price quote received from this supplier across all kártya-fájl versions (mennyiség/egységár/összár, dátum, kiválasztva-e), contact status (contacted/replied, sent-email text, contract status + valid-until date), general notes, a real **Email küldése** button, keresés, and CSV bulk import/export |
 | **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee, keresés, CSV export. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons). **Sablonból hozzáadás**: pick any number of preset task templates (grouped by category, checkboxes) and add them all as Teendő tasks in one go; **Sablonok kezelése** (gear icon) is the full CRUD editor for those templates — create/edit/delete, with categories chosen from existing ones or typed fresh |
 | **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, egységár, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése**, keresés, CSV export |
 | **Pénzügyek** (Finance) | Planning calculator (price / COGS / units), plus a **Tényleges bevétel** section computed from real Megrendelések egységár data |
 | **Marketing** | 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése** |
 | **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails |
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
-| **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload either a ready-made ZIP or an entire folder (zipped in the browser on the fly, subfolders included) with a version label, nyomtatási állapot, optional beszállító/rendelés dátuma/mennyiség and notes. On upload, the server unzips it and pulls out up to 4 preview thumbnails by filename (front/back/wild/goldcard) shown in a small grid on each version. Click a version to open its full detail (untruncated notes, download, delete) and optionally spin a **Feladat** off of it — the new task shows up on the Feladatok board like any other. The most recent upload per language is flagged **Legújabb** |
+| **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload either a ready-made ZIP or an entire folder (zipped in the browser on the fly, subfolders included) with a version label, nyomtatási állapot, optional beszállító/rendelés dátuma/mennyiség and notes. On upload, the server unzips it and pulls out up to 4 preview thumbnails by filename (front/back/wild/goldcard) shown in a small grid on each version. Click a version to open its full detail (untruncated notes, download, delete) and optionally spin a **Feladat** off of it — the new task shows up on the Feladatok board like any other. Each version also has an expandable **Árajánlatok** section — an "+ Új árajánlat hozzáadása" form (beszállító legördülő, mennyiség, egységár + pénznem, kép feltöltése, megjegyzés, dátum) and a list of every price quote received for that version, with a star toggle to mark the accepted one (highlighted green); quotes and suppliers are linked both ways, so the same registry shows up on the supplier's profile too. The most recent upload per language is flagged **Legújabb** |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
@@ -94,10 +94,10 @@ stats pulled from those tables.
 3. Open [`supabase/schema.sql`](./supabase/schema.sql) from this repo,
    copy its entire contents, paste into the SQL editor, and click **Run**.
    This creates all the tables, seeds the 4 marketing seasons, sets up
-   Row Level Security, and creates the `documents` and `card-assets`
-   Storage buckets used for file uploads. Safe to re-run any time you pull
-   schema changes — every statement is guarded so it won't fail or
-   duplicate data on a second run.
+   Row Level Security, and creates the `documents`, `card-assets`, and
+   `price-quotes` Storage buckets used for file uploads. Safe to re-run
+   any time you pull schema changes — every statement is guarded so it
+   won't fail or duplicate data on a second run.
 4. Go to **Project Settings → API**. You'll need two values from here:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
