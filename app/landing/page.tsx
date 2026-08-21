@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Smartphone, Sprout, Sun, Leaf, Snowflake } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { landingT, LANDING_SCREENS, type LandingLang, type LandingScreen } from "@/lib/landing-i18n";
+import LandingMark from "@/components/LandingMark";
 import "./landing.css";
 
 const SEASON_ICONS = { spring: Sprout, summer: Sun, autumn: Leaf, winter: Snowflake } as const;
@@ -66,37 +68,22 @@ export default function LandingPage() {
       </div>
 
       <FounderLink t={t} />
+      <LegalFooter />
     </div>
   );
 }
 
-// A mountain range with a small heart nestled above its peaks — the
-// brand mark, kept as a plain icon (no baked-in wordmark/tagline) so the
-// surrounding text can still switch between DE and EN.
-function LandingMark({ size = 128, color = "var(--l-walnut)" }: { size?: number; color?: string }) {
+// Small, unobtrusive links to the standalone legal pages — required
+// alongside the survey/letter forms since they collect an optional
+// email address. Deliberately plain (no i18n) since Impressum/
+// Datenschutzerklärung are DE/CH legal terms regardless of UI language.
+function LegalFooter() {
   return (
-    <svg
-      className="landing-mark"
-      width={size}
-      height={size / 2}
-      viewBox="0 0 200 100"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M88 21c-3.5-5-11-4.5-11 2 0 6 11 12 11 12s11-6 11-12c0-6.5-7.5-7-11-2Z"
-        stroke={color}
-        strokeWidth={4}
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8 74 L34 36 L47 52 L60 22 L73 45 L86 18 L99 45 L112 22 L125 52 L138 36 L164 74"
-        stroke={color}
-        strokeWidth={5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="legalfooter">
+      <Link href="/landing/impressum">Impressum</Link>
+      <span aria-hidden="true">·</span>
+      <Link href="/landing/datenschutz">Datenschutz</Link>
+    </div>
   );
 }
 
@@ -738,7 +725,11 @@ function FounderLink({ t }: { t: T }) {
   function handleClick() {
     if (!passwordEntered.current) {
       const pw = prompt(t.founder.passwordPrompt);
-      if (pw !== "zusammen2026") {
+      // Configurable via NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD (see
+      // .env.example) so the real password never has to live in git —
+      // falls back to the original default if it's unset.
+      const expected = process.env.NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD || "zusammen2026";
+      if (pw !== expected) {
         if (pw !== null) alert(t.founder.wrongPassword);
         return;
       }

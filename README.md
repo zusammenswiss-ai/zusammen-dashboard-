@@ -78,9 +78,31 @@ sidebar. It's an interactive funnel — founder story, a sample card demo,
 a "gold card" letter prompt, a package builder, a short survey — with a
 DE/EN language toggle in the top corner. Survey responses and letters are
 saved to Supabase (`landing_responses`, `landing_letters`); a small
-password-gated "founder view" (bottom-right link, password
-`zusammen2026` — change it in `app/landing/page.tsx`) shows aggregate
-stats pulled from those tables.
+password-gated "founder view" (bottom-right link) shows aggregate stats
+pulled from those tables — the password defaults to `zusammen2026`, set
+`NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD` (see `.env.example`) to change it
+without putting the real value in git.
+
+A matching pair of standalone legal pages ships alongside the funnel,
+linked from a small footer bottom-left: `/landing/impressum` and
+`/landing/datenschutz` (German-only, as is standard for DE/CH sites).
+Every value only the founder can know (business name/address, contact
+email, Supabase hosting region, …) is a highlighted "BITTE AUSFÜLLEN"
+placeholder in the page itself — **fill these in before sharing the
+`/landing` link publicly**, since the funnel collects an optional email
+address and Swiss/EU sites need a real Impressum + Datenschutzerklärung.
+
+### Before you share the `/landing` link
+
+1. **Personalize the founder story** — `lib/landing-i18n.ts` has a
+   `// TODO before launch` comment above the `story` block in both the
+   `de` and `en` sections; it reads fine as-is, but swap in your own
+   real story if you have one.
+2. **Set a real founder-view password** — `NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD`
+   env var, see above.
+3. **Fill in the legal pages** — open `/landing/impressum` and
+   `/landing/datenschutz` (or their source under `app/landing/`) and
+   replace every "BITTE AUSFÜLLEN" placeholder with your real details.
 
 ---
 
@@ -241,6 +263,8 @@ Every time you push to your main branch, Vercel redeploys automatically.
 app/                     Next.js App Router pages (one folder per tab)
 app/api/send-email/      Server-side route that calls Resend (holds RESEND_API_KEY)
 app/api/reminder-email/  Daily cron route — due-soon summary via Resend (holds CRON_SECRET)
+app/landing/impressum/   Standalone legal notice for /landing — fill in before launch
+app/landing/datenschutz/ Standalone privacy notice for /landing — fill in before launch
 components/              Shared UI (nav, cards, empty states, feedback)
 lib/supabase/client.ts   Browser Supabase client
 lib/supabase/types.ts    Hand-written types matching supabase/schema.sql
