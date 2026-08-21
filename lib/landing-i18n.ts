@@ -60,6 +60,10 @@ export const landingT = {
       ],
       cta: "Los geht's, zeig mir die Karten",
     },
+    // TODO before launch: this is a generic-but-usable founder story —
+    // swap p1–p4 / lines1 / lines2 below for your own real moment if you
+    // have one. Keep the corresponding "en" block (further down this
+    // file) in sync with whatever you change here.
     story: {
       eyebrow: "Die Geschichte der Gründerin",
       title: "Es begann mit einem einfachen Gedanken.",
@@ -308,6 +312,8 @@ export const landingT = {
       ],
       cta: "Let's go, show me the cards",
     },
+    // TODO before launch: keep this in sync with the "de" story block
+    // above if you personalize it.
     story: {
       eyebrow: "The founder's story",
       title: "It started with a simple thought.",
