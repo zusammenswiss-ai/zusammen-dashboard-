@@ -83,6 +83,16 @@ pulled from those tables — the password defaults to `zusammen2026`, set
 `NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD` (see `.env.example`) to change it
 without putting the real value in git.
 
+**Navigation**: a back/home/forward pill (top-left, mirroring the DE/EN
+switch on the top-right) lets visitors move both directions through the
+funnel — browser-style: back and forward step through everywhere you've
+actually been, home jumps straight to the hero from any screen. Nothing
+already typed is lost by stepping away and back — the gold-card letter
+text and the survey answers live one level up from their screens
+specifically so back/forward doesn't wipe them — and re-submitting after
+navigating back doesn't create duplicate Supabase rows (a submit is
+skipped if the content already matches what was last saved).
+
 **Tactile touches** (built with [Framer Motion](https://www.framer.com/motion/)):
 the hero's logo is a physical-feeling card you can drag around (springs
 back within its bounds) and tap/flip to preview a real question from the

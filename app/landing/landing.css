@@ -64,6 +64,15 @@
   justify-content: center;
   padding: 32px 20px;
 }
+/* Extra top clearance on narrow phones — the corner pill clusters
+   (.nav-switch top-left, .lang-switch top-right) together now span most
+   of the width at this size, and every screen's centered heading text
+   (.landing-eyebrow etc.) would otherwise render right underneath them. */
+@media (max-width: 420px) {
+  .landing-stage {
+    padding-top: 64px;
+  }
+}
 .landing-btn {
   font-family: var(--l-body);
   font-weight: 600;
@@ -139,6 +148,43 @@
 }
 .lang-switch button.soundbtn:hover {
   color: var(--l-forest);
+}
+
+/* Back / Home / Forward — mirrors .lang-switch's pill styling, opposite
+   corner. Lets a visitor move both directions through the funnel instead
+   of only forward, plus a one-tap way back to the hero from anywhere. */
+.nav-switch {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  z-index: 60;
+  display: flex;
+  border: 1px solid rgba(122, 90, 59, 0.35);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(243, 239, 231, 0.9);
+  backdrop-filter: blur(4px);
+}
+.nav-switch button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--l-walnut);
+  cursor: pointer;
+}
+.nav-switch button:not(:first-child) {
+  border-left: 1px solid rgba(122, 90, 59, 0.25);
+}
+.nav-switch button:hover:not(:disabled) {
+  color: var(--l-forest);
+}
+.nav-switch button:disabled {
+  color: rgba(122, 90, 59, 0.3);
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* HERO / LANDING */

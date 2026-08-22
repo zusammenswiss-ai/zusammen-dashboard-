@@ -276,6 +276,11 @@ export const landingT = {
       mute: "Ton stumm schalten",
       unmute: "Ton einschalten",
     },
+    nav: {
+      back: "Zurück",
+      home: "Startseite",
+      forward: "Vorwärts",
+    },
   },
   en: {
     hero: {
@@ -530,6 +535,11 @@ export const landingT = {
     sound: {
       mute: "Mute sound",
       unmute: "Unmute sound",
+    },
+    nav: {
+      back: "Back",
+      home: "Home",
+      forward: "Forward",
     },
   },
 };
