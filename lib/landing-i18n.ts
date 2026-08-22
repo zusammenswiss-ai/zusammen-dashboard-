@@ -33,6 +33,7 @@ export const landingT = {
         "Der ganze Weg: ca. 6–8 Minuten — oder springe direkt zu den Karten, wenn du jetzt keine Zeit für die Geschichte hast.",
       storyButton: "Warum ich das gebaut habe, und wohin es führt",
       skipLink: "Oder springe direkt zu den Karten →",
+      cardHint: "Zieh die Karte, oder tippe, um sie umzudrehen",
     },
     intro: {
       eyebrow: "Bevor du beginnst",
@@ -271,6 +272,10 @@ export const landingT = {
       noResponses: "Es gibt noch keine Antworten.",
       link: "Gründeransicht",
     },
+    sound: {
+      mute: "Ton stumm schalten",
+      unmute: "Ton einschalten",
+    },
   },
   en: {
     hero: {
@@ -285,6 +290,7 @@ export const landingT = {
         "Full journey: about 6–8 minutes — or jump straight to the cards if you don't have time for the story right now.",
       storyButton: "Why I built this, and where it's going",
       skipLink: "Or jump straight to the cards →",
+      cardHint: "Drag the card, or tap to flip it",
     },
     intro: {
       eyebrow: "Before you begin",
@@ -520,6 +526,10 @@ export const landingT = {
       loadError: "An error occurred while loading the data.",
       noResponses: "There are no responses yet.",
       link: "founder view",
+    },
+    sound: {
+      mute: "Mute sound",
+      unmute: "Unmute sound",
     },
   },
 };

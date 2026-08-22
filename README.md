@@ -83,6 +83,29 @@ pulled from those tables — the password defaults to `zusammen2026`, set
 `NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD` (see `.env.example`) to change it
 without putting the real value in git.
 
+**Tactile touches** (built with [Framer Motion](https://www.framer.com/motion/)):
+the hero's logo is a physical-feeling card you can drag around (springs
+back within its bounds) and tap/flip to preview a real question from the
+deck — desktop adds a mouse-follow 3D tilt on top, gated behind a
+`(hover: hover) and (pointer: fine)` check so touch devices just get
+drag + tap instead (verified equally responsive on iPad/iPhone, portrait
+and landscape). The brand mark (mountain + heart) draws itself in with an
+animated stroke the moment it scrolls into view, rather than eagerly on
+load. The demo deck shows 1-2 fanned, rotated card-backs behind the
+active card — a "hand-held pack" that visibly thins out as you draw. The
+whole page has a barely-there paper-grain texture instead of flat color
+fields. All of this respects `prefers-reduced-motion` (skips the tilt and
+draw-in, keeps the essential state changes) and degrades to nothing (a
+static logo, no tilt) if JavaScript hiccups.
+
+**Sound** (`lib/landing-sound.ts`): a soft, synthesized tap/flip sound
+plays on the card interactions above — off by default, with a mute/unmute
+toggle next to the DE/EN switch (persisted per-browser via
+`localStorage`). Every sound is generated on the fly with the Web Audio
+API (filtered noise bursts, no external audio file), so it's
+dependency-free — swap `playNoiseBurst` in that file for real recorded
+clips later if you'd rather use those.
+
 A matching pair of standalone legal pages ships alongside the funnel,
 linked from a small footer bottom-left: `/landing/impressum` and
 `/landing/datenschutz` (German-only, as is standard for DE/CH sites).
@@ -133,13 +156,24 @@ That's it — the database, tables, and file storage are ready.
 > protection comes from keeping your dashboard URL private, or turning
 > on the optional password lock below.
 
-### Optional: password-protect the whole dashboard
+### Optional (but recommended): password-protect the whole dashboard
 
-The app ships with a simple Basic Auth check (`proxy.ts`). If you
-set **both** `DASHBOARD_USER` and `DASHBOARD_PASSWORD` as environment
-variables, every page will ask for a username/password in the browser
-before loading. Leave them unset to keep the dashboard open to anyone
-with the link.
+The dashboard talks to Supabase with the public anon key and permissive
+RLS policies (see the note above) — anyone with the link can read and
+write every table. The app ships with a simple Basic Auth check
+(`proxy.ts`) to close that gap: set **both** `DASHBOARD_USER` and
+`DASHBOARD_PASSWORD` as environment variables and every dashboard page
+will ask for a username/password in the browser before loading. Leave
+them unset to keep the dashboard open to anyone with the link.
+
+- **Locally**: add both to `.env.local`.
+- **On Vercel**: Project → Settings → Environment Variables (same place
+  as the Supabase keys — see the deploy step below), then **redeploy**
+  — Vercel only picks up new/changed environment variables on the next
+  deployment, not on already-running ones.
+- `/landing` and `/api/reminder-email` (the daily cron summary) are
+  always excluded, so the public funnel and the reminder email keep
+  working even with the lock on.
 
 ---
 

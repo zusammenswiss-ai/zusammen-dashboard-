@@ -22,6 +22,7 @@
   --l-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --l-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
+  position: relative;
   margin: 0;
   font-family: var(--l-body);
   color: var(--l-charcoal);
@@ -31,6 +32,23 @@
 }
 .landing-root * {
   box-sizing: border-box;
+}
+/* Subtle paper grain over every background color on the page, instead of
+   flat color fields — a tiled SVG feTurbulence noise, low-opacity and
+   multiply-blended so it reads as texture, not as visible speckling.
+   Absolutely positioned (not fixed) so it stretches to the full height of
+   .landing-root as content grows, not just the first viewport; negative
+   z-index keeps it behind every child without needing z-index on them. */
+.landing-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
 }
 .landing-root h1,
 .landing-root h2,
@@ -112,6 +130,16 @@
   background: var(--l-forest);
   color: var(--l-ivory);
 }
+.lang-switch button.soundbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-left: 1px solid rgba(122, 90, 59, 0.25);
+}
+.lang-switch button.soundbtn:hover {
+  color: var(--l-forest);
+}
 
 /* HERO / LANDING */
 .landing-hero {
@@ -178,6 +206,83 @@
   margin-bottom: 3px;
 }
 
+/* HERO CARD — the draggable/tiltable/flippable card replacing the old
+   static logo. .herocard-scene holds the CSS perspective for the tilt;
+   .herocard-wrap is the Framer Motion element carrying drag + the
+   mouse-follow tilt (rotateX/rotateY motion values, desktop only —
+   touch devices just get drag + tap, see the component); .herocard-inner
+   is the actual 3D flip (rotateY 0/180), same technique as .flip-card
+   below but driven by Framer Motion instead of a CSS class toggle. */
+.herocard-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 6px;
+  perspective: 1000px;
+}
+.herocard-wrap {
+  width: 168px;
+  height: 168px;
+  cursor: grab;
+  touch-action: none;
+}
+.herocard-wrap:active {
+  cursor: grabbing;
+}
+.herocard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+.herocard-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  backface-visibility: hidden;
+  box-shadow: 0 16px 32px -12px rgba(35, 51, 40, 0.4);
+  padding: 18px;
+  text-align: center;
+}
+.herocard-front {
+  background: var(--l-forest);
+}
+.herocard-front .landing-mark {
+  margin: 0;
+}
+.herocard-wordmark {
+  font-family: var(--l-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: var(--l-ivory);
+  opacity: 0.85;
+}
+.herocard-back {
+  background: var(--l-ivory);
+  border: 1.5px solid var(--l-sand);
+  transform: rotateY(180deg);
+}
+.herocard-question {
+  font-family: var(--l-display);
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--l-forest);
+}
+.herocard-hint {
+  font-family: var(--l-mono);
+  font-size: 11px;
+  color: var(--l-walnut);
+  opacity: 0.75;
+  margin: 0;
+}
+
 /* CARD DEMO */
 .card-view {
   width: 100%;
@@ -197,7 +302,36 @@
    wrapper, rotating it 180deg so the branded front swaps for the drawn
    card's face. Re-mounted per-card via React state, not per-mount, so the
    flip works identically for every card in the deck, not just the first. */
+/* Deck fan — 1-2 decorative card-backs peeking out behind the active
+   .flip-card, fanned like a hand-held pack. Purely presentational
+   (aria-hidden, pointer-events none): count is driven by how many cards
+   are still left in the deck, so the fan visibly thins out as you draw,
+   and disappears entirely on the last card. */
+.deck-fan {
+  position: relative;
+  width: 100%;
+}
+.deck-fan-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: var(--l-pine);
+  border: 1px solid rgba(122, 90, 59, 0.18);
+  box-shadow: 0 14px 30px -16px rgba(35, 51, 40, 0.35);
+  pointer-events: none;
+}
+.deck-fan-card.fan-1 {
+  z-index: 0;
+  transform: rotate(-6deg) translate(-10px, 6px);
+}
+.deck-fan-card.fan-2 {
+  z-index: -1;
+  opacity: 0.85;
+  transform: rotate(7deg) translate(12px, 9px);
+}
 .flip-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   aspect-ratio: 5/7;
   perspective: 1400px;

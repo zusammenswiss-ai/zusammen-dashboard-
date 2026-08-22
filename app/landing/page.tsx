@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Smartphone, Sprout, Sun, Leaf, Snowflake } from "lucide-react";
+import { motion, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
+import { Smartphone, Sprout, Sun, Leaf, Snowflake, Volume2, VolumeX } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { landingT, LANDING_SCREENS, type LandingLang, type LandingScreen } from "@/lib/landing-i18n";
+import { useLandingSound } from "@/lib/landing-sound";
 import LandingMark from "@/components/LandingMark";
 import "./landing.css";
 
@@ -16,6 +18,7 @@ export default function LandingPage() {
   const [screen, setScreen] = useState<LandingScreen>("hero");
   const [boxItems, setBoxItems] = useState<Set<string>>(new Set());
   const t = landingT[lang];
+  const sound = useLandingSound();
 
   useEffect(() => {
     const prev = document.documentElement.lang;
@@ -46,13 +49,32 @@ export default function LandingPage() {
         <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>
           EN
         </button>
+        <button
+          type="button"
+          className="soundbtn"
+          onClick={sound.toggle}
+          aria-label={sound.enabled ? t.sound.mute : t.sound.unmute}
+          aria-pressed={sound.enabled}
+        >
+          {sound.enabled ? <Volume2 size={13} strokeWidth={1.8} /> : <VolumeX size={13} strokeWidth={1.8} />}
+        </button>
       </div>
 
       <div className="landing-stage">
-        {screen === "hero" && <HeroScreen t={t} onStory={() => goTo("story")} onSkip={() => goTo("intro")} />}
+        {screen === "hero" && (
+          <HeroScreen
+            t={t}
+            onStory={() => goTo("story")}
+            onSkip={() => goTo("intro")}
+            playTap={sound.playTap}
+            playFlip={sound.playFlip}
+          />
+        )}
         {screen === "intro" && <IntroScreen t={t} onNext={() => goTo("card")} />}
         {screen === "story" && <StoryScreen t={t} onNext={() => goTo("card")} />}
-        {screen === "card" && <CardScreen t={t} onDone={() => goTo("letter")} />}
+        {screen === "card" && (
+          <CardScreen t={t} onDone={() => goTo("letter")} playTap={sound.playTap} playFlip={sound.playFlip} />
+        )}
         {screen === "letter" && (
           <LetterScreen t={t} lang={lang} onNext={() => goTo("box")} />
         )}
@@ -109,11 +131,23 @@ function SignatureMark() {
 
 type T = (typeof landingT)["de"];
 
-function HeroScreen({ t, onStory, onSkip }: { t: T; onStory: () => void; onSkip: () => void }) {
+function HeroScreen({
+  t,
+  onStory,
+  onSkip,
+  playTap,
+  playFlip,
+}: {
+  t: T;
+  onStory: () => void;
+  onSkip: () => void;
+  playTap: () => void;
+  playFlip: () => void;
+}) {
   return (
     <div className="landing-hero">
       <p className="landing-eyebrow">{t.hero.eyebrow}</p>
-      <LandingMark />
+      <HeroCard t={t} playTap={playTap} playFlip={playFlip} />
       <p className="sub">{t.hero.sub}</p>
       <p>{t.hero.intro}</p>
 
@@ -134,6 +168,85 @@ function HeroScreen({ t, onStory, onSkip }: { t: T; onStory: () => void; onSkip:
           {t.hero.skipLink}
         </button>
       </div>
+    </div>
+  );
+}
+
+// The tactile centerpiece of the hero: a physical-feeling card the visitor
+// can nudge around (drag, springs back within its bounds) and flip (tap) to
+// preview a real question from the deck — a small, honest taste of the
+// actual product before the funnel even asks anything of you.
+//
+// Desktop gets an added mouse-follow 3D tilt (perspective transform driven
+// by pointer position); touch devices skip that (there's no continuous
+// hover to drive it) and rely on drag + tap alone, which work identically
+// well there — gated via a `(hover: hover) and (pointer: fine)` media
+// query check rather than assuming desktop = mouse.
+function HeroCard({ t, playTap, playFlip }: { t: T; playTap: () => void; playFlip: () => void }) {
+  const [flipped, setFlipped] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canTiltRef = useRef(false);
+  const rotateX = useMotionValue(0);
+  const rotateY = useMotionValue(0);
+  const springRotateX = useSpring(rotateX, { stiffness: 220, damping: 22 });
+  const springRotateY = useSpring(rotateY, { stiffness: 220, damping: 22 });
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    canTiltRef.current =
+      typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }, []);
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!canTiltRef.current || reduceMotion) return;
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    rotateY.set(px * 16);
+    rotateX.set(py * -16);
+  }
+  function handlePointerLeave() {
+    rotateX.set(0);
+    rotateY.set(0);
+  }
+  function handleFlip() {
+    setFlipped((f) => !f);
+    playFlip();
+  }
+
+  const teaser = t.card.deck.find((d) => d.type === "suit")?.q ?? t.hero.sub;
+
+  return (
+    <div className="herocard-scene">
+      <motion.div
+        ref={wrapRef}
+        className="herocard-wrap"
+        drag
+        dragConstraints={{ left: -36, right: 36, top: -18, bottom: 18 }}
+        dragElastic={0.2}
+        whileTap={{ scale: 0.96 }}
+        onDragStart={playTap}
+        onTap={handleFlip}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        style={{ rotateX: springRotateX, rotateY: springRotateY }}
+      >
+        <motion.div
+          className="herocard-inner"
+          animate={{ rotateY: flipped ? 180 : 0 }}
+          transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 140, damping: 18 }}
+        >
+          <div className="herocard-face herocard-front">
+            <LandingMark size={72} color="var(--l-ivory)" />
+            <div className="herocard-wordmark">ZUSAMMEN</div>
+          </div>
+          <div className="herocard-face herocard-back">
+            <div className="herocard-question">{teaser}</div>
+          </div>
+        </motion.div>
+      </motion.div>
+      <p className="herocard-hint">{t.hero.cardHint}</p>
     </div>
   );
 }
@@ -266,20 +379,35 @@ function IntroScreen({ t, onNext }: { t: T; onNext: () => void }) {
   );
 }
 
-function CardScreen({ t, onDone }: { t: T; onDone: () => void }) {
+function CardScreen({
+  t,
+  onDone,
+  playTap,
+  playFlip,
+}: {
+  t: T;
+  onDone: () => void;
+  playTap: () => void;
+  playFlip: () => void;
+}) {
   const [pos, setPos] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const deck = t.card.deck;
   const item = deck[pos];
   const isLast = pos === deck.length - 1;
+  // How many cards are still waiting behind this one — drives the fanned
+  // "deck in hand" stack below so it visibly thins out as you draw.
+  const remaining = deck.length - pos - 1;
 
   function flip() {
     setFlipped((f) => !f);
+    playFlip();
   }
 
   function drawNext() {
     setFlipped(false);
     setPos((p) => p + 1);
+    playTap();
   }
 
   return (
@@ -288,35 +416,39 @@ function CardScreen({ t, onDone }: { t: T; onDone: () => void }) {
         {pos + 1} / {deck.length}
       </div>
 
-      <div
-        className="flip-card"
-        role="button"
-        tabIndex={0}
-        aria-pressed={flipped}
-        onClick={flip}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            flip();
-          }
-        }}
-      >
-        <div className={flipped ? "flip-card-inner flipped" : "flip-card-inner"}>
-          <div className="flip-card-front">
-            <LandingMark size={72} color="var(--l-ivory)" />
-            <div className="flip-wordmark">ZUSAMMEN</div>
-          </div>
-          <div className={item.type === "wild" ? "flip-card-back wild" : "flip-card-back"}>
-            {item.type === "suit" ? (
-              <div className="question">{item.q}</div>
-            ) : (
-              <>
-                <div className="wicon">{item.icon}</div>
-                <div className="wname">{item.name}</div>
-                <div className="wtag">{item.tag}</div>
-                <div className="wtask">{item.task}</div>
-              </>
-            )}
+      <div className="deck-fan">
+        {remaining > 1 && <div className="deck-fan-card fan-2" aria-hidden="true" />}
+        {remaining > 0 && <div className="deck-fan-card fan-1" aria-hidden="true" />}
+        <div
+          className="flip-card"
+          role="button"
+          tabIndex={0}
+          aria-pressed={flipped}
+          onClick={flip}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              flip();
+            }
+          }}
+        >
+          <div className={flipped ? "flip-card-inner flipped" : "flip-card-inner"}>
+            <div className="flip-card-front">
+              <LandingMark size={72} color="var(--l-ivory)" />
+              <div className="flip-wordmark">ZUSAMMEN</div>
+            </div>
+            <div className={item.type === "wild" ? "flip-card-back wild" : "flip-card-back"}>
+              {item.type === "suit" ? (
+                <div className="question">{item.q}</div>
+              ) : (
+                <>
+                  <div className="wicon">{item.icon}</div>
+                  <div className="wname">{item.name}</div>
+                  <div className="wtag">{item.tag}</div>
+                  <div className="wtask">{item.task}</div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
