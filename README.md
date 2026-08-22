@@ -133,13 +133,24 @@ That's it — the database, tables, and file storage are ready.
 > protection comes from keeping your dashboard URL private, or turning
 > on the optional password lock below.
 
-### Optional: password-protect the whole dashboard
+### Optional (but recommended): password-protect the whole dashboard
 
-The app ships with a simple Basic Auth check (`proxy.ts`). If you
-set **both** `DASHBOARD_USER` and `DASHBOARD_PASSWORD` as environment
-variables, every page will ask for a username/password in the browser
-before loading. Leave them unset to keep the dashboard open to anyone
-with the link.
+The dashboard talks to Supabase with the public anon key and permissive
+RLS policies (see the note above) — anyone with the link can read and
+write every table. The app ships with a simple Basic Auth check
+(`proxy.ts`) to close that gap: set **both** `DASHBOARD_USER` and
+`DASHBOARD_PASSWORD` as environment variables and every dashboard page
+will ask for a username/password in the browser before loading. Leave
+them unset to keep the dashboard open to anyone with the link.
+
+- **Locally**: add both to `.env.local`.
+- **On Vercel**: Project → Settings → Environment Variables (same place
+  as the Supabase keys — see the deploy step below), then **redeploy**
+  — Vercel only picks up new/changed environment variables on the next
+  deployment, not on already-running ones.
+- `/landing` and `/api/reminder-email` (the daily cron summary) are
+  always excluded, so the public funnel and the reminder email keep
+  working even with the lock on.
 
 ---
 
