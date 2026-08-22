@@ -310,6 +310,14 @@
 .deck-fan {
   position: relative;
   width: 100%;
+  /* Capped and centered rather than stretching to fill .card-view's full
+     480px — a card that wide reads as oversized on every breakpoint
+     (edge-to-edge on phones, dominating on desktop) and left the fanned
+     cards below overflowing past the viewport on narrow screens. This
+     keeps a comfortable, page-fitted size everywhere while still
+     shrinking gracefully below 260px on very narrow phones. */
+  max-width: 260px;
+  margin: 0 auto;
 }
 .deck-fan-card {
   position: absolute;
@@ -322,12 +330,12 @@
 }
 .deck-fan-card.fan-1 {
   z-index: 0;
-  transform: rotate(-6deg) translate(-10px, 6px);
+  transform: rotate(-5deg) translate(-8px, 5px);
 }
 .deck-fan-card.fan-2 {
   z-index: -1;
   opacity: 0.85;
-  transform: rotate(7deg) translate(12px, 9px);
+  transform: rotate(5deg) translate(8px, 8px);
 }
 .flip-card {
   position: relative;
