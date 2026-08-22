@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
-import { Smartphone, Sprout, Sun, Leaf, Snowflake, Volume2, VolumeX } from "lucide-react";
+import {
+  Smartphone,
+  Sprout,
+  Sun,
+  Leaf,
+  Snowflake,
+  Volume2,
+  VolumeX,
+  ChevronLeft,
+  ChevronRight,
+  Home,
+} from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { landingT, LANDING_SCREENS, type LandingLang, type LandingScreen } from "@/lib/landing-i18n";
 import { useLandingSound } from "@/lib/landing-sound";
@@ -13,10 +24,33 @@ import "./landing.css";
 const SEASON_ICONS = { spring: Sprout, summer: Sun, autumn: Leaf, winter: Snowflake } as const;
 const COMMUNITY_ICONS = { picnic: "🧺", "founding-circle": "🤝", opening: "☕" } as const;
 
+// Every screen-local input that a visitor could lose by navigating away
+// and back (letter text, survey answers, which card you'd drawn to) lives
+// here instead, one level up — otherwise adding real back/forward
+// navigation would silently wipe whatever someone had already typed the
+// moment they stepped away from that screen. boxItems already worked this
+// way before back/forward existed; the rest now match it.
+type SurveyState = { wouldBuy: string | null; price: string | null; idea: string; email: string };
+const EMPTY_SURVEY: SurveyState = { wouldBuy: null, price: null, idea: "", email: "" };
+
 export default function LandingPage() {
   const [lang, setLang] = useState<LandingLang>("de");
-  const [screen, setScreen] = useState<LandingScreen>("hero");
+  // Browser-style back/forward: `history` is every screen navigated
+  // *into* so far, `pointer` is where in that list we currently are.
+  // goTo() truncates anything past `pointer` before pushing (so taking a
+  // new path after going back discards the old "forward" branch, exactly
+  // like a real browser tab); goBack/goForward just move the pointer.
+  const [nav, setNav] = useState<{ history: LandingScreen[]; pointer: number }>({
+    history: ["hero"],
+    pointer: 0,
+  });
+  const screen = nav.history[nav.pointer];
   const [boxItems, setBoxItems] = useState<Set<string>>(new Set());
+  const [cardPos, setCardPos] = useState(0);
+  const [letterText, setLetterText] = useState("");
+  const [letterSubmittedText, setLetterSubmittedText] = useState<string | null>(null);
+  const [surveyState, setSurveyState] = useState<SurveyState>(EMPTY_SURVEY);
+  const [surveySubmitted, setSurveySubmitted] = useState(false);
   const t = landingT[lang];
   const sound = useLandingSound();
 
@@ -32,14 +66,67 @@ export default function LandingPage() {
   const progressPct = Math.round(((screenIndex + 1) / LANDING_SCREENS.length) * 100);
 
   function goTo(next: LandingScreen) {
-    setScreen(next);
+    setNav(({ history, pointer }) => {
+      if (history[pointer] === next) return { history, pointer };
+      return { history: [...history.slice(0, pointer + 1), next], pointer: pointer + 1 };
+    });
     window.scrollTo(0, 0);
+  }
+  function goBack() {
+    setNav(({ history, pointer }) => ({ history, pointer: Math.max(0, pointer - 1) }));
+    window.scrollTo(0, 0);
+  }
+  function goForward() {
+    setNav(({ history, pointer }) => ({ history, pointer: Math.min(history.length - 1, pointer + 1) }));
+    window.scrollTo(0, 0);
+  }
+  function goHome() {
+    goTo("hero");
+  }
+  const canGoBack = nav.pointer > 0;
+  const canGoForward = nav.pointer < nav.history.length - 1;
+
+  function updateSurvey(patch: Partial<SurveyState>) {
+    setSurveyState((s) => ({ ...s, ...patch }));
+    // Any edit means the stored answers no longer match what's already
+    // saved in Supabase, so a later submit should be allowed to re-save.
+    setSurveySubmitted(false);
   }
 
   return (
     <div className="landing-root">
       <div className="landing-overallbar">
         <div className="fill" style={{ width: `${progressPct}%` }} />
+      </div>
+
+      <div className="nav-switch">
+        <button
+          type="button"
+          onClick={goBack}
+          disabled={!canGoBack}
+          aria-label={t.nav.back}
+          title={t.nav.back}
+        >
+          <ChevronLeft size={15} strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
+          onClick={goHome}
+          disabled={screen === "hero"}
+          aria-label={t.nav.home}
+          title={t.nav.home}
+        >
+          <Home size={13} strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
+          onClick={goForward}
+          disabled={!canGoForward}
+          aria-label={t.nav.forward}
+          title={t.nav.forward}
+        >
+          <ChevronRight size={15} strokeWidth={1.8} />
+        </button>
       </div>
 
       <div className="lang-switch">
@@ -73,10 +160,25 @@ export default function LandingPage() {
         {screen === "intro" && <IntroScreen t={t} onNext={() => goTo("card")} />}
         {screen === "story" && <StoryScreen t={t} onNext={() => goTo("card")} />}
         {screen === "card" && (
-          <CardScreen t={t} onDone={() => goTo("letter")} playTap={sound.playTap} playFlip={sound.playFlip} />
+          <CardScreen
+            t={t}
+            pos={cardPos}
+            onPosChange={setCardPos}
+            onDone={() => goTo("letter")}
+            playTap={sound.playTap}
+            playFlip={sound.playFlip}
+          />
         )}
         {screen === "letter" && (
-          <LetterScreen t={t} lang={lang} onNext={() => goTo("box")} />
+          <LetterScreen
+            t={t}
+            lang={lang}
+            text={letterText}
+            onTextChange={setLetterText}
+            submittedText={letterSubmittedText}
+            onSubmitted={setLetterSubmittedText}
+            onNext={() => goTo("box")}
+          />
         )}
         {screen === "box" && (
           <BoxScreen t={t} selected={boxItems} onToggle={setBoxItems} onNext={() => goTo("seasons")} />
@@ -84,7 +186,16 @@ export default function LandingPage() {
         {screen === "seasons" && <SeasonsScreen t={t} onNext={() => goTo("community")} />}
         {screen === "community" && <CommunityScreen t={t} onNext={() => goTo("survey")} />}
         {screen === "survey" && (
-          <SurveyScreen t={t} lang={lang} boxItems={boxItems} onDone={() => goTo("thanks")} />
+          <SurveyScreen
+            t={t}
+            lang={lang}
+            boxItems={boxItems}
+            state={surveyState}
+            onChange={updateSurvey}
+            submitted={surveySubmitted}
+            onSubmitted={() => setSurveySubmitted(true)}
+            onDone={() => goTo("thanks")}
+          />
         )}
         {screen === "thanks" && <ThanksScreen t={t} />}
       </div>
@@ -381,16 +492,23 @@ function IntroScreen({ t, onNext }: { t: T; onNext: () => void }) {
 
 function CardScreen({
   t,
+  pos,
+  onPosChange,
   onDone,
   playTap,
   playFlip,
 }: {
   t: T;
+  pos: number;
+  onPosChange: (pos: number) => void;
   onDone: () => void;
   playTap: () => void;
   playFlip: () => void;
 }) {
-  const [pos, setPos] = useState(0);
+  // Which card you're on is lifted to the parent (so navigating away via
+  // the back/forward controls and returning doesn't reset you to the
+  // first card) — `flipped` stays local since it's not really "your
+  // data", just a display toggle that's fine to reset on remount.
   const [flipped, setFlipped] = useState(false);
   const deck = t.card.deck;
   const item = deck[pos];
@@ -406,7 +524,7 @@ function CardScreen({
 
   function drawNext() {
     setFlipped(false);
-    setPos((p) => p + 1);
+    onPosChange(pos + 1);
     playTap();
   }
 
@@ -466,18 +584,39 @@ function CardScreen({
   );
 }
 
-function LetterScreen({ t, lang, onNext }: { t: T; lang: LandingLang; onNext: () => void }) {
-  const [text, setText] = useState("");
+function LetterScreen({
+  t,
+  lang,
+  text,
+  onTextChange,
+  submittedText,
+  onSubmitted,
+  onNext,
+}: {
+  t: T;
+  lang: LandingLang;
+  text: string;
+  onTextChange: (text: string) => void;
+  // What was last successfully saved to Supabase, if anything — lets
+  // submit() tell "user came back here via the new back/forward controls
+  // and just clicked through again" apart from "user actually changed
+  // what they wrote", so revisiting this screen doesn't insert duplicate
+  // rows every time the primary button is pressed.
+  submittedText: string | null;
+  onSubmitted: (text: string) => void;
+  onNext: () => void;
+}) {
   const trimmed = text.trim();
 
   async function submit() {
-    if (trimmed) {
+    if (trimmed && trimmed !== submittedText) {
       const supabase = getSupabaseClient();
       if (supabase) {
         const { error } = await supabase
           .from("landing_letters")
           .insert({ letter_text: trimmed, lang });
         if (error) console.error(error);
+        else onSubmitted(trimmed);
       }
     }
     onNext();
@@ -513,7 +652,7 @@ function LetterScreen({ t, lang, onNext }: { t: T; lang: LandingLang; onNext: ()
       </p>
       <textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => onTextChange(e.target.value)}
         placeholder={t.letter.placeholder}
       />
       <p className="privacy">{t.letter.privacy}</p>
@@ -656,34 +795,46 @@ function SurveyScreen({
   t,
   lang,
   boxItems,
+  state,
+  onChange,
+  submitted,
+  onSubmitted,
   onDone,
 }: {
   t: T;
   lang: LandingLang;
   boxItems: Set<string>;
+  state: SurveyState;
+  onChange: (patch: Partial<SurveyState>) => void;
+  // Same idempotency guard as LetterScreen's submittedText — true once
+  // the current answers have already been saved, so revisiting this
+  // screen via back/forward and clicking through again doesn't insert a
+  // second row for the same answers.
+  submitted: boolean;
+  onSubmitted: () => void;
   onDone: () => void;
 }) {
-  const [wouldBuy, setWouldBuy] = useState<string | null>(null);
-  const [price, setPrice] = useState<string | null>(null);
-  const [idea, setIdea] = useState("");
-  const [email, setEmail] = useState("");
+  const { wouldBuy, price, idea, email } = state;
 
   async function submit() {
     if (!wouldBuy || !price) {
       alert(t.survey.alertIncomplete);
       return;
     }
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { error } = await supabase.from("landing_responses").insert({
-        would_buy: wouldBuy,
-        price_range: price,
-        idea: idea.trim() || null,
-        email: email.trim() || null,
-        box_items: Array.from(boxItems),
-        lang,
-      });
-      if (error) console.error(error);
+    if (!submitted) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { error } = await supabase.from("landing_responses").insert({
+          would_buy: wouldBuy,
+          price_range: price,
+          idea: idea.trim() || null,
+          email: email.trim() || null,
+          box_items: Array.from(boxItems),
+          lang,
+        });
+        if (error) console.error(error);
+        else onSubmitted();
+      }
     }
     onDone();
   }
@@ -700,7 +851,7 @@ function SurveyScreen({
             <div
               key={opt}
               className={`landing-opt ${wouldBuy === opt ? "selected" : ""}`}
-              onClick={() => setWouldBuy(opt)}
+              onClick={() => onChange({ wouldBuy: opt })}
             >
               {opt}
             </div>
@@ -715,7 +866,7 @@ function SurveyScreen({
             <div
               key={opt}
               className={`landing-opt ${price === opt ? "selected" : ""}`}
-              onClick={() => setPrice(opt)}
+              onClick={() => onChange({ price: opt })}
             >
               {opt}
             </div>
@@ -728,7 +879,7 @@ function SurveyScreen({
         <span className="hint">{t.survey.q3Hint}</span>
         <textarea
           value={idea}
-          onChange={(e) => setIdea(e.target.value)}
+          onChange={(e) => onChange({ idea: e.target.value })}
           placeholder={t.survey.q3Placeholder}
         />
       </div>
@@ -739,7 +890,7 @@ function SurveyScreen({
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => onChange({ email: e.target.value })}
             placeholder={t.survey.emailPlaceholder}
           />
         </div>
