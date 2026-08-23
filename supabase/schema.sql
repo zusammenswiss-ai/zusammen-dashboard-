@@ -417,6 +417,111 @@ create policy "price-quotes bucket anon delete"
   on storage.objects for delete
   using (bucket_id = 'price-quotes');
 
+-- ---------------------------------------------------------------------
+-- Marketing content calendar — individual posts/stories/emails/campaigns
+-- scheduled against a date, optionally tied to one of the 4 seasonal
+-- campaigns above.
+-- ---------------------------------------------------------------------
+create table if not exists public.marketing_content (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  content_type text not null
+    check (content_type in ('Instagram poszt', 'Instagram story', 'Email', 'Kampány')),
+  -- References marketing_campaigns.season (unique) rather than a bare
+  -- check constraint, so this stays a real relation to the seasonal
+  -- strategy card it belongs to, if any.
+  season text references public.marketing_campaigns(season) on delete set null,
+  scheduled_date date not null,
+  copy_text text,
+  image_url text,
+  status text not null default 'Ötlet'
+    check (status in ('Ötlet', 'Tervezve', 'Ütemezve', 'Kiküldve')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.marketing_content enable row level security;
+
+drop policy if exists "anon full access" on public.marketing_content;
+create policy "anon full access" on public.marketing_content for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.marketing_content;
+create trigger set_updated_at before update on public.marketing_content
+  for each row execute function public.set_updated_at();
+
+-- Marketing asset library — reusable images (grouped by language in the
+-- UI), independent of any one scheduled content item.
+create table if not exists public.marketing_assets (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  language text not null check (language in ('HU', 'EN', 'DE')),
+  platform text,
+  season text references public.marketing_campaigns(season) on delete set null,
+  image_url text not null,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.marketing_assets enable row level security;
+
+drop policy if exists "anon full access" on public.marketing_assets;
+create policy "anon full access" on public.marketing_assets for all using (true) with check (true);
+
+-- Storage — shared bucket for both marketing_content and marketing_assets
+-- images
+insert into storage.buckets (id, name, public)
+values ('marketing', 'marketing', true)
+on conflict (id) do nothing;
+
+drop policy if exists "marketing bucket anon read" on storage.objects;
+create policy "marketing bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'marketing');
+
+drop policy if exists "marketing bucket anon write" on storage.objects;
+create policy "marketing bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'marketing');
+
+drop policy if exists "marketing bucket anon update" on storage.objects;
+create policy "marketing bucket anon update"
+  on storage.objects for update
+  using (bucket_id = 'marketing');
+
+drop policy if exists "marketing bucket anon delete" on storage.objects;
+create policy "marketing bucket anon delete"
+  on storage.objects for delete
+  using (bucket_id = 'marketing');
+
+-- "→ Feladat létrehozása" link — a task spun off a content-calendar item
+-- (see app/(dashboard)/marketing/page.tsx) keeps a reference back to it,
+-- set null (not cascaded) if the content item is later deleted so the
+-- task itself survives.
+alter table public.tasks
+  add column if not exists content_id uuid references public.marketing_content(id) on delete set null;
+
+-- When a task tied to a content item is marked "Kész", flip that
+-- content item's status to "Kiküldve" automatically — this only needs
+-- to run once, wherever the status update actually happens (drag-and-
+-- drop, the detail modal, …), so it lives here as a DB trigger instead
+-- of being duplicated in every place tasks.status can change.
+create or replace function public.mark_content_sent_on_task_done()
+returns trigger as $$
+begin
+  if new.content_id is not null
+     and new.status = 'Kész'
+     and old.status is distinct from 'Kész' then
+    update public.marketing_content set status = 'Kiküldve' where id = new.content_id;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists mark_content_sent_on_task_done on public.tasks;
+create trigger mark_content_sent_on_task_done after update on public.tasks
+  for each row execute function public.mark_content_sent_on_task_done();
+
 -- =====================================================================
 -- Landing page (/landing) — public customer-facing funnel
 -- ---------------------------------------------------------------------

@@ -51,6 +51,10 @@ export interface TaskItem {
   assignee: string | null;
   notes: string | null;
   archived_at: string | null;
+  // Set when this task was spun off a Marketing content-calendar item via
+  // "→ Feladat létrehozása" — a DB trigger flips that item's status to
+  // "Kiküldve" the moment this task's status becomes "Kész".
+  content_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +99,50 @@ export interface MarketingCampaign {
   updated_at: string;
 }
 export type MarketingCampaignUpdate = Partial<Pick<MarketingCampaign, "theme" | "product_focus">>;
+
+export type MarketingContentType = "Instagram poszt" | "Instagram story" | "Email" | "Kampány";
+export type MarketingContentStatus = "Ötlet" | "Tervezve" | "Ütemezve" | "Kiküldve";
+
+export interface MarketingContent {
+  id: string;
+  title: string;
+  content_type: MarketingContentType;
+  season: Season | null;
+  scheduled_date: string;
+  copy_text: string | null;
+  image_url: string | null;
+  status: MarketingContentStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type MarketingContentInsert = Partial<
+  Omit<MarketingContent, "id" | "created_at" | "updated_at">
+> & {
+  title: string;
+  content_type: MarketingContentType;
+  scheduled_date: string;
+};
+export type MarketingContentUpdate = Partial<Omit<MarketingContent, "id" | "created_at">>;
+
+export type MarketingAssetLanguage = "HU" | "EN" | "DE";
+
+export interface MarketingAsset {
+  id: string;
+  title: string;
+  language: MarketingAssetLanguage;
+  platform: string | null;
+  season: Season | null;
+  image_url: string;
+  notes: string | null;
+  created_at: string;
+}
+export type MarketingAssetInsert = Partial<Omit<MarketingAsset, "id" | "created_at">> & {
+  title: string;
+  language: MarketingAssetLanguage;
+  image_url: string;
+};
+export type MarketingAssetUpdate = Partial<Omit<MarketingAsset, "id" | "created_at">>;
 
 export interface Document {
   id: string;
@@ -244,6 +292,18 @@ export interface Database {
         Row: MarketingCampaign;
         Insert: Partial<MarketingCampaign>;
         Update: MarketingCampaignUpdate;
+        Relationships: [];
+      };
+      marketing_content: {
+        Row: MarketingContent;
+        Insert: MarketingContentInsert;
+        Update: MarketingContentUpdate;
+        Relationships: [];
+      };
+      marketing_assets: {
+        Row: MarketingAsset;
+        Insert: MarketingAssetInsert;
+        Update: MarketingAssetUpdate;
         Relationships: [];
       };
       documents: {
