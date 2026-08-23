@@ -12,6 +12,9 @@ import {
   Download,
   LayoutTemplate,
   Settings,
+  Archive,
+  ArchiveRestore,
+  X,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { TaskItem, TaskPriority, TaskStatus, TaskTemplate } from "@/lib/supabase/types";
@@ -29,6 +32,19 @@ import { toCSV, downloadCSV } from "@/lib/csv";
 
 function byTaskRecency(a: TaskItem, b: TaskItem) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
+function byArchivedRecency(a: TaskItem, b: TaskItem) {
+  return new Date(b.archived_at ?? 0).getTime() - new Date(a.archived_at ?? 0).getTime();
+}
+
+// due_date is a plain "YYYY-MM-DD" string (a date column, no time/zone),
+// so a simple string compare against today's date in the same format is
+// correct and avoids any timezone-conversion surprises a Date object
+// comparison would introduce.
+function isOverdue(task: TaskItem): boolean {
+  if (!task.due_date || task.status === "Kész") return false;
+  return task.due_date < new Date().toISOString().slice(0, 10);
 }
 
 const EXPORT_HEADERS = ["title", "category", "priority", "status", "due_date", "assignee", "notes"];
@@ -76,6 +92,7 @@ export default function TasksPage() {
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
@@ -175,16 +192,42 @@ export default function TasksPage() {
 
   const openTask = openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null;
 
+  // Archived tasks never appear on the Kanban board itself — only in the
+  // separate Archívum view — so every board-facing list is derived from
+  // activeTasks, not the raw tasks state (which still holds both, since
+  // loadTasks fetches everything in one query rather than running two).
+  const activeTasks = useMemo(() => tasks.filter((t) => !t.archived_at), [tasks]);
+  const archivedTasks = useMemo(
+    () => tasks.filter((t) => t.archived_at).sort(byArchivedRecency),
+    [tasks]
+  );
+
   const filteredTasks = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter(
+    if (!q) return activeTasks;
+    return activeTasks.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         (t.category ?? "").toLowerCase().includes(q) ||
         (t.assignee ?? "").toLowerCase().includes(q)
     );
-  }, [tasks, query]);
+  }, [activeTasks, query]);
+
+  function archiveTask(id: string) {
+    void updateTask(id, { archived_at: new Date().toISOString() });
+  }
+
+  function restoreTask(id: string) {
+    void updateTask(id, { archived_at: null });
+  }
+
+  async function bulkArchive(ids: string[]) {
+    if (ids.length === 0 || !supabase) return;
+    const now = new Date().toISOString();
+    setTasks((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, archived_at: now } : t)));
+    const { error } = await supabase.from("tasks").update({ archived_at: now }).in("id", ids);
+    if (error) setError(error.message);
+  }
 
   function handleDrop(status: TaskStatus) {
     setDragOverCol(null);
@@ -214,6 +257,10 @@ export default function TasksPage() {
                 <Download size={16} /> Exportálás CSV-be
               </button>
             )}
+            <button className="btn btn-ghost" onClick={() => setShowArchive(true)}>
+              <Archive size={16} /> Archívum
+              {archivedTasks.length > 0 && ` (${archivedTasks.length})`}
+            </button>
             <button
               onClick={() => setShowTemplateManager(true)}
               className="btn btn-ghost !px-2"
@@ -347,8 +394,19 @@ export default function TasksPage() {
                 }`}
               >
                 <div className="flex items-center justify-between px-1">
-                  <h2 className="font-serif text-base text-forest">{status}</h2>
-                  <span className="badge bg-ivory-dim text-walnut">{columnTasks.length}</span>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-serif text-base text-forest">{status}</h2>
+                    <span className="badge bg-ivory-dim text-walnut">{columnTasks.length}</span>
+                  </div>
+                  {status === "Kész" && columnTasks.length > 0 && (
+                    <button
+                      onClick={() => bulkArchive(columnTasks.map((t) => t.id))}
+                      className="flex items-center gap-1 text-xs text-muted hover:text-forest"
+                      title="Az összes látható Kész feladat archiválása"
+                    >
+                      <Archive size={12} /> Összes archiválása
+                    </button>
+                  )}
                 </div>
                 {columnTasks.map((task) => (
                   <TaskCard
@@ -359,6 +417,7 @@ export default function TasksPage() {
                     }}
                     onOpen={() => setOpenTaskId(task.id)}
                     onDelete={() => deleteTask(task.id)}
+                    onArchive={status === "Kész" ? () => archiveTask(task.id) : undefined}
                     onStatusChange={(status) => updateTask(task.id, { status })}
                   />
                 ))}
@@ -397,6 +456,15 @@ export default function TasksPage() {
           onChange={setTemplates}
         />
       )}
+
+      {showArchive && (
+        <ArchiveModal
+          tasks={archivedTasks}
+          onClose={() => setShowArchive(false)}
+          onRestore={restoreTask}
+          onDelete={deleteTask}
+        />
+      )}
     </>
   );
 }
@@ -406,46 +474,67 @@ function TaskCard({
   onDragStart,
   onOpen,
   onDelete,
+  onArchive,
   onStatusChange,
 }: {
   task: TaskItem;
   onDragStart: (id: string) => void;
   onOpen: () => void;
   onDelete: () => void;
+  onArchive?: () => void;
   onStatusChange: (status: TaskStatus) => void;
 }) {
+  const overdue = isOverdue(task);
   return (
     <div
       draggable
       onDragStart={() => onDragStart(task.id)}
       onClick={onOpen}
-      className="card group cursor-grab p-3 text-left active:cursor-grabbing"
+      className={`card group cursor-grab p-3 text-left active:cursor-grabbing ${
+        overdue ? "border-red-300 ring-1 ring-red-200" : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-forest">{task.title}</p>
         {/* Always visible (not hover-gated) — a hover-only reveal is
             unreachable on touch devices like iPad. */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="shrink-0 p-0.5 text-muted/70 hover:text-red-600"
-          aria-label="Törlés"
-        >
-          <Trash2 size={13} />
-        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onArchive && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
+              className="p-0.5 text-muted/70 hover:text-forest"
+              aria-label="Archiválás"
+              title="Archiválás"
+            >
+              <Archive size={13} />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-0.5 text-muted/70 hover:text-red-600"
+            aria-label="Törlés"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span className={`badge ${PRIORITY_STYLES[task.priority]}`}>{PRIORITY_HU[task.priority]}</span>
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
+        {overdue && <span className="badge bg-red-100 text-red-700">Lejárt</span>}
       </div>
 
       {(task.due_date || task.assignee || task.notes) && (
         <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
           {task.due_date && (
-            <span className="flex items-center gap-1">
+            <span className={`flex items-center gap-1 ${overdue ? "font-medium text-red-600" : ""}`}>
               <CalendarDays size={12} /> {formatDate(task.due_date)}
             </span>
           )}
@@ -479,6 +568,85 @@ function TaskCard({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+/** Where archived ("Kész" tasks taken off the board) tasks live — never
+ * shown on the Kanban board itself, only reachable from here. Every row
+ * offers "Visszaállítás" (undo, effectively — puts it straight back into
+ * Kész) or a real, final Törlés, which reuses the page's normal
+ * delete-with-undo-toast flow, so nothing here bypasses that safety net. */
+function ArchiveModal({
+  tasks,
+  onClose,
+  onRestore,
+  onDelete,
+}: {
+  tasks: TaskItem[];
+  onClose: () => void;
+  onRestore: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-forest/40 px-4 py-8 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        className="animate-fade-in card flex max-h-full w-full max-w-lg flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border p-5">
+          <h2 className="font-serif text-lg text-forest">Archívum</h2>
+          <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {tasks.length === 0 ? (
+            <p className="text-sm text-muted">Még nincs archivált feladat.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {tasks.map((task) => (
+                <div key={task.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-forest">{task.title}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className={`badge ${PRIORITY_STYLES[task.priority]}`}>
+                        {PRIORITY_HU[task.priority]}
+                      </span>
+                      {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
+                    </div>
+                    {task.archived_at && (
+                      <p className="mt-1.5 text-xs text-muted">Archiválva: {formatDate(task.archived_at)}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => onRestore(task.id)}
+                      className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest"
+                      aria-label="Visszaállítás"
+                      title="Visszaállítás a Kész oszlopba"
+                    >
+                      <ArchiveRestore size={15} />
+                    </button>
+                    <button
+                      onClick={() => onDelete(task.id)}
+                      className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-red-600"
+                      aria-label="Végleges törlés"
+                      title="Végleges törlés"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
