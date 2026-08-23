@@ -75,6 +75,12 @@ create table if not exists public.tasks (
 -- Added after the initial launch — safe no-op if the column already exists.
 alter table public.tasks add column if not exists notes text;
 
+-- Archiving for "Kész" tasks — set when a task is archived, null while
+-- active. Keeps the Kanban board's Kész column from growing forever
+-- while preserving history (still exportable, still in Supabase) rather
+-- than deleting it outright.
+alter table public.tasks add column if not exists archived_at timestamptz;
+
 -- ---------------------------------------------------------------------
 -- Task templates — presets for the "Sablonból hozzáadás" quick-add on
 -- Feladatok and its "Sablonok kezelése" editor.
