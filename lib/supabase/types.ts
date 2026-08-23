@@ -110,7 +110,14 @@ export interface MarketingContent {
   season: Season | null;
   scheduled_date: string;
   copy_text: string | null;
+  // Set when the image was uploaded directly for this content item.
+  // Mutually exclusive with asset_id in practice (the form only ever
+  // sets one) — never both, so the image is never duplicated between a
+  // content row and a saved asset.
   image_url: string | null;
+  // Set when the image is a saved marketing_assets row instead — look
+  // up that asset's image_url to render it rather than copying it here.
+  asset_id: string | null;
   status: MarketingContentStatus;
   notes: string | null;
   created_at: string;
@@ -126,11 +133,13 @@ export type MarketingContentInsert = Partial<
 export type MarketingContentUpdate = Partial<Omit<MarketingContent, "id" | "created_at">>;
 
 export type MarketingAssetLanguage = "HU" | "EN" | "DE";
+export type MarketingAssetType = "Koncepció" | "Valódi termékfotó" | "Lifestyle";
 
 export interface MarketingAsset {
   id: string;
   title: string;
   language: MarketingAssetLanguage;
+  asset_type: MarketingAssetType;
   platform: string | null;
   season: Season | null;
   image_url: string;

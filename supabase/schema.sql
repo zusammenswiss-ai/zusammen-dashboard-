@@ -463,10 +463,24 @@ create table if not exists public.marketing_assets (
   created_at timestamptz not null default now()
 );
 
+-- What the image actually is, so it's never mistaken for something it
+-- isn't further down the line (e.g. a "Koncepció" mockup accidentally
+-- used as a real webshop product photo) — shown as a prominent badge on
+-- every asset card.
+alter table public.marketing_assets
+  add column if not exists asset_type text not null default 'Koncepció'
+    check (asset_type in ('Koncepció', 'Valódi termékfotó', 'Lifestyle'));
+
 alter table public.marketing_assets enable row level security;
 
 drop policy if exists "anon full access" on public.marketing_assets;
 create policy "anon full access" on public.marketing_assets for all using (true) with check (true);
+
+-- Lets a content-calendar item point at a saved asset instead of
+-- uploading its own copy of the same image — set null (not cascaded) if
+-- the asset is later deleted, so the content item survives.
+alter table public.marketing_content
+  add column if not exists asset_id uuid references public.marketing_assets(id) on delete set null;
 
 -- Storage — shared bucket for both marketing_content and marketing_assets
 -- images

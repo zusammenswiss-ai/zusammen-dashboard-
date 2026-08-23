@@ -17,7 +17,10 @@ import {
   ArrowRight,
   Image as ImageIcon,
   CalendarClock,
+  CalendarPlus,
   Images,
+  Upload,
+  LibraryBig,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
@@ -27,6 +30,7 @@ import type {
   MarketingContentStatus,
   MarketingAsset,
   MarketingAssetLanguage,
+  MarketingAssetType,
   Season,
 } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -51,6 +55,7 @@ const SEASON_META: Record<Season, { icon: typeof Sun; accent: string }> = {
 const CONTENT_TYPES: MarketingContentType[] = ["Instagram poszt", "Instagram story", "Email", "Kampány"];
 const CONTENT_STATUSES: MarketingContentStatus[] = ["Ötlet", "Tervezve", "Ütemezve", "Kiküldve"];
 const LANGUAGES: MarketingAssetLanguage[] = ["HU", "EN", "DE"];
+const ASSET_TYPES: MarketingAssetType[] = ["Koncepció", "Valódi termékfotó", "Lifestyle"];
 
 const CONTENT_TYPE_STYLES: Record<MarketingContentType, string> = {
   "Instagram poszt": "bg-forest/10 text-forest",
@@ -64,12 +69,25 @@ const CONTENT_STATUS_STYLES: Record<MarketingContentStatus, string> = {
   Ütemezve: "bg-blue-100 text-blue-700",
   Kiküldve: "bg-green-100 text-green-700",
 };
+// Deliberately loud, high-contrast badges — this distinction exists so a
+// "Koncepció" mockup is never mistaken for something safe to actually ship
+// (e.g. to the webshop), so it needs to read at a glance, not just on hover.
+const ASSET_TYPE_STYLES: Record<MarketingAssetType, string> = {
+  Koncepció: "bg-yellow-400 text-yellow-950",
+  "Valódi termékfotó": "bg-green-500 text-white",
+  Lifestyle: "bg-blue-500 text-white",
+};
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
 type Tab = "seasons" | "calendar" | "assets";
+
+// What "→ Tartalom létrehozása ebből" hands the content form: enough to
+// pre-select the asset in the gallery picker and seed a sensible title —
+// the user still fills in date/szöveg/típus themselves.
+type ContentPrefill = { assetId: string; title: string; season: Season | null };
 
 export default function MarketingPage() {
   const [tab, setTab] = useState<Tab>("seasons");
@@ -83,6 +101,12 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [composeFor, setComposeFor] = useState<MarketingCampaign | null>(null);
+
+  // Lifted out of ContentCalendarSection (rather than kept local there) so
+  // that "→ Tartalom létrehozása ebből" on an asset card — rendered under a
+  // different tab — can open the content form pre-filled with that asset.
+  const [showContentForm, setShowContentForm] = useState(false);
+  const [contentPrefill, setContentPrefill] = useState<ContentPrefill | null>(null);
 
   // Two separate delete-scopes on this page (content vs. assets) get
   // their own undo-hook instance each, matching this app's established
@@ -126,6 +150,12 @@ export default function MarketingPage() {
     for (const t of linkedTasks) if (t.content_id) map.set(t.content_id, t.id);
     return map;
   }, [linkedTasks]);
+
+  const assetById = useMemo(() => {
+    const map = new Map<string, MarketingAsset>();
+    for (const a of assets) map.set(a.id, a);
+    return map;
+  }, [assets]);
 
   async function updateCampaign(id: string, patch: Partial<MarketingCampaign>) {
     setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -201,6 +231,12 @@ export default function MarketingPage() {
     );
   }
 
+  function createContentFromAsset(asset: MarketingAsset) {
+    setTab("calendar");
+    setContentPrefill({ assetId: asset.id, title: asset.title, season: asset.season });
+    setShowContentForm(true);
+  }
+
   if (!isSupabaseConfigured) {
     return (
       <>
@@ -260,7 +296,13 @@ export default function MarketingPage() {
           {tab === "calendar" && (
             <ContentCalendarSection
               content={content}
+              assets={assets}
+              assetById={assetById}
               taskIdByContentId={taskIdByContentId}
+              showForm={showContentForm}
+              onShowFormChange={setShowContentForm}
+              prefill={contentPrefill}
+              onPrefillConsumed={() => setContentPrefill(null)}
               onAdd={addContent}
               onDelete={deleteContent}
               onStatusChange={updateContentStatus}
@@ -268,7 +310,14 @@ export default function MarketingPage() {
             />
           )}
 
-          {tab === "assets" && <AssetLibrarySection assets={assets} onAdd={addAsset} onDelete={deleteAsset} />}
+          {tab === "assets" && (
+            <AssetLibrarySection
+              assets={assets}
+              onAdd={addAsset}
+              onDelete={deleteAsset}
+              onCreateContent={createContentFromAsset}
+            />
+          )}
         </>
       )}
 
@@ -430,20 +479,31 @@ const EMPTY_CONTENT_FORM = {
  * filters and a "→ Feladat létrehozása" link per item. */
 function ContentCalendarSection({
   content,
+  assets,
+  assetById,
   taskIdByContentId,
+  showForm,
+  onShowFormChange,
+  prefill,
+  onPrefillConsumed,
   onAdd,
   onDelete,
   onStatusChange,
   onCreateTask,
 }: {
   content: MarketingContent[];
+  assets: MarketingAsset[];
+  assetById: Map<string, MarketingAsset>;
   taskIdByContentId: Map<string, string>;
+  showForm: boolean;
+  onShowFormChange: (show: boolean) => void;
+  prefill: ContentPrefill | null;
+  onPrefillConsumed: () => void;
   onAdd: (item: MarketingContent) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: MarketingContentStatus) => void;
   onCreateTask: (item: MarketingContent) => void;
 }) {
-  const [showForm, setShowForm] = useState(false);
   const [monthFilter, setMonthFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | MarketingContentType>("");
   const [statusFilter, setStatusFilter] = useState<"" | MarketingContentStatus>("");
@@ -499,18 +559,31 @@ function ContentCalendarSection({
             </select>
           </div>
         </div>
-        <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
+        <button
+          className="btn btn-bronze"
+          onClick={() => {
+            if (showForm) onPrefillConsumed();
+            onShowFormChange(!showForm);
+          }}
+        >
           <Plus size={16} /> Új tartalom
         </button>
       </div>
 
       {showForm && (
         <ContentForm
+          key={prefill?.assetId ?? "new"}
+          assets={assets}
+          prefill={prefill}
           onCreated={(item) => {
             onAdd(item);
-            setShowForm(false);
+            onShowFormChange(false);
+            onPrefillConsumed();
           }}
-          onCancel={() => setShowForm(false)}
+          onCancel={() => {
+            onShowFormChange(false);
+            onPrefillConsumed();
+          }}
         />
       )}
 
@@ -528,6 +601,7 @@ function ContentCalendarSection({
             <ContentCard
               key={item.id}
               item={item}
+              resolvedImageUrl={item.asset_id ? assetById.get(item.asset_id)?.image_url ?? null : item.image_url}
               linkedTaskId={taskIdByContentId.get(item.id) ?? null}
               onDelete={() => onDelete(item.id)}
               onStatusChange={(status) => onStatusChange(item.id, status)}
@@ -541,13 +615,26 @@ function ContentCalendarSection({
 }
 
 function ContentForm({
+  assets,
+  prefill,
   onCreated,
   onCancel,
 }: {
+  assets: MarketingAsset[];
+  prefill: ContentPrefill | null;
   onCreated: (item: MarketingContent) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState(EMPTY_CONTENT_FORM);
+  const [form, setForm] = useState(() =>
+    prefill
+      ? { ...EMPTY_CONTENT_FORM, title: prefill.title, season: prefill.season ?? "" }
+      : EMPTY_CONTENT_FORM
+  );
+  // "library" reuses a saved marketing_assets image instead of uploading a
+  // fresh copy of the same file — arriving via "→ Tartalom létrehozása
+  // ebből" starts here, pre-selected on that asset.
+  const [imageMode, setImageMode] = useState<"upload" | "library">(prefill ? "library" : "upload");
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(prefill?.assetId ?? null);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -559,8 +646,14 @@ function ContentForm({
     setSaving(true);
     setError(null);
     try {
+      // Mutually exclusive by construction: exactly one of image_url /
+      // asset_id ends up set, so the image is never duplicated between a
+      // content row and a saved asset.
       let imageUrl: string | null = null;
-      if (file) {
+      let assetId: string | null = null;
+      if (imageMode === "library") {
+        assetId = selectedAssetId;
+      } else if (file) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const path = `content/${crypto.randomUUID()}-${safeName}`;
         const { error: uploadError } = await supabase.storage
@@ -578,6 +671,7 @@ function ContentForm({
           scheduled_date: form.scheduled_date,
           copy_text: form.copy_text.trim() || null,
           image_url: imageUrl,
+          asset_id: assetId,
           status: form.status,
           notes: form.notes.trim() || null,
         })
@@ -659,15 +753,61 @@ function ContentForm({
             ))}
           </select>
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Kép feltöltése</label>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted">Kép</label>
+        <div className="mb-2 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setImageMode("upload")}
+            className={`btn !px-3 !py-1.5 text-xs ${imageMode === "upload" ? "btn-bronze" : "btn-ghost"}`}
+          >
+            <Upload size={13} /> Új kép feltöltése
+          </button>
+          <button
+            type="button"
+            onClick={() => setImageMode("library")}
+            className={`btn !px-3 !py-1.5 text-xs ${imageMode === "library" ? "btn-bronze" : "btn-ghost"}`}
+          >
+            <LibraryBig size={13} /> Válassz a mentett anyagokból
+          </button>
+        </div>
+
+        {imageMode === "upload" ? (
           <input
             type="file"
             accept="image/*"
             className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-        </div>
+        ) : assets.length === 0 ? (
+          <p className="text-xs text-muted">
+            Nincs még mentett marketing anyag — tölts fel egyet a Marketing anyagok fülön.
+          </p>
+        ) : (
+          <div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto rounded-md border border-black/5 p-2 sm:grid-cols-6">
+            {assets.map((asset) => (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() => setSelectedAssetId(asset.id)}
+                className={`relative aspect-square overflow-hidden rounded-md ring-2 transition-shadow ${
+                  selectedAssetId === asset.id ? "ring-bronze" : "ring-transparent hover:ring-bronze/40"
+                }`}
+                title={asset.title}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={asset.image_url} alt={asset.title} className="h-full w-full object-cover" />
+                {selectedAssetId === asset.id && (
+                  <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-bronze text-white">
+                    <Check size={11} />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">Poszt-szöveg</label>
@@ -702,12 +842,14 @@ function ContentForm({
 
 function ContentCard({
   item,
+  resolvedImageUrl,
   linkedTaskId,
   onDelete,
   onStatusChange,
   onCreateTask,
 }: {
   item: MarketingContent;
+  resolvedImageUrl: string | null;
   linkedTaskId: string | null;
   onDelete: () => void;
   onStatusChange: (status: MarketingContentStatus) => void;
@@ -715,15 +857,15 @@ function ContentCard({
 }) {
   return (
     <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
-      {item.image_url ? (
+      {resolvedImageUrl ? (
         <a
-          href={item.image_url}
+          href={resolvedImageUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="block h-20 w-20 shrink-0 overflow-hidden rounded-md bg-ivory-dim"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
+          <img src={resolvedImageUrl} alt={item.title} className="h-full w-full object-cover" />
         </a>
       ) : (
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-ivory-dim text-muted/40">
@@ -784,6 +926,7 @@ function ContentCard({
 const EMPTY_ASSET_FORM = {
   title: "",
   language: "HU" as MarketingAssetLanguage,
+  asset_type: "Koncepció" as MarketingAssetType,
   platform: "",
   season: "" as Season | "",
   notes: "",
@@ -794,10 +937,12 @@ function AssetLibrarySection({
   assets,
   onAdd,
   onDelete,
+  onCreateContent,
 }: {
   assets: MarketingAsset[];
   onAdd: (asset: MarketingAsset) => void;
   onDelete: (id: string) => void;
+  onCreateContent: (asset: MarketingAsset) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
   const grouped = LANGUAGES.map((lang) => ({ lang, items: assets.filter((a) => a.language === lang) })).filter(
@@ -835,7 +980,12 @@ function AssetLibrarySection({
               <h2 className="mb-2 font-serif text-lg text-forest">{lang}</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {items.map((asset) => (
-                  <AssetCard key={asset.id} asset={asset} onDelete={() => onDelete(asset.id)} />
+                  <AssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onDelete={() => onDelete(asset.id)}
+                    onCreateContent={() => onCreateContent(asset)}
+                  />
                 ))}
               </div>
             </div>
@@ -881,6 +1031,7 @@ function AssetForm({
         .insert({
           title: form.title.trim(),
           language: form.language,
+          asset_type: form.asset_type,
           platform: form.platform.trim() || null,
           season: form.season || null,
           image_url: imageUrl,
@@ -921,6 +1072,20 @@ function AssetForm({
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>
                 {l}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Kép típusa</label>
+          <select
+            className="select"
+            value={form.asset_type}
+            onChange={(e) => setForm((f) => ({ ...f, asset_type: e.target.value as MarketingAssetType }))}
+          >
+            {ASSET_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
               </option>
             ))}
           </select>
@@ -982,12 +1147,33 @@ function AssetForm({
   );
 }
 
-function AssetCard({ asset, onDelete }: { asset: MarketingAsset; onDelete: () => void }) {
+function AssetCard({
+  asset,
+  onDelete,
+  onCreateContent,
+}: {
+  asset: MarketingAsset;
+  onDelete: () => void;
+  onCreateContent: () => void;
+}) {
   return (
     <div className="card overflow-hidden">
-      <a href={asset.image_url} target="_blank" rel="noopener noreferrer" className="block aspect-square bg-ivory-dim">
+      <a
+        href={asset.image_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-square bg-ivory-dim"
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={asset.image_url} alt={asset.title} className="h-full w-full object-cover" />
+        {/* Overlaid, not just listed below — this must never blend into the
+         * rest of the card so a "Koncepció" mockup can't be mistaken for a
+         * real product photo further down the line (e.g. webshop upload). */}
+        <span
+          className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow ${ASSET_TYPE_STYLES[asset.asset_type]}`}
+        >
+          {asset.asset_type}
+        </span>
       </a>
       <div className="p-2.5">
         <p className="truncate text-xs font-medium text-forest" title={asset.title}>
@@ -997,7 +1183,13 @@ function AssetCard({ asset, onDelete }: { asset: MarketingAsset; onDelete: () =>
           {asset.platform && <span className="badge bg-ivory-dim text-walnut">{asset.platform}</span>}
           {asset.season && <span className="badge bg-ivory-dim text-walnut">{SEASON_HU[asset.season]}</span>}
         </div>
-        <button onClick={onDelete} className="mt-2 flex items-center gap-1 text-xs text-muted/70 hover:text-red-600">
+        <button
+          onClick={onCreateContent}
+          className="mt-2 flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
+        >
+          <CalendarPlus size={12} /> Tartalom létrehozása ebből
+        </button>
+        <button onClick={onDelete} className="mt-1.5 flex items-center gap-1 text-xs text-muted/70 hover:text-red-600">
           <Trash2 size={12} /> Törlés
         </button>
       </div>
