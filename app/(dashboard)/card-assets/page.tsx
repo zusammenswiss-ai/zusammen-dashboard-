@@ -17,6 +17,27 @@ import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/l
 const STORAGE_BUCKET = "card-assets";
 const LANGUAGES = ["HU", "DE", "EN"];
 
+// ZIP for a full print-ready bundle, or a single Word / ODF / CSV file when
+// there's nothing to bundle — Storage takes any of these as-is, and the
+// thumbnail-extraction route just skips silently for non-ZIP uploads.
+const FILE_ACCEPT = [
+  ".zip",
+  "application/zip",
+  "application/x-zip-compressed",
+  ".doc",
+  ".docx",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".odt",
+  ".ods",
+  ".odp",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  ".csv",
+  "text/csv",
+].join(",");
+
 const EMPTY_FORM = {
   language: LANGUAGES[0],
   version: "",
@@ -151,7 +172,7 @@ export default function CardAssetsPage() {
     e.preventDefault();
     if (!supabase || !form.version.trim()) return;
     if (!file) {
-      setError("Válassz egy ZIP-fájlt vagy egy mappát a feltöltéshez.");
+      setError("Válassz egy fájlt (ZIP, Word, ODF vagy CSV) vagy egy mappát a feltöltéshez.");
       return;
     }
     setSaving(true);
@@ -343,7 +364,7 @@ export default function CardAssetsPage() {
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <label className="block text-xs font-medium text-muted">
-                  {source === "file" ? "ZIP-fájl *" : "Mappa *"}
+                  {source === "file" ? "Fájl *" : "Mappa *"}
                 </label>
                 <div className="flex gap-1">
                   <button
@@ -353,7 +374,7 @@ export default function CardAssetsPage() {
                       source === "file" ? "bg-forest text-ivory" : "text-muted hover:bg-ivory-dim"
                     }`}
                   >
-                    ZIP
+                    Fájl
                   </button>
                   <button
                     type="button"
@@ -370,7 +391,12 @@ export default function CardAssetsPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".zip,application/zip,application/x-zip-compressed"
+                  // ZIP for the usual print-ready bundles, plus Word, ODF
+                  // (OpenDocument text/spreadsheet/presentation) and CSV for
+                  // single-file uploads that don't need zipping at all —
+                  // the process route below already no-ops gracefully on
+                  // anything that isn't a readable ZIP.
+                  accept={FILE_ACCEPT}
                   required
                   className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
@@ -483,7 +509,7 @@ export default function CardAssetsPage() {
         <EmptyState
           icon={Archive}
           title="Még nincs feltöltött kártya-fájl"
-          description="Töltsd fel az első nyomdakész ZIP-et nyelvenként — a legújabb verzió mindig kiemelve jelenik meg."
+          description="Töltsd fel az első nyomdakész fájlt nyelvenként (ZIP, Word, ODF vagy CSV) — a legújabb verzió mindig kiemelve jelenik meg."
         />
       ) : (
         <div className="flex flex-col gap-6">
