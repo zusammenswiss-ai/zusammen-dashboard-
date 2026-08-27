@@ -116,6 +116,8 @@ export const CALENDAR_CATEGORIES = {
   marketing: { label: "Marketing", color: "slate" },
   plan: { label: "Jövőbeli tervek", color: "mauve" },
   order: { label: "Megrendelések", color: "forest-light" },
+  content: { label: "Tartalom-naptár", color: "clay" },
+  ritual: { label: "Személyes rituálé", color: "teal" },
 } as const;
 
 export type CalendarCategory = keyof typeof CALENDAR_CATEGORIES;
