@@ -15,6 +15,13 @@ import { NextResponse, type NextRequest } from "next/server";
 // DASHBOARD_USER/DASHBOARD_PASSWORD would make this proxy reject the cron
 // job's request before it ever reaches that check, silently breaking the
 // daily reminder email.
+//
+// /api/og is excluded for the same reason /landing is: it's the social-
+// preview image for that public page (app/landing/page.tsx's
+// generateMetadata points og:image/twitter:image at it) — Facebook/Twitter/
+// Slack's link-preview crawlers can't send Basic Auth credentials, so
+// without this exclusion every shared /landing link would show a broken
+// image the moment DASHBOARD_USER/DASHBOARD_PASSWORD are set.
 export function proxy(request: NextRequest) {
   const user = process.env.DASHBOARD_USER;
   const password = process.env.DASHBOARD_PASSWORD;
@@ -45,5 +52,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email).*)",
+  matcher: "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email|api/og).*)",
 };
