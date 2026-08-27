@@ -125,6 +125,24 @@ placeholder in the page itself — **fill these in before sharing the
 `/landing` link publicly**, since the funnel collects an optional email
 address and Swiss/EU sites need a real Impressum + Datenschutzerklärung.
 
+**Social previews** (`og:*` / `twitter:*` tags, so the link looks right
+when pasted into WhatsApp, iMessage, Slack, etc.): defined in
+`app/landing/page.tsx`'s `generateMetadata`, sourced from
+`lib/landing-og.ts`. The preview image itself is generated on request —
+not a static file — by `app/api/og/route.tsx`, a branded placeholder
+(dark-forest gradient, gold mountain+heart mark, the tagline in Fraunces)
+built with Next's `ImageResponse`; swap that route for real product
+photography whenever it exists by pointing the `openGraph`/`twitter`
+`images` URLs in `generateMetadata` at actual files instead. Title and
+image are the same across languages; the description and `og:locale` vary
+by `?lang=de|en|hu` — bare `/landing` (no query string) is the German
+default, matching the page's own default language. Since `/landing`
+itself only has German/English on-page copy (see `lib/landing-i18n.ts`),
+`?lang=hu` only changes the *social preview* text, not the page you land
+on — it still opens in German. Use whichever `/landing?lang=…` link
+matches the audience you're sharing it with, so both the on-page content
+and the preview card match.
+
 ### Before you share the `/landing` link
 
 1. **Personalize the founder story** — `lib/landing-i18n.ts` has a
@@ -136,6 +154,10 @@ address and Swiss/EU sites need a real Impressum + Datenschutzerklärung.
 3. **Fill in the legal pages** — open `/landing/impressum` and
    `/landing/datenschutz` (or their source under `app/landing/`) and
    replace every "BITTE AUSFÜLLEN" placeholder with your real details.
+4. **Set `SITE_URL`** to your real production domain once you have one
+   (see the env var comment in `.env.example`) — without it, the social
+   preview image/canonical URLs point at the default Vercel preview
+   domain, which won't match wherever you actually deploy.
 
 ---
 
@@ -307,11 +329,16 @@ Every time you push to your main branch, Vercel redeploys automatically.
 app/                     Next.js App Router pages (one folder per tab)
 app/api/send-email/      Server-side route that calls Resend (holds RESEND_API_KEY)
 app/api/reminder-email/  Daily cron route — due-soon summary via Resend (holds CRON_SECRET)
+app/api/og/              Generates the /landing social-preview image (?lang=de|en|hu)
+app/landing/page.tsx     Server wrapper: generateMetadata (og:/twitter: tags) + initial lang
+app/landing/LandingClient.tsx  The actual interactive funnel (moved out so page.tsx can be a Server Component)
 app/landing/impressum/   Standalone legal notice for /landing — fill in before launch
 app/landing/datenschutz/ Standalone privacy notice for /landing — fill in before launch
 components/              Shared UI (nav, cards, empty states, feedback)
 lib/supabase/client.ts   Browser Supabase client
 lib/supabase/types.ts    Hand-written types matching supabase/schema.sql
+lib/landing-og.ts        Per-language og:/twitter: title/description copy
+lib/site-url.ts          Base URL for metadataBase + the OG image route (SITE_URL env var)
 lib/format.ts            Currency/date formatting helpers
 lib/csv.ts               CSV export helper (used by Suppliers/Orders/Tasks)
 supabase/schema.sql      Full database schema — run once in Supabase
