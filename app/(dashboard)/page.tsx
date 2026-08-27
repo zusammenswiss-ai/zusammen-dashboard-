@@ -12,6 +12,10 @@ import {
   FileText,
   Package,
   CalendarRange,
+  Stamp,
+  MapPin,
+  Sparkles,
+  Award,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import PageHeader from "@/components/PageHeader";
@@ -24,7 +28,7 @@ import type { PlanStatus, OrderStatus } from "@/lib/supabase/types";
 
 type ActivityItem = {
   id: string;
-  kind: "supplier" | "task" | "document" | "plan" | "order";
+  kind: "supplier" | "task" | "document" | "plan" | "order" | "goldcard" | "memory" | "wildcard" | "surprise";
   title: string;
   detail: string;
   timestamp: string;
@@ -63,13 +67,28 @@ export default function OverviewPage() {
       setLoading(true);
       setError(null);
       try {
-        const [suppliersRes, tasksRes, financeRes, documentsRes, plansRes, ordersRes] = await Promise.all([
+        const [
+          suppliersRes,
+          tasksRes,
+          financeRes,
+          documentsRes,
+          plansRes,
+          ordersRes,
+          goldCardLettersRes,
+          journeyMemoriesRes,
+          wildCardCompletionsRes,
+          surpriseQuestionLogRes,
+        ] = await Promise.all([
           supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
           supabase.from("finance_products").select("*"),
           supabase.from("documents").select("*").order("created_at", { ascending: false }),
           supabase.from("future_plans").select("*").order("created_at", { ascending: false }),
           supabase.from("orders").select("*").order("created_at", { ascending: false }),
+          supabase.from("gold_card_letters").select("*").order("created_at", { ascending: false }).limit(5),
+          supabase.from("journey_memories").select("*").order("created_at", { ascending: false }).limit(5),
+          supabase.from("wild_card_completions").select("*").order("created_at", { ascending: false }).limit(5),
+          supabase.from("surprise_question_log").select("*").order("created_at", { ascending: false }).limit(5),
         ]);
 
         const firstError =
@@ -78,7 +97,11 @@ export default function OverviewPage() {
           financeRes.error ||
           documentsRes.error ||
           plansRes.error ||
-          ordersRes.error;
+          ordersRes.error ||
+          goldCardLettersRes.error ||
+          journeyMemoriesRes.error ||
+          wildCardCompletionsRes.error ||
+          surpriseQuestionLogRes.error;
         if (firstError) throw firstError;
 
         const suppliers = suppliersRes.data ?? [];
@@ -87,6 +110,10 @@ export default function OverviewPage() {
         const documents = documentsRes.data ?? [];
         const plans = plansRes.data ?? [];
         const orders = ordersRes.data ?? [];
+        const goldCardLetters = goldCardLettersRes.data ?? [];
+        const journeyMemories = journeyMemoriesRes.data ?? [];
+        const wildCardCompletions = wildCardCompletionsRes.data ?? [];
+        const surpriseQuestionLog = surpriseQuestionLogRes.data ?? [];
 
         const revenue = finance.reduce((sum, p) => sum + p.price * p.units, 0);
         const margin = finance.reduce((sum, p) => sum + (p.price - p.cogs) * p.units, 0);
@@ -146,6 +173,38 @@ export default function OverviewPage() {
             detail: `Megrendelés · ${ORDER_STATUS_HU[o.status as OrderStatus]}`,
             timestamp: o.created_at,
             href: "/orders",
+          })),
+          ...goldCardLetters.map((l) => ({
+            id: `goldcard-${l.id}`,
+            kind: "goldcard" as const,
+            title: `Gold Card levél #${l.seq_number}`,
+            detail: "Gold Card levél lepecsételve",
+            timestamp: l.created_at,
+            href: "/personal-ritual",
+          })),
+          ...journeyMemories.map((m) => ({
+            id: `memory-${m.id}`,
+            kind: "memory" as const,
+            title: m.place,
+            detail: "Új emlék hozzáadva",
+            timestamp: m.created_at,
+            href: "/personal-ritual",
+          })),
+          ...wildCardCompletions.map((w) => ({
+            id: `wildcard-${w.id}`,
+            kind: "wildcard" as const,
+            title: w.wildcard_name,
+            detail: `Wild Card teljesítve: ${w.wildcard_name}`,
+            timestamp: w.created_at,
+            href: "/personal-ritual",
+          })),
+          ...surpriseQuestionLog.map((s) => ({
+            id: `surprise-${s.id}`,
+            kind: "surprise" as const,
+            title: "Meglepetés kérdés",
+            detail: "Meglepetés kérdés elküldve",
+            timestamp: s.created_at,
+            href: "/personal-ritual",
           })),
         ]
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -280,6 +339,10 @@ function ActivityIcon({ kind }: { kind: ActivityItem["kind"] }) {
     document: { icon: FileText, className: "bg-forest/10 text-forest" },
     plan: { icon: Lightbulb, className: "bg-bronze/10 text-bronze" },
     order: { icon: Package, className: "bg-forest-light/10 text-forest" },
+    goldcard: { icon: Stamp, className: "bg-bronze/10 text-bronze" },
+    memory: { icon: MapPin, className: "bg-walnut/10 text-walnut" },
+    wildcard: { icon: Award, className: "bg-bronze/10 text-bronze" },
+    surprise: { icon: Sparkles, className: "bg-forest/10 text-forest" },
   } as const;
   const { icon: Icon, className } = map[kind];
   return (

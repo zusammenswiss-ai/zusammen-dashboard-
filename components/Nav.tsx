@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Rocket,
+  HeartHandshake,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { href: "/demand", label: "Igényfelmérés", icon: ClipboardList },
   { href: "/documents", label: "Dokumentumok", icon: FolderOpen },
   { href: "/card-assets", label: "Kártya-fájlok", icon: Archive },
+  { href: "/personal-ritual", label: "Személyes rituálé", icon: HeartHandshake },
   { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
 ];
 
