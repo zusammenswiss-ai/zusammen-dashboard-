@@ -270,6 +270,56 @@ export interface LandingResponse {
 }
 export type LandingResponseInsert = Partial<Omit<LandingResponse, "id" | "created_at">>;
 
+export interface GoldCardLetter {
+  id: string;
+  seq_number: number;
+  sealed_date: string;
+  uploaded_by: string;
+  photo_url: string;
+  created_at: string;
+}
+export type GoldCardLetterInsert = Partial<Omit<GoldCardLetter, "id" | "created_at">> & {
+  seq_number: number;
+  uploaded_by: string;
+  photo_url: string;
+};
+
+export interface JourneyMemory {
+  id: string;
+  date: string;
+  place: string;
+  experience: string;
+  note: string | null;
+  photo_url: string | null;
+  created_at: string;
+}
+export type JourneyMemoryInsert = Partial<Omit<JourneyMemory, "id" | "created_at">> & {
+  place: string;
+  experience: string;
+};
+
+export type WildCardName = "Coffee Break" | "Silence" | "Memory" | "Adventure" | "Gratitude";
+
+export interface WildCardCompletion {
+  id: string;
+  wildcard_name: WildCardName;
+  completed_date: string;
+  note: string | null;
+  created_at: string;
+}
+export type WildCardCompletionInsert = Partial<Omit<WildCardCompletion, "id" | "created_at">> & {
+  wildcard_name: WildCardName;
+};
+
+export interface SurpriseQuestionLog {
+  id: string;
+  question_text: string;
+  created_at: string;
+}
+export type SurpriseQuestionLogInsert = Partial<Omit<SurpriseQuestionLog, "id" | "created_at">> & {
+  question_text: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -355,6 +405,30 @@ export interface Database {
         Row: LandingResponse;
         Insert: LandingResponseInsert;
         Update: Partial<LandingResponse>;
+        Relationships: [];
+      };
+      gold_card_letters: {
+        Row: GoldCardLetter;
+        Insert: GoldCardLetterInsert;
+        Update: Partial<Omit<GoldCardLetter, "id" | "created_at">>;
+        Relationships: [];
+      };
+      journey_memories: {
+        Row: JourneyMemory;
+        Insert: JourneyMemoryInsert;
+        Update: Partial<Omit<JourneyMemory, "id" | "created_at">>;
+        Relationships: [];
+      };
+      wild_card_completions: {
+        Row: WildCardCompletion;
+        Insert: WildCardCompletionInsert;
+        Update: Partial<Omit<WildCardCompletion, "id" | "created_at">>;
+        Relationships: [];
+      };
+      surprise_question_log: {
+        Row: SurpriseQuestionLog;
+        Insert: SurpriseQuestionLogInsert;
+        Update: Partial<Omit<SurpriseQuestionLog, "id" | "created_at">>;
         Relationships: [];
       };
     };

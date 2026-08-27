@@ -569,3 +569,131 @@ create policy "anon full access" on public.landing_letters for all using (true) 
 
 drop policy if exists "anon full access" on public.landing_responses;
 create policy "anon full access" on public.landing_responses for all using (true) with check (true);
+
+-- =====================================================================
+-- Személyes rituálé — Gold Card Letters, Personal Journey (Passport) and
+-- the Surprise Question drawer.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Gold Card Letters — one sealed envelope per quarter. seq_number is the
+-- 1-based letter number (1st, 2nd, 3rd, 4th…), used to compute the 4
+-- seal-icon progress row and the "next letter in X days" countdown
+-- (first round 2026-09-01, then every 3 months).
+-- ---------------------------------------------------------------------
+create table if not exists public.gold_card_letters (
+  id uuid primary key default gen_random_uuid(),
+  seq_number integer not null,
+  sealed_date date not null default current_date,
+  uploaded_by text not null,
+  photo_url text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.gold_card_letters enable row level security;
+
+drop policy if exists "anon full access" on public.gold_card_letters;
+create policy "anon full access" on public.gold_card_letters for all using (true) with check (true);
+
+-- Storage — bucket for the (blurred-in-UI) Gold Card Letter photos
+insert into storage.buckets (id, name, public)
+values ('gold-card-letters', 'gold-card-letters', true)
+on conflict (id) do nothing;
+
+drop policy if exists "gold-card-letters bucket anon read" on storage.objects;
+create policy "gold-card-letters bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'gold-card-letters');
+
+drop policy if exists "gold-card-letters bucket anon write" on storage.objects;
+create policy "gold-card-letters bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'gold-card-letters');
+
+drop policy if exists "gold-card-letters bucket anon update" on storage.objects;
+create policy "gold-card-letters bucket anon update"
+  on storage.objects for update
+  using (bucket_id = 'gold-card-letters');
+
+drop policy if exists "gold-card-letters bucket anon delete" on storage.objects;
+create policy "gold-card-letters bucket anon delete"
+  on storage.objects for delete
+  using (bucket_id = 'gold-card-letters');
+
+-- ---------------------------------------------------------------------
+-- Personal Journey (Passport) — free-form memory log entries.
+-- ---------------------------------------------------------------------
+create table if not exists public.journey_memories (
+  id uuid primary key default gen_random_uuid(),
+  date date not null default current_date,
+  place text not null,
+  experience text not null,
+  note text,
+  photo_url text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.journey_memories enable row level security;
+
+drop policy if exists "anon full access" on public.journey_memories;
+create policy "anon full access" on public.journey_memories for all using (true) with check (true);
+
+-- Storage — bucket for optional journey memory photos
+insert into storage.buckets (id, name, public)
+values ('journey-memories', 'journey-memories', true)
+on conflict (id) do nothing;
+
+drop policy if exists "journey-memories bucket anon read" on storage.objects;
+create policy "journey-memories bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'journey-memories');
+
+drop policy if exists "journey-memories bucket anon write" on storage.objects;
+create policy "journey-memories bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'journey-memories');
+
+drop policy if exists "journey-memories bucket anon update" on storage.objects;
+create policy "journey-memories bucket anon update"
+  on storage.objects for update
+  using (bucket_id = 'journey-memories');
+
+drop policy if exists "journey-memories bucket anon delete" on storage.objects;
+create policy "journey-memories bucket anon delete"
+  on storage.objects for delete
+  using (bucket_id = 'journey-memories');
+
+-- ---------------------------------------------------------------------
+-- Personal Journey (Passport) — the 5 fixed Wild Cards. One row per
+-- completion; wildcard_name is unique so re-running a "Teljesítve" click
+-- on an already-completed card simply isn't offered again in the UI
+-- (keeps the "X/5 completed" progress a plain row count).
+-- ---------------------------------------------------------------------
+create table if not exists public.wild_card_completions (
+  id uuid primary key default gen_random_uuid(),
+  wildcard_name text not null unique
+    check (wildcard_name in ('Coffee Break', 'Silence', 'Memory', 'Adventure', 'Gratitude')),
+  completed_date date not null default current_date,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.wild_card_completions enable row level security;
+
+drop policy if exists "anon full access" on public.wild_card_completions;
+create policy "anon full access" on public.wild_card_completions for all using (true) with check (true);
+
+-- ---------------------------------------------------------------------
+-- Surprise Question — logs each "Húzz egy lapot" draw so it can show up
+-- in the Áttekintés activity feed like everything else in this section.
+-- ---------------------------------------------------------------------
+create table if not exists public.surprise_question_log (
+  id uuid primary key default gen_random_uuid(),
+  question_text text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.surprise_question_log enable row level security;
+
+drop policy if exists "anon full access" on public.surprise_question_log;
+create policy "anon full access" on public.surprise_question_log for all using (true) with check (true);
