@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SITE_URL } from "@/lib/site-url";
 
 // Fraunces (serif headings) and Inter (sans body) are self-hosted via plain
 // @font-face rules in globals.css rather than next/font — see the comment
@@ -10,6 +11,10 @@ import "./globals.css";
 // so that /landing — the customer-facing page — renders without it.
 
 export const metadata: Metadata = {
+  // Lets every route below use relative URLs in URL-based metadata fields
+  // (e.g. app/landing/layout.tsx's openGraph.url / alternates) instead of
+  // requiring each one to build an absolute URL by hand.
+  metadataBase: new URL(SITE_URL),
   title: "Zusammen — Alapítói Dashboard",
   description: "Személyes indulási dashboard a Zusammen beszélgetőkártya-márkához.",
 };
