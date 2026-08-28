@@ -3,23 +3,23 @@ import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { Database } from "@/lib/supabase/types";
 import { getUnreadInboxCount } from "@/lib/email/gmail-inbox";
+import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
 
 // Fired daily by Vercel Cron (see vercel.json) — summarizes what's due
 // (overdue/soon tasks, overdue/soon order deliveries, expiring supplier
-// contracts) and emails it via Resend. Gated by CRON_SECRET so this
-// route can't be triggered by anyone who finds the URL.
-const DUE_SOON_DAYS = 3;
-const CONTRACT_SOON_DAYS = 14;
+// contracts — via lib/notifications.ts, shared with the NotificationBell
+// in the nav so the two criteria never drift apart) and emails it via
+// Resend. Gated by CRON_SECRET so this route can't be triggered by
+// anyone who finds the URL.
 const DEFAULT_FROM = "Zusammen <onboarding@resend.dev>";
 const DEFAULT_TO = "zusammen.swiss@gmail.com";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
-function addDays(d: Date, days: number) {
-  const next = new Date(d);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
+
+function byKindSeverity(items: NotificationItem[], kind: NotificationItem["kind"], severity: NotificationItem["severity"]) {
+  return items.filter((n) => n.kind === kind && n.severity === severity);
 }
 
 export async function GET(request: Request) {
@@ -45,38 +45,21 @@ export async function GET(request: Request) {
   }
 
   const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  const todayStr = isoDate(new Date());
 
-  const today = new Date();
-  const todayStr = isoDate(today);
-  const dueSoonStr = isoDate(addDays(today, DUE_SOON_DAYS));
-  const contractSoonStr = isoDate(addDays(today, CONTRACT_SOON_DAYS));
-
-  const [tasksRes, ordersRes, suppliersRes] = await Promise.all([
-    supabase.from("tasks").select("*").not("due_date", "is", null).neq("status", "Kész"),
-    supabase.from("orders").select("*").not("delivery_date", "is", null).neq("status", "Done"),
-    supabase
-      .from("suppliers")
-      .select("*")
-      .eq("contract_status", "Signed")
-      .not("contract_valid_until", "is", null),
-  ]);
-
-  const firstError = tasksRes.error || ordersRes.error || suppliersRes.error;
-  if (firstError) {
-    return NextResponse.json({ ok: false, error: firstError.message }, { status: 500 });
+  let notifications: NotificationItem[];
+  try {
+    notifications = await fetchDueNotifications(supabase);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Nem sikerült lekérdezni az emlékeztetőket.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 
-  const tasks = tasksRes.data ?? [];
-  const orders = ordersRes.data ?? [];
-  const suppliers = suppliersRes.data ?? [];
-
-  const overdueTasks = tasks.filter((t) => t.due_date! < todayStr);
-  const dueSoonTasks = tasks.filter((t) => t.due_date! >= todayStr && t.due_date! <= dueSoonStr);
-
-  const overdueOrders = orders.filter((o) => o.delivery_date! < todayStr);
-  const dueSoonOrders = orders.filter((o) => o.delivery_date! >= todayStr && o.delivery_date! <= dueSoonStr);
-
-  const expiringContracts = suppliers.filter((s) => s.contract_valid_until! <= contractSoonStr);
+  const overdueTasks = byKindSeverity(notifications, "task", "overdue");
+  const dueSoonTasks = byKindSeverity(notifications, "task", "soon");
+  const overdueOrders = byKindSeverity(notifications, "order", "overdue");
+  const dueSoonOrders = byKindSeverity(notifications, "order", "soon");
+  const expiringContracts = notifications.filter((n) => n.kind === "contract");
 
   // Best-effort — a lapsed/disconnected Gmail account (no one there to
   // click a reconnect prompt on an unattended cron job) should never
@@ -91,14 +74,7 @@ export async function GET(request: Request) {
     // ignored — see comment above
   }
 
-  const hasAnything = Boolean(
-    overdueTasks.length ||
-      dueSoonTasks.length ||
-      overdueOrders.length ||
-      dueSoonOrders.length ||
-      expiringContracts.length ||
-      unreadCount
-  );
+  const hasAnything = Boolean(notifications.length || unreadCount);
 
   const lines: string[] = [`Zusammen — napi összefoglaló (${todayStr})`, ""];
 
@@ -107,27 +83,27 @@ export async function GET(request: Request) {
   } else {
     if (overdueTasks.length) {
       lines.push(`Lejárt határidejű feladatok (${overdueTasks.length}):`);
-      overdueTasks.forEach((t) => lines.push(`  - ${t.title} (${t.due_date})`));
+      overdueTasks.forEach((t) => lines.push(`  - ${t.title} (${t.date})`));
       lines.push("");
     }
     if (dueSoonTasks.length) {
       lines.push(`Hamarosan esedékes feladatok (${dueSoonTasks.length}):`);
-      dueSoonTasks.forEach((t) => lines.push(`  - ${t.title} (${t.due_date})`));
+      dueSoonTasks.forEach((t) => lines.push(`  - ${t.title} (${t.date})`));
       lines.push("");
     }
     if (overdueOrders.length) {
       lines.push(`Késésben lévő megrendelések (${overdueOrders.length}):`);
-      overdueOrders.forEach((o) => lines.push(`  - ${o.customer_name} (${o.delivery_date})`));
+      overdueOrders.forEach((o) => lines.push(`  - ${o.title} (${o.date})`));
       lines.push("");
     }
     if (dueSoonOrders.length) {
       lines.push(`Hamarosan szállítandó megrendelések (${dueSoonOrders.length}):`);
-      dueSoonOrders.forEach((o) => lines.push(`  - ${o.customer_name} (${o.delivery_date})`));
+      dueSoonOrders.forEach((o) => lines.push(`  - ${o.title} (${o.date})`));
       lines.push("");
     }
     if (expiringContracts.length) {
       lines.push(`Lejáró/lejárt beszállítói szerződések (${expiringContracts.length}):`);
-      expiringContracts.forEach((s) => lines.push(`  - ${s.name} (${s.contract_valid_until})`));
+      expiringContracts.forEach((s) => lines.push(`  - ${s.title} (${s.date})`));
       lines.push("");
     }
     if (unreadCount) {
