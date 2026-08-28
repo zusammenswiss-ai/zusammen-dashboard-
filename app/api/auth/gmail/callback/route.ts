@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForTokens, fetchGoogleAccountEmail } from "@/lib/google-oauth";
-import { saveGmailConnection } from "@/lib/email/gmail-sender";
+import { saveGmailConnection } from "@/lib/email/gmail-connection";
 import { SITE_URL } from "@/lib/site-url";
 
 // GET /api/auth/gmail/callback — where Google redirects back to after

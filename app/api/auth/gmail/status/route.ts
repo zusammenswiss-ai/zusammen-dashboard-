@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getGmailConnectionStatus } from "@/lib/email/gmail-sender";
+import { getGmailConnectionStatus } from "@/lib/email/gmail-connection";
 import { isGoogleOAuthConfigured } from "@/lib/google-oauth";
 
 // GET /api/auth/gmail/status — polled by the Beállítások page to render

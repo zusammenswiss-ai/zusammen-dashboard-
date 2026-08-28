@@ -24,8 +24,9 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
 | **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload a ZIP, a single Word/ODF/CSV file, or an entire folder (zipped in the browser on the fly, subfolders included) with a version label, nyomtatási állapot, optional beszállító/rendelés dátuma/mennyiség and notes. On upload, the server unzips it and pulls out up to 4 preview thumbnails by filename (front/back/wild/goldcard) shown in a small grid on each version. Click a version to open its full detail (untruncated notes, download, delete) and optionally spin a **Feladat** off of it — the new task shows up on the Feladatok board like any other. Each version also has an expandable **Árajánlatok** section — an "+ Új árajánlat hozzáadása" form (beszállító legördülő, mennyiség, egységár + pénznem, kép feltöltése, megjegyzés, dátum) and a list of every price quote received for that version, with a star toggle to mark the accepted one (highlighted green); quotes and suppliers are linked both ways, so the same registry shows up on the supplier's profile too. The most recent upload per language is flagged **Legújabb** |
 | **Személyes rituálé** (Personal Ritual) | Three private rituals for the founders themselves, not the business. **Gold Card Letters**: a hero countdown ("X nap a következő levélig", first round 2026.09.01 then every 3 months) with 4 seal icons that fill up as letters are sealed, an always-visible rituálé-útmutató panel with the 3 fixed prompt questions, and an upload form (ki tölti fel, dátum, fotó) — every sealed letter's photo shows blurred and darkened with a seal icon and "Lepecsételve" overlay, never the actual contents. **Személyes Journey (Passport)**: a free-form emlék-napló (hely, élmény, jegyzet, optional fotó) as a timeline, a fixed 5-card Wild Card grid (Coffee Break / Silence / Memory / Adventure / Gratitude) each checkable off with a date, and a progress bar ("X/5 Wild Card teljesítve" + memory count). **Meglepetés kérdés**: "Húzz egy lapot" shuffles through a 58-question Hungarian pool for ~1.5s before landing on one, framed by a random intro/outro (every outro explicitly mentions putting the phone down) and a fixed reminder that the phone is only for sending the message — "Másolás küldéshez" copies the full text ready to send. Every letter, memory, Wild Card completion, and question draw shows up in the Áttekintés activity feed |
+| **Postaláda** (Inbox) | Read-only view of the connected Gmail account's inbox (needs the `gmail.readonly` scope — see the reconnect note below) — sender, subject, snippet, and relative time per row, a Gmail-syntax search box (e.g. `from:supplier@example.com`), "Továbbiak betöltése" pagination, and clicking a row opens the full message body. No mark-as-read/archive/delete actions by design, just viewing |
 | **Megosztások** (Shares) | **Kapcsolatok**: a sajtó/influencer/ismerős contact list (name, email, kategória, jegyzet), each with its own **Email küldése** — a successful send auto-fills "Kiküldött email" and ticks "Megkeresve", same as Beszállítók. **Demand-test link megosztásai**: a log of every time the `/landing` igényfelmérés link was emailed out — "+ Új megosztás" picks an existing kapcsolat or a one-off name/email, opens the compose window pre-filled with the link, and a successful send adds a row to the log |
-| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default); shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below |
+| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
@@ -243,32 +244,41 @@ OAuth client — that part happens in Google Cloud Console, one time:
    create a new project (or reuse one) — any name works, e.g. "Zusammen
    Dashboard".
 2. **APIs & Services → Library** → search "Gmail API" → **Enable**.
-3. **APIs & Services → OAuth consent screen**:
-   - User type: **External** (a personal Gmail account, not Google
-     Workspace, can't use Internal).
-   - Fill in the required app name/support email fields — anything
-     reasonable works, this app never goes through Google's public
-     verification.
-   - Under **Test users**, add `zusammen.swiss@gmail.com` (and any other
-     Google account you might connect). Leaving the app in **Testing**
-     mode is fine and expected — it's a single-user tool, not a public
-     integration, and Testing mode never expires the way a real
-     production listing would need ongoing review for.
-   - Scopes: you don't need to add `gmail.send` here — the app requests
-     it directly in the OAuth URL — but if the console asks, add
-     `https://www.googleapis.com/auth/gmail.send`.
-4. **APIs & Services → Credentials → Create Credentials → OAuth client
-   ID**:
-   - Application type: **Web application**.
-   - **Authorized redirect URIs** — add both, so it works locally and in
-     production:
+3. In the left sidebar, open **Google Auth Platform** (Google's newer
+   consolidated OAuth setup screen — this replaced the older separate
+   "OAuth consent screen" page; same idea, different name/layout):
+   - **Branding**: fill in **App name** and **User support email**
+     (`zusammen.swiss@gmail.com`), and scroll to **Developer contact
+     information** and add an email there too. The **App domain** fields
+     (homepage/privacy policy/terms of service links) can stay empty —
+     they're only required for Google's public verification, which this
+     single-user app never goes through. Save.
+   - **Audience**: **User type** should be **External** (a personal
+     Gmail account, not Google Workspace, can't use Internal). Scroll to
+     **Test users** → **+ Add users** → add `zusammen.swiss@gmail.com`
+     (and any other account you might connect). Leaving **Publishing
+     status** as **Testing** is fine and expected — it's a single-user
+     tool, and Testing mode never expires the way a verified production
+     listing would need ongoing review for. **Only accounts listed here
+     can ever complete the OAuth flow** — this is the single most common
+     thing to miss, and shows up as a 403 "access_denied" error if
+     skipped.
+   - **Clients**: **+ Create client** → Application type **Web
+     application** → give it a name → under **Authorized redirect
+     URIs**, add both, so it works locally and in production:
      - `http://localhost:3000/api/auth/gmail/callback`
      - `https://YOUR-PRODUCTION-DOMAIN/api/auth/gmail/callback` (use
-       whatever `SITE_URL` is set to — see below)
-   - Copy the **Client ID** and **Client secret** it generates.
-5. Add four environment variables (locally in `.env.local`, on Vercel
+       whatever `SITE_URL` is set to — see below; if there's no custom
+       domain yet, the Vercel URL works, e.g.
+       `https://zusammen-dashboard.vercel.app/api/auth/gmail/callback`)
+     - **Create** → a dialog shows the **Client ID** and **Client
+       secret** — copy both **now** (with the copy-icon buttons, not by
+       selecting text by hand — easy to lose a character that way,
+       which shows up later as a confusing "invalid_client" error). The
+       secret is shown only this once.
+4. Add four environment variables (locally in `.env.local`, on Vercel
    under Project → Settings → Environment Variables):
-   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — from step 4.
+   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — from step 3.
    - `TOKEN_ENCRYPTION_KEY` — a fresh 32-byte key, e.g. run
      `openssl rand -hex 32`. Encrypts the Gmail refresh token before it's
      stored in Supabase.
@@ -278,15 +288,26 @@ OAuth client — that part happens in Google Cloud Console, one time:
      never expose it as a `NEXT_PUBLIC_` variable). Needed so the server
      can read/write the `gmail_connection` table, which deliberately has
      no anon-key policy (see `supabase/schema.sql`) since it holds an
-     encrypted token that grants send-as access.
-6. Open the dashboard → **Beállítások** → **Gmail összekapcsolása** →
-   sign in with `zusammen.swiss@gmail.com` → approve the "Send email on
-   your behalf" permission. Sending works immediately after that.
+     encrypted token that grants send-as and inbox-read access.
+   - **Redeploy** after saving these on Vercel — it only picks up new
+     env vars on the next deployment.
+5. Open the dashboard → **Beállítások** → **Gmail összekapcsolása** →
+   sign in with `zusammen.swiss@gmail.com` → approve the requested
+   permissions. Sending (and Postaláda, see below) works immediately
+   after that.
 
 > **Reconnecting.** If Gmail access is ever revoked (from Google Account
 > settings, or simply expires), the next send attempt shows the same
 > "Gmail nincs összekapcsolva" prompt — click it, sign in again, done.
 > **Kapcsolat bontása** on Beállítások disconnects manually any time.
+>
+> **Postaláda (inbox) needs a reconnect if you connected before it
+> existed.** Sending uses the `gmail.send` scope; the **Postaláda** page
+> additionally needs `gmail.readonly`. A connection made before that
+> scope was added to the app only has `gmail.send`, so Postaláda will
+> show "Gmail nincs összekapcsolva" until you **Kapcsolat bontása** and
+> reconnect once — Google requires fresh consent for a newly-added
+> scope, it's not picked up automatically.
 
 ### 2b. Alternative: Resend
 

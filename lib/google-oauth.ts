@@ -1,4 +1,4 @@
-// Minimal Google OAuth 2.0 client for the Gmail "send" scope — plain
+// Minimal Google OAuth 2.0 client for Gmail send + read access — plain
 // fetch calls against Google's endpoints, no `googleapis` dependency
 // (keeps this in line with the rest of the app's lean dependency list).
 // Server-only: never import this from a "use client" file.
@@ -6,7 +6,17 @@ import { SITE_URL } from "./site-url";
 
 const AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+// gmail.send powers every "Email küldése" button; gmail.readonly powers
+// the Postaláda (inbox) page — view-only, no modify/delete access.
+// Anyone who connected before gmail.readonly existed only granted
+// gmail.send, so their stored refresh_token won't have inbox access —
+// they need to Kapcsolat bontása + reconnect once to pick up the new
+// scope (Google requires re-consent for incremental scopes; connect
+// always passes prompt=consent so reconnecting re-shows the screen).
+const GMAIL_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.readonly",
+].join(" ");
 
 export function getRedirectUri(): string {
   return `${SITE_URL}/api/auth/gmail/callback`;
@@ -33,7 +43,7 @@ export function buildAuthorizeUrl(state: string): string {
     client_id: creds.clientId,
     redirect_uri: getRedirectUri(),
     response_type: "code",
-    scope: GMAIL_SEND_SCOPE,
+    scope: GMAIL_SCOPES,
     access_type: "offline",
     // Forces Google to return a refresh_token every time (not just on the
     // very first authorization) — needed so a reconnect after revoking
