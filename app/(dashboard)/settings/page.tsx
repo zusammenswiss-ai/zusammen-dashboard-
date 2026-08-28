@@ -62,7 +62,12 @@ function GmailConnectionCard() {
       </div>
       <p className="mt-1.5 text-sm text-muted">
         Az összes „Email küldése” gomb (Beszállítók, Megrendelések, Dokumentumok, Marketing, Megosztások) ezen a
-        fiókon keresztül küldi ki az emaileket.
+        fiókon keresztül küldi ki az emaileket, és a Postaláda oldal is ezt olvassa.
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        Ha még a levélolvasás bevezetése előtt kapcsoltad össze a Gmailt, a Postaláda „Gmail nincs összekapcsolva”
+        hibát fog mutatni, amíg egyszer nem bontod a kapcsolatot és kapcsolod össze újra — az új jogosultsághoz
+        (gmail.readonly) újbóli engedélyezés kell.
       </p>
 
       {callbackResult === "connected" && (
