@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import { CALENDAR_CATEGORIES, SEASON_HU, type CalendarCategory } from "@/lib/labels";
+import { goldCardDueDatesInRange } from "@/lib/gold-card";
 
 type CalendarEvent = {
   id: string;
@@ -27,6 +28,8 @@ const CATEGORY_DOT: Record<CalendarCategory, string> = {
   marketing: "bg-slate",
   plan: "bg-mauve",
   order: "bg-forest-light",
+  content: "bg-clay",
+  ritual: "bg-teal",
 };
 
 const WEEKDAY_LABELS = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
@@ -66,13 +69,28 @@ export default function CalendarPage() {
       setLoading(true);
       setError(null);
       try {
-        const [tasksRes, suppliersRes, documentsRes, plansRes, ordersRes, campaignsRes] = await Promise.all([
+        const [
+          tasksRes,
+          suppliersRes,
+          documentsRes,
+          plansRes,
+          ordersRes,
+          campaignsRes,
+          contentRes,
+          goldCardLettersRes,
+          journeyMemoriesRes,
+          wildCardCompletionsRes,
+        ] = await Promise.all([
           supabase.from("tasks").select("id, title, due_date").not("due_date", "is", null),
           supabase.from("suppliers").select("id, name, created_at"),
           supabase.from("documents").select("id, title, created_at"),
           supabase.from("future_plans").select("id, title, created_at"),
           supabase.from("orders").select("id, customer_name, delivery_date").not("delivery_date", "is", null),
           supabase.from("marketing_campaigns").select("id, season, theme"),
+          supabase.from("marketing_content").select("id, title, content_type, scheduled_date"),
+          supabase.from("gold_card_letters").select("id, seq_number, sealed_date"),
+          supabase.from("journey_memories").select("id, place, date"),
+          supabase.from("wild_card_completions").select("id, wildcard_name, completed_date"),
         ]);
 
         const firstError =
@@ -81,7 +99,11 @@ export default function CalendarPage() {
           documentsRes.error ||
           plansRes.error ||
           ordersRes.error ||
-          campaignsRes.error;
+          campaignsRes.error ||
+          contentRes.error ||
+          goldCardLettersRes.error ||
+          journeyMemoriesRes.error ||
+          wildCardCompletionsRes.error;
         if (firstError) throw firstError;
 
         const events: CalendarEvent[] = [
@@ -120,6 +142,34 @@ export default function CalendarPage() {
             category: "order" as const,
             href: "/orders",
           })),
+          ...(contentRes.data ?? []).map((c) => ({
+            id: `content-${c.id}`,
+            date: c.scheduled_date as string,
+            title: `${c.title} (${c.content_type})`,
+            category: "content" as const,
+            href: "/marketing",
+          })),
+          ...(goldCardLettersRes.data ?? []).map((l) => ({
+            id: `goldcard-${l.id}`,
+            date: l.sealed_date as string,
+            title: `Gold Card levél #${l.seq_number} — lepecsételve`,
+            category: "ritual" as const,
+            href: "/personal-ritual",
+          })),
+          ...(journeyMemoriesRes.data ?? []).map((m) => ({
+            id: `memory-${m.id}`,
+            date: m.date as string,
+            title: `${m.place} — emlék`,
+            category: "ritual" as const,
+            href: "/personal-ritual",
+          })),
+          ...(wildCardCompletionsRes.data ?? []).map((w) => ({
+            id: `wildcard-${w.id}`,
+            date: w.completed_date as string,
+            title: `Wild Card teljesítve: ${w.wildcard_name}`,
+            category: "ritual" as const,
+            href: "/personal-ritual",
+          })),
         ];
 
         setFixedEvents(events);
@@ -152,15 +202,32 @@ export default function CalendarPage() {
     return out;
   }, [campaigns, cursor.year]);
 
+  // Gold Card Letters' next due date isn't stored anywhere — it's computed
+  // from the fixed quarterly schedule (see lib/gold-card.ts), same as the
+  // countdown on the Személyes rituálé page. Shown separately from actual
+  // sealed_date events above, since a letter is often sealed a few days
+  // before or after its quarter's due date.
+  const goldCardDueEvents = useMemo(() => {
+    const rangeStart = new Date(cursor.year - 1, 0, 1);
+    const rangeEnd = new Date(cursor.year + 1, 11, 31);
+    return goldCardDueDatesInRange(rangeStart, rangeEnd).map((d) => ({
+      id: `goldcard-due-${toISODate(d.getFullYear(), d.getMonth(), d.getDate())}`,
+      date: toISODate(d.getFullYear(), d.getMonth(), d.getDate()),
+      title: "Gold Card levél esedékes",
+      category: "ritual" as const,
+      href: "/personal-ritual",
+    }));
+  }, [cursor.year]);
+
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
-    for (const ev of [...fixedEvents, ...marketingEvents]) {
+    for (const ev of [...fixedEvents, ...marketingEvents, ...goldCardDueEvents]) {
       const list = map.get(ev.date);
       if (list) list.push(ev);
       else map.set(ev.date, [ev]);
     }
     return map;
-  }, [fixedEvents, marketingEvents]);
+  }, [fixedEvents, marketingEvents, goldCardDueEvents]);
 
   const cells = useMemo(() => {
     const { year, month } = cursor;

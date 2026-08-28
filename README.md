@@ -14,7 +14,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | Page | What it does |
 |---|---|
 | **Áttekintés** (Overview) | Quick stats + a recent activity feed pulled from every table — every item links straight to its page (tasks deep-link into their detail view) |
-| **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
+| **Naptár** (Calendar) | Month view of every dated item across the app — task due dates, order delivery dates, marketing seasons, Marketing tartalom-naptár scheduled posts/stories/emails/campaigns, Személyes rituálé events (next Gold Card Letter esedékesség from the fixed quarterly schedule, sealed letters, journey emlékek, teljesített Wild Cardok), and when suppliers/documents/ideas were added — each category color-coded, click a day to see and open its events |
 | **Beszállítók** (Suppliers) | Full supplier profiles grouped by category — basic info (name/category/country), contact details (website/email/phone/WhatsApp), a repeatable products/services list (name, price, MOQ, note per row), a **Kapott árajánlatok** section listing every price quote received from this supplier across all kártya-fájl versions (mennyiség/egységár/összár, dátum, kiválasztva-e), contact status (contacted/replied, sent-email text, contract status + valid-until date), general notes, a real **Email küldése** button, keresés, and CSV bulk import/export |
 | **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee, keresés, CSV export. Overdue cards (past due date, not yet Kész) get a red border and a **Lejárt** badge so they stand out on the board itself, not just in the daily reminder email. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons). **Sablonból hozzáadás**: pick any number of preset task templates (grouped by category, checkboxes) and add them all as Teendő tasks in one go; **Sablonok kezelése** (gear icon) is the full CRUD editor for those templates — create/edit/delete, with categories chosen from existing ones or typed fresh. **Archiválás**: every Kész card gets an archive icon (next to Törlés) to take it off the board without deleting it — an "Összes archiválása" link in the Kész column header archives every Kész card currently shown there in one go. Archived tasks live in a separate **Archívum** view (header button, shows a count) with a Visszaállítás button per row to bring one back, or a real Törlés if you're done with it for good |
 | **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, egységár, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése**, keresés, CSV export |
@@ -24,6 +24,8 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
 | **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload a ZIP, a single Word/ODF/CSV file, or an entire folder (zipped in the browser on the fly, subfolders included) with a version label, nyomtatási állapot, optional beszállító/rendelés dátuma/mennyiség and notes. On upload, the server unzips it and pulls out up to 4 preview thumbnails by filename (front/back/wild/goldcard) shown in a small grid on each version. Click a version to open its full detail (untruncated notes, download, delete) and optionally spin a **Feladat** off of it — the new task shows up on the Feladatok board like any other. Each version also has an expandable **Árajánlatok** section — an "+ Új árajánlat hozzáadása" form (beszállító legördülő, mennyiség, egységár + pénznem, kép feltöltése, megjegyzés, dátum) and a list of every price quote received for that version, with a star toggle to mark the accepted one (highlighted green); quotes and suppliers are linked both ways, so the same registry shows up on the supplier's profile too. The most recent upload per language is flagged **Legújabb** |
 | **Személyes rituálé** (Personal Ritual) | Three private rituals for the founders themselves, not the business. **Gold Card Letters**: a hero countdown ("X nap a következő levélig", first round 2026.09.01 then every 3 months) with 4 seal icons that fill up as letters are sealed, an always-visible rituálé-útmutató panel with the 3 fixed prompt questions, and an upload form (ki tölti fel, dátum, fotó) — every sealed letter's photo shows blurred and darkened with a seal icon and "Lepecsételve" overlay, never the actual contents. **Személyes Journey (Passport)**: a free-form emlék-napló (hely, élmény, jegyzet, optional fotó) as a timeline, a fixed 5-card Wild Card grid (Coffee Break / Silence / Memory / Adventure / Gratitude) each checkable off with a date, and a progress bar ("X/5 Wild Card teljesítve" + memory count). **Meglepetés kérdés**: "Húzz egy lapot" shuffles through a 58-question Hungarian pool for ~1.5s before landing on one, framed by a random intro/outro (every outro explicitly mentions putting the phone down) and a fixed reminder that the phone is only for sending the message — "Másolás küldéshez" copies the full text ready to send. Every letter, memory, Wild Card completion, and question draw shows up in the Áttekintés activity feed |
+| **Megosztások** (Shares) | **Kapcsolatok**: a sajtó/influencer/ismerős contact list (name, email, kategória, jegyzet), each with its own **Email küldése** — a successful send auto-fills "Kiküldött email" and ticks "Megkeresve", same as Beszállítók. **Demand-test link megosztásai**: a log of every time the `/landing` igényfelmérés link was emailed out — "+ Új megosztás" picks an existing kapcsolat or a one-off name/email, opens the compose window pre-filled with the link, and a successful send adds a row to the log |
+| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default); shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
@@ -31,13 +33,18 @@ Jövőbeli tervek, Megrendelések) removes the row immediately and shows a
 **Visszavonás** (undo) toast for a few seconds before it's actually deleted
 from Supabase — nothing is lost to a stray click.
 
-**Email küldése** (Suppliers, Megrendelések, Dokumentumok, Marketing): a
-real send button — opens a small compose window (to / subject / message),
-and Küldés actually sends it via [Resend](https://resend.com). On
-Suppliers specifically, a successful send also auto-fills the existing
-"Kiküldött email" field with what was sent and ticks "Megkeresve". Needs
-`RESEND_API_KEY` set — see [Set up email sending](#2-set-up-email-sending-resend)
-below; without it the send button shows a clear error instead of failing
+**Email küldése** (Beszállítók, Megrendelések, Dokumentumok, Marketing,
+Megosztások): a real send button — opens a small compose window (to /
+subject / message), and Küldés actually sends it through whichever
+provider `EMAIL_PROVIDER` selects — **Gmail by default** (as
+`zusammen.swiss@gmail.com`, via OAuth), or [Resend](https://resend.com)
+if set to `resend`. On Beszállítók and Megosztások kapcsolatok
+specifically, a successful send also auto-fills the existing "Kiküldött
+email" field with what was sent and ticks "Megkeresve". See [Set up
+email sending](#2-set-up-email-sending-gmail-default) below; without a
+connected Gmail account (or a Resend key, if using that instead) the
+send button shows a clear "Gmail nincs összekapcsolva — kattints ide az
+engedélyezéshez" (or the equivalent Resend error) instead of failing
 silently.
 
 **CSV import for Suppliers**: the "Beszállítók importálása CSV-ből"
@@ -211,11 +218,86 @@ them unset to keep the dashboard open to anyone with the link.
 
 ---
 
-## 2. Set up email sending (Resend)
+## 2. Set up email sending (Gmail, default)
 
 The **Email küldése** buttons (Beszállítók, Megrendelések, Dokumentumok,
-Marketing) send real emails through [Resend](https://resend.com) — a
-free-tier-friendly email API. Setup takes about 5 minutes:
+Marketing, Megosztások) send real emails. Every one of them goes through
+the same `/api/send-email` route, which hands off to whichever transport
+`EMAIL_PROVIDER` selects (`lib/email/index.ts`) — **Gmail by default**,
+sending as `zusammen.swiss@gmail.com` through the real Gmail account
+(via OAuth, not an API key), so recipients see mail actually coming from
+that address instead of a third-party sending domain. [Resend](#2b-alternative-resend)
+is kept ready behind the same interface for later, once a verified
+custom domain exists — see that section for when/why you'd switch.
+
+### Beállítások → "Gmail összekapcsolása"
+
+Sending only works once the founder connects their Gmail account from
+the dashboard itself (**Beállítások** in the nav → **Gmail
+összekapcsolása**) — until then, every send attempt shows "Gmail nincs
+összekapcsolva — kattints ide az engedélyezéshez" instead of a generic
+error. Before that button works, though, this app needs its own Google
+OAuth client — that part happens in Google Cloud Console, one time:
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) →
+   create a new project (or reuse one) — any name works, e.g. "Zusammen
+   Dashboard".
+2. **APIs & Services → Library** → search "Gmail API" → **Enable**.
+3. **APIs & Services → OAuth consent screen**:
+   - User type: **External** (a personal Gmail account, not Google
+     Workspace, can't use Internal).
+   - Fill in the required app name/support email fields — anything
+     reasonable works, this app never goes through Google's public
+     verification.
+   - Under **Test users**, add `zusammen.swiss@gmail.com` (and any other
+     Google account you might connect). Leaving the app in **Testing**
+     mode is fine and expected — it's a single-user tool, not a public
+     integration, and Testing mode never expires the way a real
+     production listing would need ongoing review for.
+   - Scopes: you don't need to add `gmail.send` here — the app requests
+     it directly in the OAuth URL — but if the console asks, add
+     `https://www.googleapis.com/auth/gmail.send`.
+4. **APIs & Services → Credentials → Create Credentials → OAuth client
+   ID**:
+   - Application type: **Web application**.
+   - **Authorized redirect URIs** — add both, so it works locally and in
+     production:
+     - `http://localhost:3000/api/auth/gmail/callback`
+     - `https://YOUR-PRODUCTION-DOMAIN/api/auth/gmail/callback` (use
+       whatever `SITE_URL` is set to — see below)
+   - Copy the **Client ID** and **Client secret** it generates.
+5. Add four environment variables (locally in `.env.local`, on Vercel
+   under Project → Settings → Environment Variables):
+   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — from step 4.
+   - `TOKEN_ENCRYPTION_KEY` — a fresh 32-byte key, e.g. run
+     `openssl rand -hex 32`. Encrypts the Gmail refresh token before it's
+     stored in Supabase.
+   - `SUPABASE_SERVICE_ROLE_KEY` — from your Supabase project's
+     **Project Settings → API → service_role** (a different, more
+     powerful key than the anon one used everywhere else in this app —
+     never expose it as a `NEXT_PUBLIC_` variable). Needed so the server
+     can read/write the `gmail_connection` table, which deliberately has
+     no anon-key policy (see `supabase/schema.sql`) since it holds an
+     encrypted token that grants send-as access.
+6. Open the dashboard → **Beállítások** → **Gmail összekapcsolása** →
+   sign in with `zusammen.swiss@gmail.com` → approve the "Send email on
+   your behalf" permission. Sending works immediately after that.
+
+> **Reconnecting.** If Gmail access is ever revoked (from Google Account
+> settings, or simply expires), the next send attempt shows the same
+> "Gmail nincs összekapcsolva" prompt — click it, sign in again, done.
+> **Kapcsolat bontása** on Beállítások disconnects manually any time.
+
+### 2b. Alternative: Resend
+
+[Resend](https://resend.com) is a free-tier-friendly email API, kept
+behind the same `EmailSender` interface (`lib/email/resend-sender.ts`) —
+useful once a real custom domain exists (Resend can't send "from"
+`zusammen.swiss@gmail.com` any more than Gmail's API could send from a
+domain you don't own the other way around) or if Gmail OAuth ever feels
+like more setup than it's worth for a given deployment.
+
+To switch: set `EMAIL_PROVIDER=resend`, then:
 
 1. Go to [resend.com](https://resend.com) → **Sign up** (free — 3,000
    emails/month, 100/day is plenty for this).
@@ -223,36 +305,31 @@ free-tier-friendly email API. Setup takes about 5 minutes:
    it any name (e.g. "Zusammen dashboard"), leave permissions as
    "Full access", and copy the key — it starts with `re_` and is only
    shown once.
-3. Add it as an environment variable named `RESEND_API_KEY`:
-   - **Locally**: paste it into `.env.local` (see step 2 below).
-   - **On Vercel**: Project → Settings → Environment Variables (same place
-     as the Supabase keys — see the deploy step below).
+3. Add it as an environment variable named `RESEND_API_KEY`.
 
 That's it — sending works immediately using Resend's shared
 `onboarding@resend.dev` sender, with replies routed to
-`zusammen.swiss@gmail.com` (set in `app/api/send-email/route.ts`).
+`zusammen.swiss@gmail.com`. Once you have a verified domain, set
+`RESEND_FROM_EMAIL` (e.g. `Zusammen <hello@zusammenswiss.ch>`) and
+optionally `RESEND_REPLY_TO` — no code changes needed either way.
 
-> **About the sender address.** Resend (like every email API) can't send
-> "from" an address on a domain you don't own — so it can't send as
-> `zusammen.swiss@gmail.com` no matter what. `onboarding@resend.dev` is
-> Resend's own shared testing domain: it works with no setup, but
-> recipients will see it's not a custom domain, and Resend may rate-limit
-> or restrict it more than a verified sender. **If/when you have your own
-> domain** (e.g. `zusammenswiss.ch`), verify it in Resend under
-> **Domains → Add Domain** (a few DNS records to add at your domain
-> registrar), then set two more environment variables to switch over —
-> no code changes needed:
-> - `RESEND_FROM_EMAIL` — e.g. `Zusammen <hello@zusammenswiss.ch>`
-> - `RESEND_REPLY_TO` — where replies should land (defaults to
->   `zusammen.swiss@gmail.com` if unset)
+> **Note:** the daily reminder email (next section) always sends via
+> Resend directly, regardless of `EMAIL_PROVIDER` — it's an unattended
+> Vercel Cron job with no one to click through a "Gmail nincs
+> összekapcsolva" prompt if the OAuth connection ever lapses, so it
+> intentionally doesn't depend on it. It needs `RESEND_API_KEY` set
+> either way if you want that email.
 
 ---
 
 ## 3. Set up the daily reminder email (optional)
 
-This reuses the Resend setup above (step 2) to send one summary email a
-day — skip this section if you don't want it; the rest of the app works
-fine without it.
+This uses `RESEND_API_KEY` from [section 2b](#2b-alternative-resend)
+above to send one summary email a day — set that up first even if
+you're using Gmail as `EMAIL_PROVIDER` for everything else (see the note
+at the end of section 2 for why the reminder email doesn't use Gmail).
+Skip this whole section if you don't want the reminder; the rest of the
+app works fine without it.
 
 1. Pick any long random string as a shared secret — e.g. run
    `openssl rand -hex 32` in a terminal, or just mash the keyboard for 30+

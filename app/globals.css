@@ -58,11 +58,13 @@
   --bronze: #b08a52;
   --bronze-light: #c9a876;
   --walnut: #7a5a3b;
-  /* Two extra accents, used only to tell apart Marketing / Jövőbeli
-     tervek in the Naptár (calendar) legend — kept muted and earthy so
-     they sit quietly alongside the 4 core brand colors. */
+  /* Extra accents, used only to tell categories apart in the Naptár
+     (calendar) legend — kept muted and earthy so they sit quietly
+     alongside the 4 core brand colors. */
   --slate: #4a6670;
   --mauve: #8b5d6b;
+  --clay: #a15c3e;
+  --teal: #2f7a6f;
 
   --background: var(--ivory);
   --foreground: var(--forest);
@@ -84,6 +86,8 @@
   --color-walnut: var(--walnut);
   --color-slate: var(--slate);
   --color-mauve: var(--mauve);
+  --color-clay: var(--clay);
+  --color-teal: var(--teal);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

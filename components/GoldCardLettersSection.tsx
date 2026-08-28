@@ -6,35 +6,15 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type { GoldCardLetter } from "@/lib/supabase/types";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import { formatDate } from "@/lib/format";
+import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
 
 const STORAGE_BUCKET = "gold-card-letters";
-
-// First round is fixed to 2026-09-01, then every 3 months after that —
-// per spec, independent of how many letters have actually been uploaded.
-const GOLD_CARD_ANCHOR = new Date(2026, 8, 1); // month is 0-indexed: 8 = September
 
 const RITUAL_QUESTIONS = [
   "Mit szeretünk most egymásban?",
   "Milyen közös álmot szeretnénk valóra váltani a következő évszakban?",
   "Mit ígérünk egymásnak?",
 ];
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function nextGoldCardDate(today: Date): Date {
-  let next = startOfDay(GOLD_CARD_ANCHOR);
-  const t = startOfDay(today);
-  while (next.getTime() < t.getTime()) {
-    next = new Date(next.getFullYear(), next.getMonth() + 3, next.getDate());
-  }
-  return next;
-}
-
-function daysUntil(date: Date, today: Date): number {
-  return Math.round((startOfDay(date).getTime() - startOfDay(today).getTime()) / 86_400_000);
-}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
