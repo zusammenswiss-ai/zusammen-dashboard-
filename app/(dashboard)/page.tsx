@@ -16,20 +16,32 @@ import {
   MapPin,
   Sparkles,
   Award,
-  Inbox,
+  Mail,
+  Bell,
+  ClockAlert,
+  CircleAlert,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
-import { formatCHF, timeAgo } from "@/lib/format";
+import { formatCHF, formatDate, timeAgo } from "@/lib/format";
 import { PLAN_STATUS_HU, ORDER_STATUS_HU } from "@/lib/labels";
+import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
+import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
 import type { PlanStatus, OrderStatus } from "@/lib/supabase/types";
 
-type ActivityItem = {
+// Two separate activity kinds, deliberately not merged into one feed —
+// "the business" and "the personal ritual" are different concerns for a
+// founder glancing at this page, so each gets its own clearly-labeled
+// section instead of being interleaved by timestamp.
+type BusinessActivityKind = "supplier" | "task" | "document" | "plan" | "order";
+type RitualActivityKind = "goldcard" | "memory" | "wildcard" | "surprise";
+
+type ActivityItem<K> = {
   id: string;
-  kind: "supplier" | "task" | "document" | "plan" | "order" | "goldcard" | "memory" | "wildcard" | "surprise";
+  kind: K;
   title: string;
   detail: string;
   timestamp: string;
@@ -49,18 +61,20 @@ type Stats = {
   ideasTotal: number;
   ordersOpen: number;
   ordersTotal: number;
+  goldCardLettersTotal: number;
 };
 
 export default function OverviewPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [businessActivity, setBusinessActivity] = useState<ActivityItem<BusinessActivityKind>[]>([]);
+  const [ritualActivity, setRitualActivity] = useState<ActivityItem<RitualActivityKind>[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   // null = not shown yet (still loading, Gmail not connected, or an
-  // error) — the stat card only renders once we actually have a real
-  // count, so a disconnected Gmail doesn't leave a broken-looking tile
-  // sitting on the Áttekintés.
-  const [unreadCount, setUnreadCount] = useState<number | null>(null);
+  // error) — a disconnected Gmail just leaves this section shorter, not
+  // broken-looking.
+  const [unreadMail, setUnreadMail] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -81,9 +95,11 @@ export default function OverviewPage() {
           plansRes,
           ordersRes,
           goldCardLettersRes,
+          goldCardLettersCountRes,
           journeyMemoriesRes,
           wildCardCompletionsRes,
           surpriseQuestionLogRes,
+          notificationItems,
         ] = await Promise.all([
           supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -92,9 +108,11 @@ export default function OverviewPage() {
           supabase.from("future_plans").select("*").order("created_at", { ascending: false }),
           supabase.from("orders").select("*").order("created_at", { ascending: false }),
           supabase.from("gold_card_letters").select("*").order("created_at", { ascending: false }).limit(5),
+          supabase.from("gold_card_letters").select("id", { count: "exact", head: true }),
           supabase.from("journey_memories").select("*").order("created_at", { ascending: false }).limit(5),
           supabase.from("wild_card_completions").select("*").order("created_at", { ascending: false }).limit(5),
           supabase.from("surprise_question_log").select("*").order("created_at", { ascending: false }).limit(5),
+          fetchDueNotifications(supabase),
         ]);
 
         const firstError =
@@ -105,6 +123,7 @@ export default function OverviewPage() {
           plansRes.error ||
           ordersRes.error ||
           goldCardLettersRes.error ||
+          goldCardLettersCountRes.error ||
           journeyMemoriesRes.error ||
           wildCardCompletionsRes.error ||
           surpriseQuestionLogRes.error;
@@ -137,9 +156,10 @@ export default function OverviewPage() {
           ideasTotal: plans.length,
           ordersOpen: orders.filter((o) => o.status !== "Done").length,
           ordersTotal: orders.length,
+          goldCardLettersTotal: goldCardLettersCountRes.count ?? goldCardLetters.length,
         });
 
-        const items: ActivityItem[] = [
+        const business: ActivityItem<BusinessActivityKind>[] = [
           ...suppliers.slice(0, 5).map((s) => ({
             id: `supplier-${s.id}`,
             kind: "supplier" as const,
@@ -180,6 +200,11 @@ export default function OverviewPage() {
             timestamp: o.created_at,
             href: "/orders",
           })),
+        ]
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 8);
+
+        const ritual: ActivityItem<RitualActivityKind>[] = [
           ...goldCardLetters.map((l) => ({
             id: `goldcard-${l.id}`,
             kind: "goldcard" as const,
@@ -214,9 +239,11 @@ export default function OverviewPage() {
           })),
         ]
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 8);
+          .slice(0, 5);
 
-        setActivity(items);
+        setBusinessActivity(business);
+        setRitualActivity(ritual);
+        setNotifications(notificationItems);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Nem sikerült betölteni a dashboard adatait.");
       } finally {
@@ -230,10 +257,10 @@ export default function OverviewPage() {
       try {
         const res = await fetch("/api/gmail/unread-count");
         const data = await res.json();
-        if (res.ok && data.ok) setUnreadCount(data.count);
+        if (res.ok && data.ok) setUnreadMail(data.count);
       } catch {
         // Silent — Gmail being unreachable shouldn't disturb the rest of
-        // the Áttekintés, the stat card just stays hidden.
+        // the Áttekintés, this section just stays without a mail row.
       }
     })();
   }, []);
@@ -250,6 +277,11 @@ export default function OverviewPage() {
       </>
     );
   }
+
+  const today = new Date();
+  const nextLetterDate = nextGoldCardDate(today);
+  const nextLetterDays = daysUntil(nextLetterDate, today);
+  const urgentTotal = notifications.length + (unreadMail ?? 0);
 
   return (
     <>
@@ -269,7 +301,66 @@ export default function OverviewPage() {
         <Spinner />
       ) : stats ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {/* 1. What needs attention right now — the same criteria the nav's
+              NotificationBell and the daily reminder email use (lib/notifications.ts),
+              surfaced up front instead of only in a dropdown. */}
+          <div className="card p-5">
+            <div className="flex items-center gap-2">
+              <Bell size={17} className="text-bronze" />
+              <h2 className="font-serif text-lg text-forest">Mire figyelj most</h2>
+            </div>
+            {urgentTotal === 0 ? (
+              <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
+                <CircleCheck size={15} className="text-forest" /> Minden rendben — nincs sürgős teendő ma.
+              </p>
+            ) : (
+              <ul className="mt-3 flex flex-col divide-y divide-border">
+                {unreadMail !== null && unreadMail > 0 && (
+                  <li>
+                    <Link
+                      href="/inbox"
+                      className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ivory-dim/60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forest/10 text-forest">
+                        <Mail size={15} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-forest">{unreadMail} olvasatlan levél</p>
+                        <p className="text-xs text-muted">Postaláda</p>
+                      </div>
+                    </Link>
+                  </li>
+                )}
+                {notifications.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      href={item.href}
+                      className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ivory-dim/60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forest/10 text-forest">
+                        <NotificationKindIcon kind={item.kind} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-forest">{item.title}</p>
+                        <p className="truncate text-xs text-muted">{item.detail}</p>
+                      </div>
+                      <span
+                        className={`badge shrink-0 ${
+                          item.severity === "overdue" ? "bg-red-100 text-red-700" : "bg-bronze/15 text-walnut"
+                        }`}
+                      >
+                        {item.severity === "overdue" ? <CircleAlert size={11} /> : <ClockAlert size={11} />}
+                        {formatDate(item.date)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 2. Business snapshot */}
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <StatCard
               icon={Users}
               label="Beszállítók"
@@ -300,32 +391,25 @@ export default function OverviewPage() {
               value={stats.documentsTotal}
               hint={`${stats.ideasTotal} jövőbeli ötlet rögzítve`}
             />
-            {unreadCount !== null && (
-              <StatCard
-                icon={Inbox}
-                label="Olvasatlan levelek"
-                value={unreadCount}
-                hint="Postaláda"
-              />
-            )}
           </div>
 
+          {/* 3. Business activity + Kanban snapshot */}
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2">
-              <h2 className="font-serif text-lg text-forest">Legutóbbi aktivitás</h2>
-              {activity.length === 0 ? (
+              <h2 className="font-serif text-lg text-forest">Üzleti aktivitás</h2>
+              {businessActivity.length === 0 ? (
                 <p className="mt-4 text-sm text-muted">
                   Még nincs semmi rögzítve — kezdd egy beszállító, feladat vagy dokumentum hozzáadásával.
                 </p>
               ) : (
                 <ul className="mt-4 flex flex-col divide-y divide-border">
-                  {activity.map((item) => (
+                  {businessActivity.map((item) => (
                     <li key={item.id}>
                       <Link
                         href={item.href}
                         className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-ivory-dim/60"
                       >
-                        <ActivityIcon kind={item.kind} />
+                        <BusinessActivityIcon kind={item.kind} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-forest">{item.title}</p>
                           <p className="text-xs text-muted">{item.detail}</p>
@@ -353,19 +437,86 @@ export default function OverviewPage() {
               </Link>
             </div>
           </div>
+
+          {/* 4. Személyes rituálé — kept visibly separate from the business
+              sections above, mirroring the same activity+widget layout. */}
+          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="card p-5 lg:col-span-2">
+              <h2 className="font-serif text-lg text-forest">Személyes rituálé aktivitás</h2>
+              {ritualActivity.length === 0 ? (
+                <p className="mt-4 text-sm text-muted">
+                  Még nincs rögzítve semmi — kezdj egy Gold Card levéllel vagy egy emlékkel.
+                </p>
+              ) : (
+                <ul className="mt-4 flex flex-col divide-y divide-border">
+                  {ritualActivity.map((item) => (
+                    <li key={item.id}>
+                      <Link
+                        href={item.href}
+                        className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-ivory-dim/60"
+                      >
+                        <RitualActivityIcon kind={item.kind} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-forest">{item.title}</p>
+                          <p className="text-xs text-muted">{item.detail}</p>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted">{timeAgo(item.timestamp)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h2 className="font-serif text-lg text-forest">Következő Gold Card levél</h2>
+              <p className="mt-4 font-serif text-2xl text-forest">
+                {nextLetterDays <= 0 ? "Ma esedékes" : `${nextLetterDays} nap`}
+              </p>
+              <p className="mt-1 text-xs text-muted">{formatDate(nextLetterDate.toISOString())}</p>
+              <p className="mt-3 text-xs text-muted">{stats.goldCardLettersTotal} levél lepecsételve eddig</p>
+              <Link
+                href="/personal-ritual"
+                className="mt-5 inline-block text-sm font-medium text-bronze hover:underline"
+              >
+                Személyes rituálé megnyitása →
+              </Link>
+            </div>
+          </div>
         </>
       ) : null}
     </>
   );
 }
 
-function ActivityIcon({ kind }: { kind: ActivityItem["kind"] }) {
+function NotificationKindIcon({ kind }: { kind: NotificationItem["kind"] }) {
+  const map = {
+    task: KanbanSquare,
+    order: Package,
+    contract: FileText,
+  } as const;
+  const Icon = map[kind];
+  return <Icon size={15} />;
+}
+
+function BusinessActivityIcon({ kind }: { kind: BusinessActivityKind }) {
   const map = {
     supplier: { icon: Users, className: "bg-walnut/10 text-walnut" },
     task: { icon: CircleCheck, className: "bg-bronze/10 text-bronze" },
     document: { icon: FileText, className: "bg-forest/10 text-forest" },
     plan: { icon: Lightbulb, className: "bg-bronze/10 text-bronze" },
     order: { icon: Package, className: "bg-forest-light/10 text-forest" },
+  } as const;
+  const { icon: Icon, className } = map[kind];
+  return (
+    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${className}`}>
+      <Icon size={15} />
+    </span>
+  );
+}
+
+function RitualActivityIcon({ kind }: { kind: RitualActivityKind }) {
+  const map = {
     goldcard: { icon: Stamp, className: "bg-bronze/10 text-bronze" },
     memory: { icon: MapPin, className: "bg-walnut/10 text-walnut" },
     wildcard: { icon: Award, className: "bg-bronze/10 text-bronze" },
