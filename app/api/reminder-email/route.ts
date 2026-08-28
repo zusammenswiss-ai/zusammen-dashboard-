@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { Database } from "@/lib/supabase/types";
+import { getUnreadInboxCount } from "@/lib/email/gmail-inbox";
 
 // Fired daily by Vercel Cron (see vercel.json) — summarizes what's due
 // (overdue/soon tasks, overdue/soon order deliveries, expiring supplier
@@ -77,12 +78,26 @@ export async function GET(request: Request) {
 
   const expiringContracts = suppliers.filter((s) => s.contract_valid_until! <= contractSoonStr);
 
+  // Best-effort — a lapsed/disconnected Gmail account (no one there to
+  // click a reconnect prompt on an unattended cron job) should never
+  // break the rest of the reminder, so this just silently omits the
+  // line instead of failing the whole route. See README for why this
+  // route stays independent of the Gmail connection's health.
+  let unreadCount: number | null = null;
+  try {
+    const unreadResult = await getUnreadInboxCount();
+    if (unreadResult.ok) unreadCount = unreadResult.count;
+  } catch {
+    // ignored — see comment above
+  }
+
   const hasAnything = Boolean(
     overdueTasks.length ||
       dueSoonTasks.length ||
       overdueOrders.length ||
       dueSoonOrders.length ||
-      expiringContracts.length
+      expiringContracts.length ||
+      unreadCount
   );
 
   const lines: string[] = [`Zusammen — napi összefoglaló (${todayStr})`, ""];
@@ -113,6 +128,10 @@ export async function GET(request: Request) {
     if (expiringContracts.length) {
       lines.push(`Lejáró/lejárt beszállítói szerződések (${expiringContracts.length}):`);
       expiringContracts.forEach((s) => lines.push(`  - ${s.name} (${s.contract_valid_until})`));
+      lines.push("");
+    }
+    if (unreadCount) {
+      lines.push(`${unreadCount} olvasatlan levél a Postaládában.`);
       lines.push("");
     }
   }

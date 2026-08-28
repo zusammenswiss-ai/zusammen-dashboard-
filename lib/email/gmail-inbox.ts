@@ -185,3 +185,22 @@ export async function getInboxMessage(id: string): Promise<InboxDetailResult> {
     },
   };
 }
+
+export type UnreadCountResult = { ok: true; count: number } | GmailFailure;
+
+/** Exact unread count from the INBOX label's own metadata — cheaper and more reliable than listing+counting unread messages. Used by the Áttekintés stat card and the daily reminder email. */
+export async function getUnreadInboxCount(): Promise<UnreadCountResult> {
+  const accessToken = await resolveAccessToken();
+  if (typeof accessToken !== "string") return accessToken;
+
+  const res = await fetch(`${GMAIL_BASE}/labels/INBOX`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 401 || res.status === 403) return NOT_CONNECTED;
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    return { ok: false, error: data?.error?.message || `Gmail API hiba (${res.status}).` };
+  }
+  const data = (await res.json()) as { messagesUnread?: number };
+  return { ok: true, count: data.messagesUnread ?? 0 };
+}

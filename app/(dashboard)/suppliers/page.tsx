@@ -478,6 +478,9 @@ export default function SuppliersPage() {
           onQuoteCreated={(quote) => setPriceQuotes((prev) => [quote, ...prev])}
           onToggleQuoteSelected={toggleQuoteSelected}
           onDeleteQuote={deletePriceQuote}
+          onReplyDetected={
+            profileSupplier ? () => updateSupplier(profileSupplier.id, { reply_received: true }) : undefined
+          }
         />
       )}
 

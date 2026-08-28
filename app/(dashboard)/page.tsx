@@ -16,6 +16,7 @@ import {
   MapPin,
   Sparkles,
   Award,
+  Inbox,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import PageHeader from "@/components/PageHeader";
@@ -55,6 +56,11 @@ export default function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  // null = not shown yet (still loading, Gmail not connected, or an
+  // error) — the stat card only renders once we actually have a real
+  // count, so a disconnected Gmail doesn't leave a broken-looking tile
+  // sitting on the Áttekintés.
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -219,6 +225,19 @@ export default function OverviewPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/gmail/unread-count");
+        const data = await res.json();
+        if (res.ok && data.ok) setUnreadCount(data.count);
+      } catch {
+        // Silent — Gmail being unreachable shouldn't disturb the rest of
+        // the Áttekintés, the stat card just stays hidden.
+      }
+    })();
+  }, []);
+
   if (!isSupabaseConfigured) {
     return (
       <>
@@ -281,6 +300,14 @@ export default function OverviewPage() {
               value={stats.documentsTotal}
               hint={`${stats.ideasTotal} jövőbeli ötlet rögzítve`}
             />
+            {unreadCount !== null && (
+              <StatCard
+                icon={Inbox}
+                label="Olvasatlan levelek"
+                value={unreadCount}
+                hint="Postaláda"
+              />
+            )}
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">

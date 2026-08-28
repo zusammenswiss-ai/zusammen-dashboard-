@@ -7,6 +7,7 @@ import { CONTRACT_STATUS_HU } from "@/lib/labels";
 import { ErrorBanner } from "@/components/Feedback";
 import PriceQuoteForm from "@/components/PriceQuoteForm";
 import PriceQuoteList from "@/components/PriceQuoteList";
+import ContactCorrespondence from "@/components/ContactCorrespondence";
 
 const CONTRACT_STATUSES: ContractStatus[] = ["None", "Signed", "Failed", "Expired"];
 
@@ -63,6 +64,7 @@ export default function SupplierProfileModal({
   onQuoteCreated,
   onToggleQuoteSelected,
   onDeleteQuote,
+  onReplyDetected,
 }: {
   supplier: Supplier | null;
   quotes: PriceQuote[];
@@ -74,6 +76,12 @@ export default function SupplierProfileModal({
   onQuoteCreated: (quote: PriceQuote) => void;
   onToggleQuoteSelected: (quote: PriceQuote) => void;
   onDeleteQuote: (quote: PriceQuote) => void;
+  /** Persists reply_received=true for this supplier — the modal also
+   * flips the local checkbox immediately so it doesn't wait for a
+   * re-fetch. Only called when a Gmail message actually arrived from
+   * the supplier's own address, so this stays consistent with "Válasz
+   * érkezett" meaning what it says. */
+  onReplyDetected?: () => void;
 }) {
   const [draft, setDraft] = useState<SupplierDraft>(() => toDraft(supplier));
   const [saving, setSaving] = useState(false);
@@ -305,6 +313,21 @@ export default function SupplierProfileModal({
                 Válasz érkezett
               </label>
             </div>
+
+            {!isNew && (
+              <div className="mt-3">
+                <p className="mb-1.5 text-xs font-medium text-muted">
+                  Levelezés {draft.contact_email ? `(${draft.contact_email})` : ""}
+                </p>
+                <ContactCorrespondence
+                  email={draft.contact_email}
+                  onReplyDetected={() => {
+                    set("reply_received", true);
+                    onReplyDetected?.();
+                  }}
+                />
+              </div>
+            )}
 
             <div className="mt-3">
               <Field label="Kiküldött email">

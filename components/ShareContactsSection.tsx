@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Mail, Users } from "lucide-react";
+import { Plus, Trash2, Mail, Users, MessageSquare } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { ShareContact, ShareContactCategory } from "@/lib/supabase/types";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import EmailComposeModal from "@/components/EmailComposeModal";
+import ContactCorrespondence from "@/components/ContactCorrespondence";
 import { useUndoAction } from "@/lib/useUndoAction";
 import UndoToast from "@/components/UndoToast";
 
@@ -33,6 +34,7 @@ export default function ShareContactsSection() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [composeFor, setComposeFor] = useState<ShareContact | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -78,6 +80,12 @@ export default function ShareContactsSection() {
     if (data) setContacts((prev) => [data, ...prev]);
     setForm(EMPTY_FORM);
     setShowForm(false);
+  }
+
+  function markContacted(id: string) {
+    if (!supabase) return;
+    setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, contacted: true } : c)));
+    void supabase.from("share_contacts").update({ contacted: true }).eq("id", id);
   }
 
   function deleteContact(id: string) {
@@ -201,14 +209,34 @@ export default function ShareContactsSection() {
               <span className={`badge w-fit ${CATEGORY_STYLES[contact.category]}`}>{contact.category}</span>
               {contact.notes && <p className="text-sm text-muted">{contact.notes}</p>}
               {contact.contacted && <span className="w-fit text-xs font-medium text-forest">Megkeresve</span>}
-              <button
-                onClick={() => setComposeFor(contact)}
-                className="btn btn-ghost mt-1 w-fit text-xs"
-                disabled={!contact.email}
-                title={contact.email ? undefined : "Nincs email cím megadva"}
-              >
-                <Mail size={13} /> Email küldése
-              </button>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setComposeFor(contact)}
+                  className="btn btn-ghost w-fit text-xs"
+                  disabled={!contact.email}
+                  title={contact.email ? undefined : "Nincs email cím megadva"}
+                >
+                  <Mail size={13} /> Email küldése
+                </button>
+                {contact.email && (
+                  <button
+                    onClick={() => setExpandedId((prev) => (prev === contact.id ? null : contact.id))}
+                    className="btn btn-ghost w-fit text-xs"
+                  >
+                    <MessageSquare size={13} /> Levelezés
+                  </button>
+                )}
+              </div>
+              {expandedId === contact.id && contact.email && (
+                <div className="mt-1 animate-fade-in">
+                  <ContactCorrespondence
+                    email={contact.email}
+                    onReplyDetected={() => {
+                      if (!contact.contacted) markContacted(contact.id);
+                    }}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
