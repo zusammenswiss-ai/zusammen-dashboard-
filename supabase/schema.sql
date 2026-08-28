@@ -138,6 +138,42 @@ insert into public.task_templates (title, category, default_priority) values
   ('Founder Wall új bejegyzéseinek ellenőrzése', 'Founder Journey & Közösség', 'Low')
 on conflict (title, category) do nothing;
 
+-- Recurrence — a template can auto-generate a fresh "Teendő" task on its
+-- own schedule instead of only being picked by hand. recurrence_type/
+-- recurrence_interval/next_due_date are only meaningful once is_recurring
+-- is true; see lib/recurring-templates.ts for the due-check + advance
+-- math, run from app/(dashboard)/tasks/page.tsx on every page load
+-- (there's deliberately no cron for this — see that lib file's comment).
+alter table public.task_templates add column if not exists is_recurring boolean not null default false;
+alter table public.task_templates add column if not exists recurrence_type text
+  check (recurrence_type in ('Napi', 'Heti', 'Havi', 'Negyedéves', 'Éves'));
+alter table public.task_templates add column if not exists recurrence_interval integer not null default 1
+  check (recurrence_interval > 0);
+alter table public.task_templates add column if not exists next_due_date date;
+
+-- Backfill recurrence settings on the founder's already-existing
+-- templates that are naturally recurring. next_due_date starts at
+-- current_date, so the first occurrence shows up as due the next time
+-- Feladatok is opened, then rolls forward on its own schedule from
+-- there. Guarded by `is_recurring is not true` so a second run of this
+-- file — after the automation has already advanced a template's real
+-- next_due_date, or the founder edited it by hand — never resets it
+-- back to today.
+update public.task_templates set is_recurring = true, recurrence_type = 'Havi', recurrence_interval = 1, next_due_date = current_date
+  where title = 'Havi pénzügyi áttekintés / modell frissítése' and category = 'Pénzügy' and is_recurring is not true;
+update public.task_templates set is_recurring = true, recurrence_type = 'Negyedéves', recurrence_interval = 1, next_due_date = current_date
+  where title = 'Negyedéves fedezeti pont ellenőrzése' and category = 'Pénzügy' and is_recurring is not true;
+update public.task_templates set is_recurring = true, recurrence_type = 'Éves', recurrence_interval = 1, next_due_date = current_date
+  where title = 'AHV/Treuhand éves bejelentés ellenőrzése' and category = 'Jogi & Adminisztráció' and is_recurring is not true;
+update public.task_templates set is_recurring = true, recurrence_type = 'Éves', recurrence_interval = 1, next_due_date = current_date
+  where title = 'Domain megújítás ellenőrzése' and category = 'Jogi & Adminisztráció' and is_recurring is not true;
+update public.task_templates set is_recurring = true, recurrence_type = 'Heti', recurrence_interval = 1, next_due_date = current_date
+  where title = 'Heti Instagram-poszt közzététele' and category = 'Marketing' and is_recurring is not true;
+update public.task_templates set is_recurring = true, recurrence_type = 'Heti', recurrence_interval = 1, next_due_date = current_date
+  where title = 'Beérkezett Feedback-ek átnézése' and category = 'Founder Journey & Közösség' and is_recurring is not true;
+update public.task_templates set is_recurring = true, recurrence_type = 'Heti', recurrence_interval = 1, next_due_date = current_date
+  where title = 'Founder Wall új bejegyzéseinek ellenőrzése' and category = 'Founder Journey & Közösség' and is_recurring is not true;
+
 -- ---------------------------------------------------------------------
 -- Finance — product rows for the revenue/margin calculator
 -- ---------------------------------------------------------------------
