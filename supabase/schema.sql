@@ -764,3 +764,42 @@ alter table public.gmail_connection enable row level security;
 drop trigger if exists set_updated_at on public.gmail_connection;
 create trigger set_updated_at before update on public.gmail_connection
   for each row execute function public.set_updated_at();
+
+-- =====================================================================
+-- Közös tér (/together) — a partner-shared view of the Személyes rituálé
+-- (Gold Card Letters, Journey/Passport, Wild Cards, Meglepetés kérdés),
+-- reached via a short access code instead of the founder dashboard —
+-- which, notably, has no login of its own either. The code is a soft UX
+-- gate for a two-person page, not a security boundary: like every table
+-- in this file except gmail_connection above (which holds a real OAuth
+-- secret), it gets the same permissive anon policy already used
+-- everywhere, including on the fully public /landing page. Don't read
+-- more security into this table than that.
+-- =====================================================================
+create table if not exists public.together_settings (
+  id uuid primary key default gen_random_uuid(),
+  access_code text not null,
+  -- Planned/estimated Café to Connect opening date — either person can
+  -- set or change it from the /together hero, hence no "who set it"
+  -- column; NULL shows the symbolic "still on the way" copy instead.
+  opening_date date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.together_settings enable row level security;
+
+drop policy if exists "anon full access" on public.together_settings;
+create policy "anon full access" on public.together_settings for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.together_settings;
+create trigger set_updated_at before update on public.together_settings
+  for each row execute function public.set_updated_at();
+
+-- "Ki rögzítette" attribution for entries added from /together — filled
+-- from the viewer's locally-remembered name (see app/together), not
+-- typed by hand. Nullable and backfilled with `add column if not
+-- exists` since these three tables predate this column.
+alter table public.gold_card_letters add column if not exists added_by text;
+alter table public.journey_memories add column if not exists added_by text;
+alter table public.wild_card_completions add column if not exists added_by text;

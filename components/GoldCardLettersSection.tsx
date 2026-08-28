@@ -22,7 +22,19 @@ function todayISO() {
 
 const EMPTY_FORM = { uploadedBy: "", sealedDate: todayISO() };
 
-export default function GoldCardLettersSection() {
+export default function GoldCardLettersSection({
+  addedBy,
+}: {
+  /**
+   * Set from /together (see app/together/TogetherClient.tsx) with the
+   * viewer's locally-remembered name. When present, the "Ki tölti fel"
+   * field is skipped entirely — it's already known — and both
+   * uploaded_by and added_by are filled from it automatically. Left
+   * undefined on the admin dashboard (personal-ritual/page.tsx), which
+   * keeps asking for it by hand exactly as before.
+   */
+  addedBy?: string;
+}) {
   const [letters, setLetters] = useState<GoldCardLetter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +65,8 @@ export default function GoldCardLettersSection() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase || !form.uploadedBy.trim() || !file) {
+    const uploadedBy = addedBy ?? form.uploadedBy.trim();
+    if (!supabase || !uploadedBy || !file) {
       setError("Add meg, ki tölti fel a levelet, és válassz egy fotót.");
       return;
     }
@@ -73,7 +86,8 @@ export default function GoldCardLettersSection() {
         .insert({
           seq_number: letters.length + 1,
           sealed_date: form.sealedDate,
-          uploaded_by: form.uploadedBy.trim(),
+          uploaded_by: uploadedBy,
+          added_by: addedBy ?? null,
           photo_url: photoUrl,
         })
         .select()
@@ -155,17 +169,19 @@ export default function GoldCardLettersSection() {
       {showForm && (
         <form onSubmit={submit} className="mt-5 flex flex-col gap-3 rounded-lg border border-border p-4 animate-fade-in">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Ki tölti fel *</label>
-              <input
-                className="input"
-                required
-                autoFocus
-                value={form.uploadedBy}
-                onChange={(e) => setForm((f) => ({ ...f, uploadedBy: e.target.value }))}
-                placeholder="Név"
-              />
-            </div>
+            {!addedBy && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">Ki tölti fel *</label>
+                <input
+                  className="input"
+                  required
+                  autoFocus
+                  value={form.uploadedBy}
+                  onChange={(e) => setForm((f) => ({ ...f, uploadedBy: e.target.value }))}
+                  placeholder="Név"
+                />
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Dátum</label>
               <input
@@ -184,6 +200,7 @@ export default function GoldCardLettersSection() {
                 className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
+              {addedBy && <p className="mt-1 text-xs text-muted">Feltöltő: {addedBy}</p>}
               <p className="mt-1 text-xs text-muted">
                 A feltöltés után a fotó elmosva, lepecsételve jelenik meg — a levél tartalma marad titok.
               </p>
