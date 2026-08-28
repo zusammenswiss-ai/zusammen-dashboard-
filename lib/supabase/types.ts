@@ -320,6 +320,72 @@ export type SurpriseQuestionLogInsert = Partial<Omit<SurpriseQuestionLog, "id" |
   question_text: string;
 };
 
+export type ShareContactCategory = "Sajtó" | "Influencer" | "Ismerős" | "Egyéb";
+
+export interface ShareContact {
+  id: string;
+  name: string;
+  email: string | null;
+  category: ShareContactCategory;
+  contacted: boolean;
+  email_text: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type ShareContactInsert = Partial<Omit<ShareContact, "id" | "created_at" | "updated_at">> & {
+  name: string;
+};
+export type ShareContactUpdate = Partial<Omit<ShareContact, "id" | "created_at">>;
+
+export interface DemandLinkShare {
+  id: string;
+  contact_id: string | null;
+  recipient_name: string | null;
+  recipient_email: string;
+  email_text: string | null;
+  created_at: string;
+}
+export type DemandLinkShareInsert = Partial<Omit<DemandLinkShare, "id" | "created_at">> & {
+  recipient_email: string;
+};
+
+// gmail_connection is deliberately NOT part of the Database type below —
+// that type backs the browser (anon-key) Supabase client, and this table
+// has no anon RLS policy at all (see supabase/schema.sql). It's only
+// ever touched through the service-role client in
+// lib/supabase/serverClient.ts, which uses ServerDatabase instead.
+export interface GmailConnection {
+  id: string;
+  google_email: string | null;
+  encrypted_refresh_token: string;
+  access_token: string | null;
+  access_token_expires_at: string | null;
+  connected_at: string;
+  updated_at: string;
+}
+export type GmailConnectionInsert = Partial<Omit<GmailConnection, "id" | "connected_at" | "updated_at">> & {
+  encrypted_refresh_token: string;
+};
+export type GmailConnectionUpdate = Partial<Omit<GmailConnection, "id" | "connected_at">>;
+
+export interface ServerDatabase {
+  public: {
+    Tables: {
+      gmail_connection: {
+        Row: GmailConnection;
+        Insert: GmailConnectionInsert;
+        Update: GmailConnectionUpdate;
+        Relationships: [];
+      };
+    };
+    Views: { [_ in never]: never };
+    Functions: { [_ in never]: never };
+    Enums: { [_ in never]: never };
+    CompositeTypes: { [_ in never]: never };
+  };
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -429,6 +495,18 @@ export interface Database {
         Row: SurpriseQuestionLog;
         Insert: SurpriseQuestionLogInsert;
         Update: Partial<Omit<SurpriseQuestionLog, "id" | "created_at">>;
+        Relationships: [];
+      };
+      share_contacts: {
+        Row: ShareContact;
+        Insert: ShareContactInsert;
+        Update: ShareContactUpdate;
+        Relationships: [];
+      };
+      demand_link_shares: {
+        Row: DemandLinkShare;
+        Insert: DemandLinkShareInsert;
+        Update: Partial<Omit<DemandLinkShare, "id" | "created_at">>;
         Relationships: [];
       };
     };

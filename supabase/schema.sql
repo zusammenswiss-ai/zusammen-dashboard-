@@ -697,3 +697,70 @@ alter table public.surprise_question_log enable row level security;
 
 drop policy if exists "anon full access" on public.surprise_question_log;
 create policy "anon full access" on public.surprise_question_log for all using (true) with check (true);
+
+-- =====================================================================
+-- Megosztások (Shares) — press/influencer/friends contact list + a log
+-- of every time the /landing demand-test link was emailed out.
+-- =====================================================================
+create table if not exists public.share_contacts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text,
+  category text not null default 'Egyéb'
+    check (category in ('Sajtó', 'Influencer', 'Ismerős', 'Egyéb')),
+  contacted boolean not null default false,
+  email_text text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.share_contacts enable row level security;
+
+drop policy if exists "anon full access" on public.share_contacts;
+create policy "anon full access" on public.share_contacts for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.share_contacts;
+create trigger set_updated_at before update on public.share_contacts
+  for each row execute function public.set_updated_at();
+
+create table if not exists public.demand_link_shares (
+  id uuid primary key default gen_random_uuid(),
+  contact_id uuid references public.share_contacts(id) on delete set null,
+  recipient_name text,
+  recipient_email text not null,
+  email_text text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.demand_link_shares enable row level security;
+
+drop policy if exists "anon full access" on public.demand_link_shares;
+create policy "anon full access" on public.demand_link_shares for all using (true) with check (true);
+
+-- =====================================================================
+-- Gmail connection — stores the OAuth refresh token used to send email
+-- as zusammen.swiss@gmail.com via the Gmail API (see lib/email/). This
+-- is a genuine secret (an encrypted refresh token that grants send-as
+-- access), unlike every other table in this file, so it is deliberately
+-- NOT given an "anon full access" policy — RLS is enabled with zero
+-- policies, which blocks the anon key entirely. Only the server-side
+-- Supabase client authenticated with SUPABASE_SERVICE_ROLE_KEY (which
+-- bypasses RLS) can read or write it — see lib/supabase/serverClient.ts.
+-- Never add an anon/authenticated policy to this table.
+-- =====================================================================
+create table if not exists public.gmail_connection (
+  id uuid primary key default gen_random_uuid(),
+  google_email text,
+  encrypted_refresh_token text not null,
+  access_token text,
+  access_token_expires_at timestamptz,
+  connected_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.gmail_connection enable row level security;
+
+drop trigger if exists set_updated_at on public.gmail_connection;
+create trigger set_updated_at before update on public.gmail_connection
+  for each row execute function public.set_updated_at();

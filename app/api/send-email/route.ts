@@ -1,27 +1,14 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { getEmailSender } from "@/lib/email";
 
-// Sends an email via Resend. Runs server-side only — RESEND_API_KEY must
-// never be exposed to the browser (unlike the Supabase anon key, this one
-// is a genuine secret), which is why this lives behind an API route
+// Sends an email via whichever provider is active (see lib/email/index.ts
+// — Gmail by default, Resend if EMAIL_PROVIDER=resend). Runs server-side
+// only, same as before: real secrets (Google/Resend credentials) must
+// never reach the browser, which is why this stays behind an API route
 // instead of being called directly from the dashboard pages.
-//
-// RESEND_FROM_EMAIL / RESEND_REPLY_TO are optional overrides — see the
-// README for how to move off the shared onboarding@resend.dev sender once
-// a custom domain is verified in Resend.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DEFAULT_FROM = "Zusammen <onboarding@resend.dev>";
-const DEFAULT_REPLY_TO = "zusammen.swiss@gmail.com";
 
 export async function POST(request: Request) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { ok: false, error: "RESEND_API_KEY nincs beállítva a szerver környezeti változói között." },
-      { status: 500 }
-    );
-  }
-
   let payload: { to?: string; subject?: string; body?: string };
   try {
     payload = await request.json();
@@ -43,18 +30,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Az üzenet nem lehet üres." }, { status: 400 });
   }
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
-    to: [to],
-    replyTo: process.env.RESEND_REPLY_TO || DEFAULT_REPLY_TO,
-    subject,
-    text: body,
-  });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 502 });
+  const result = await getEmailSender().send({ to, subject, body });
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error, code: result.code }, { status: 502 });
   }
-
   return NextResponse.json({ ok: true });
 }

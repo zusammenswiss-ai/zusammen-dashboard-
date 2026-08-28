@@ -18,6 +18,8 @@ import {
   X,
   Rocket,
   HeartHandshake,
+  Share2,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -33,7 +35,9 @@ const NAV_ITEMS = [
   { href: "/documents", label: "Dokumentumok", icon: FolderOpen },
   { href: "/card-assets", label: "Kártya-fájlok", icon: Archive },
   { href: "/personal-ritual", label: "Személyes rituálé", icon: HeartHandshake },
+  { href: "/shares", label: "Megosztások", icon: Share2 },
   { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
+  { href: "/settings", label: "Beállítások", icon: Settings },
 ];
 
 export default function Nav() {

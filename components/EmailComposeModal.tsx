@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Mail, Send } from "lucide-react";
+import Link from "next/link";
+import { X, Mail, Send, AlertTriangle } from "lucide-react";
 import { ErrorBanner } from "@/components/Feedback";
 
-/** Shared "Email küldése" modal — posts to /api/send-email (Resend, server
- * side). Used from Suppliers, Megrendelések, Dokumentumok, and Marketing;
- * each caller supplies sensible defaults and reacts to a successful send
- * via onSent (e.g. Suppliers auto-checks "Megkeresve"). */
+/** Shared "Email küldése" modal — posts to /api/send-email, which sends
+ * via whichever provider is active server-side (Gmail by default, or
+ * Resend — see lib/email/index.ts). Used from Beszállítók, Megrendelések,
+ * Dokumentumok, Marketing, and Megosztások; each caller supplies sensible
+ * defaults and reacts to a successful send via onSent (e.g. Beszállítók
+ * auto-checks "Megkeresve"). */
 export default function EmailComposeModal({
   title = "Email küldése",
   defaultTo = "",
@@ -28,6 +31,7 @@ export default function EmailComposeModal({
   const [body, setBody] = useState(defaultBody);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gmailNotConnected, setGmailNotConnected] = useState(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -40,6 +44,7 @@ export default function EmailComposeModal({
   async function send() {
     setSending(true);
     setError(null);
+    setGmailNotConnected(false);
     try {
       const res = await fetch("/api/send-email", {
         method: "POST",
@@ -48,6 +53,10 @@ export default function EmailComposeModal({
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
+        if (data.code === "gmail_not_connected") {
+          setGmailNotConnected(true);
+          return;
+        }
         throw new Error(data.error || "Nem sikerült elküldeni az emailt.");
       }
       onSent?.({ to, subject, body });
@@ -75,6 +84,17 @@ export default function EmailComposeModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          {gmailNotConnected && (
+            <Link
+              href="/settings"
+              className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 transition-colors hover:bg-amber-100"
+            >
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <span>
+                <span className="font-medium">Gmail nincs összekapcsolva</span> — kattints ide az engedélyezéshez.
+              </span>
+            </Link>
+          )}
           {error && <ErrorBanner message={error} />}
           <div className="flex flex-col gap-3">
             <div>
