@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { X, Plus, Pencil, Trash2 } from "lucide-react";
+import { X, Plus, Pencil, Trash2, Repeat } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { TaskPriority, TaskTemplate } from "@/lib/supabase/types";
-import { PRIORITY_HU, TEMPLATE_CATEGORY_ORDER, TEMPLATE_ASSIGNEE_OPTIONS, groupByCategory } from "@/lib/labels";
+import type { RecurrenceType, TaskPriority, TaskTemplate } from "@/lib/supabase/types";
+import {
+  PRIORITY_HU,
+  TEMPLATE_CATEGORY_ORDER,
+  TEMPLATE_ASSIGNEE_OPTIONS,
+  RECURRENCE_TYPES,
+  recurrenceFrequencyLabel,
+  groupByCategory,
+} from "@/lib/labels";
+import { formatDate } from "@/lib/format";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 
@@ -18,6 +26,10 @@ const EMPTY_FORM = {
   default_priority: "Medium" as TaskPriority,
   default_assignee: "",
   notes_template: "",
+  is_recurring: false,
+  recurrence_type: "Heti" as RecurrenceType,
+  recurrence_interval: "1",
+  next_due_date: "",
 };
 
 function byRecency(a: TaskTemplate, b: TaskTemplate) {
@@ -64,6 +76,10 @@ export default function TemplateManagerModal({
       default_priority: t.default_priority,
       default_assignee: t.default_assignee ?? "",
       notes_template: t.notes_template ?? "",
+      is_recurring: t.is_recurring,
+      recurrence_type: t.recurrence_type ?? "Heti",
+      recurrence_interval: String(t.recurrence_interval || 1),
+      next_due_date: t.next_due_date ?? "",
     });
   }
 
@@ -71,11 +87,24 @@ export default function TemplateManagerModal({
     return form.category === NEW_CATEGORY ? form.newCategory.trim() : form.category.trim();
   }
 
+  function recurrencePayload() {
+    return {
+      is_recurring: form.is_recurring,
+      recurrence_type: form.is_recurring ? form.recurrence_type : null,
+      recurrence_interval: form.is_recurring ? Math.max(1, Number(form.recurrence_interval) || 1) : 1,
+      next_due_date: form.is_recurring ? form.next_due_date || null : null,
+    };
+  }
+
   async function createTemplate(e: React.FormEvent) {
     e.preventDefault();
     const supabase = getSupabaseClient();
     const category = resolvedCategory();
     if (!supabase || !form.title.trim() || !category) return;
+    if (form.is_recurring && !form.next_due_date) {
+      setError("Add meg az első esedékesség dátumát az ismétlődő sablonhoz.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const { data, error: insertError } = await supabase
@@ -86,6 +115,7 @@ export default function TemplateManagerModal({
         default_priority: form.default_priority,
         default_assignee: form.default_assignee || null,
         notes_template: form.notes_template.trim() || null,
+        ...recurrencePayload(),
       })
       .select()
       .single();
@@ -103,6 +133,10 @@ export default function TemplateManagerModal({
     const supabase = getSupabaseClient();
     const category = resolvedCategory();
     if (!supabase || !editingId || !form.title.trim() || !category) return;
+    if (form.is_recurring && !form.next_due_date) {
+      setError("Add meg az első esedékesség dátumát az ismétlődő sablonhoz.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const { data, error: updateError } = await supabase
@@ -113,6 +147,7 @@ export default function TemplateManagerModal({
         default_priority: form.default_priority,
         default_assignee: form.default_assignee || null,
         notes_template: form.notes_template.trim() || null,
+        ...recurrencePayload(),
       })
       .eq("id", editingId)
       .select()
@@ -221,6 +256,59 @@ export default function TemplateManagerModal({
           placeholder="Előre kitöltött megjegyzés-szöveg (opcionális)…"
         />
       </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-forest">
+          <input
+            type="checkbox"
+            checked={form.is_recurring}
+            onChange={(e) => setForm((f) => ({ ...f, is_recurring: e.target.checked }))}
+          />
+          <Repeat size={14} className="text-bronze" /> Ismétlődő feladat
+        </label>
+        {form.is_recurring && (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Ismétlődés típusa</label>
+              <select
+                className="select"
+                value={form.recurrence_type}
+                onChange={(e) => setForm((f) => ({ ...f, recurrence_type: e.target.value as RecurrenceType }))}
+              >
+                {RECURRENCE_TYPES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Ismétlődés gyakorisága</label>
+              <input
+                type="number"
+                min="1"
+                className="input"
+                value={form.recurrence_interval}
+                onChange={(e) => setForm((f) => ({ ...f, recurrence_interval: e.target.value }))}
+              />
+              <p className="mt-1 text-xs text-muted">
+                {recurrenceFrequencyLabel(form.recurrence_type, Number(form.recurrence_interval) || 1)}
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Első esedékesség *</label>
+              <input
+                type="date"
+                className="input"
+                required={form.is_recurring}
+                value={form.next_due_date}
+                onChange={(e) => setForm((f) => ({ ...f, next_due_date: e.target.value }))}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button type="submit" disabled={saving} className="btn btn-primary">
@@ -287,10 +375,20 @@ export default function TemplateManagerModal({
                           className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-ivory-dim"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm text-forest">{t.title}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="truncate text-sm text-forest">{t.title}</p>
+                              {t.is_recurring && t.recurrence_type && (
+                                <span className="badge shrink-0 bg-bronze/15 text-walnut">
+                                  🔁 {t.recurrence_type}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-muted">
                               {PRIORITY_HU[t.default_priority]}
                               {t.default_assignee && ` · ${t.default_assignee}`}
+                              {t.is_recurring && t.next_due_date && (
+                                <> · következő: {formatDate(t.next_due_date)}</>
+                              )}
                             </p>
                           </div>
                           <div className="flex shrink-0 gap-1">

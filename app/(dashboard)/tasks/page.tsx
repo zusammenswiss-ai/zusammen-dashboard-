@@ -29,6 +29,7 @@ import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
+import { runRecurringTemplateCheck } from "@/lib/recurring-templates";
 
 function byTaskRecency(a: TaskItem, b: TaskItem) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -137,9 +138,25 @@ export default function TasksPage() {
         .select("*")
         .order("category")
         .order("title");
-      setTemplates(data ?? []);
+      const loaded = data ?? [];
+      setTemplates(loaded);
+
+      // Recurring templates auto-generate their next Teendő task right
+      // here, on every Feladatok page load — see lib/recurring-templates.ts
+      // for why there's no separate cron for this. Re-running loadTasks()
+      // afterwards (rather than splicing createdTasks into state by hand)
+      // sidesteps a race against the other, independent load-on-mount
+      // effect above: whichever finishes first, this always ends with a
+      // fresh SELECT taken after the insert has landed.
+      const { createdTasks, updatedTemplates } = await runRecurringTemplateCheck(supabase, loaded);
+      if (createdTasks.length > 0) void loadTasks();
+      if (updatedTemplates.length > 0) {
+        setTemplates((prev) =>
+          prev.map((t) => updatedTemplates.find((u) => u.id === t.id) ?? t)
+        );
+      }
     })();
-  }, [supabase]);
+  }, [supabase, loadTasks]);
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();

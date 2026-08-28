@@ -1,7 +1,7 @@
 // Hungarian display labels for enum-like values stored in English in
 // Supabase (CHECK constraints reference the English values in schema.sql —
 // translating only the display label avoids a schema migration).
-import type { TaskPriority, PlanStatus, Season, OrderStatus, ContractStatus, PrintStatus } from "./supabase/types";
+import type { TaskPriority, PlanStatus, Season, OrderStatus, ContractStatus, PrintStatus, RecurrenceType } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
   Low: "Alacsony",
@@ -76,6 +76,24 @@ export const TEMPLATE_CATEGORY_ORDER = [
 // Fixed options for a template's default assignee — matches tasks.assignee
 // being free text, but the template picker/editor only offers these.
 export const TEMPLATE_ASSIGNEE_OPTIONS = ["Barbara", "Partner", "Mindketten"];
+
+// recurrence_type is already stored in Hungarian (see the schema check
+// constraint) — this is display order for the select, not a translation.
+export const RECURRENCE_TYPES: RecurrenceType[] = ["Napi", "Heti", "Havi", "Negyedéves", "Éves"];
+
+// The grammatical unit word for "Minden {n}. ___" — e.g. interval 2 +
+// Heti → "Minden 2. hét" (every 2nd week = biweekly).
+export const RECURRENCE_UNIT_HU: Record<RecurrenceType, string> = {
+  Napi: "nap",
+  Heti: "hét",
+  Havi: "hónap",
+  Negyedéves: "negyedév",
+  Éves: "év",
+};
+
+export function recurrenceFrequencyLabel(type: RecurrenceType, interval: number): string {
+  return interval <= 1 ? `Minden ${RECURRENCE_UNIT_HU[type]}` : `Minden ${interval}. ${RECURRENCE_UNIT_HU[type]}`;
+}
 
 /**
  * Groups items by a `category` field, ordering known categories first

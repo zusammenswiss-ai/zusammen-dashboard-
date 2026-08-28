@@ -8,6 +8,7 @@ export type PlanStatus = "Idea" | "Considering" | "Planned";
 export type Season = "Spring" | "Summer" | "Autumn" | "Winter";
 export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
 export type ContractStatus = "None" | "Signed" | "Failed" | "Expired";
+export type RecurrenceType = "Napi" | "Heti" | "Havi" | "Negyedéves" | "Éves";
 
 export interface SupplierProduct {
   id: string;
@@ -70,6 +71,13 @@ export interface TaskTemplate {
   default_priority: TaskPriority;
   default_assignee: string | null;
   notes_template: string | null;
+  is_recurring: boolean;
+  // Only meaningful when is_recurring is true — see the Sablonkezelő
+  // form (TemplateManagerModal) and the recurrence math in
+  // lib/recurring-templates.ts.
+  recurrence_type: RecurrenceType | null;
+  recurrence_interval: number;
+  next_due_date: string | null;
   created_at: string;
 }
 export type TaskTemplateInsert = Partial<Omit<TaskTemplate, "id" | "created_at">> & {
