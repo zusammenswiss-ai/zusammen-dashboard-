@@ -23,6 +23,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { useState } from "react";
+import NotificationBell from "@/components/NotificationBell";
 
 const NAV_ITEMS = [
   { href: "/", label: "Áttekintés", icon: LayoutDashboard },
@@ -51,13 +52,16 @@ export default function Nav() {
       {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-border bg-forest px-4 py-3 lg:hidden">
         <Brand />
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Navigáció megnyitása/bezárása"
-          className="rounded-md p-2 text-ivory hover:bg-forest-light"
-        >
-          {open ? <X size={20} /> : <Menu size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Navigáció megnyitása/bezárása"
+            className="rounded-md p-2 text-ivory hover:bg-forest-light"
+          >
+            {open ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar (desktop) / drawer (mobile) */}
@@ -66,8 +70,9 @@ export default function Nav() {
           open ? "block" : "hidden"
         } w-full shrink-0 bg-forest lg:block lg:w-64`}
       >
-        <div className="hidden px-6 py-7 lg:block">
+        <div className="hidden items-center justify-between px-6 py-7 lg:flex">
           <Brand />
+          <NotificationBell />
         </div>
         <nav className="flex flex-col gap-1 px-3 pb-3 lg:px-4">
           {NAV_ITEMS.map((item) => {

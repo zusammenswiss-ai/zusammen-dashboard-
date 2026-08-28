@@ -79,6 +79,16 @@ runs as a [Vercel Cron Job](https://vercel.com/docs/cron-jobs) calling
 email](#3-set-up-the-daily-reminder-email-optional) below — it needs one
 more environment variable (`CRON_SECRET`) beyond the email setup above.
 
+**Értesítési központ**: a bell icon in the nav (top-right of the mobile
+header, top of the desktop sidebar) with a badge showing how many things
+need attention — the exact same overdue/soon-due Feladatok, Megrendelés
+deliveries, and lejáró Beszállító contracts as the daily reminder email
+above (`lib/notifications.ts` is the single source of truth both share),
+plus the unread Gmail count. Click it for the list, each row links
+straight to the relevant page. No setup needed — it just reads whatever
+Supabase already has and, if Gmail is connected, the unread count;
+either piece missing just means less shows up, not an error.
+
 ## `/landing` — public customer-facing page
 
 A separate, standalone page (no dashboard chrome, no Basic Auth lock even
