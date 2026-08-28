@@ -59,6 +59,8 @@ export default function CalendarPage() {
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // Beállítások → Naptár-integráció; see the same flag on Áttekintés.
+  const [goldCardReminderEnabled, setGoldCardReminderEnabled] = useState(true);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -80,6 +82,7 @@ export default function CalendarPage() {
           goldCardLettersRes,
           journeyMemoriesRes,
           wildCardCompletionsRes,
+          companySettingsRes,
         ] = await Promise.all([
           supabase.from("tasks").select("id, title, due_date").not("due_date", "is", null),
           supabase.from("suppliers").select("id, name, created_at"),
@@ -91,7 +94,9 @@ export default function CalendarPage() {
           supabase.from("gold_card_letters").select("id, seq_number, sealed_date"),
           supabase.from("journey_memories").select("id, place, date"),
           supabase.from("wild_card_completions").select("id, wildcard_name, completed_date"),
+          supabase.from("company_settings").select("gold_card_reminder_enabled").maybeSingle(),
         ]);
+        setGoldCardReminderEnabled(companySettingsRes.data?.gold_card_reminder_enabled ?? true);
 
         const firstError =
           tasksRes.error ||
@@ -208,6 +213,7 @@ export default function CalendarPage() {
   // sealed_date events above, since a letter is often sealed a few days
   // before or after its quarter's due date.
   const goldCardDueEvents = useMemo(() => {
+    if (!goldCardReminderEnabled) return [];
     const rangeStart = new Date(cursor.year - 1, 0, 1);
     const rangeEnd = new Date(cursor.year + 1, 11, 31);
     return goldCardDueDatesInRange(rangeStart, rangeEnd).map((d) => ({
@@ -217,7 +223,7 @@ export default function CalendarPage() {
       category: "ritual" as const,
       href: "/personal-ritual",
     }));
-  }, [cursor.year]);
+  }, [cursor.year, goldCardReminderEnabled]);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
