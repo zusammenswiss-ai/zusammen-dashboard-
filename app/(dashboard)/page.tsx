@@ -75,6 +75,9 @@ export default function OverviewPage() {
   // error) — a disconnected Gmail just leaves this section shorter, not
   // broken-looking.
   const [unreadMail, setUnreadMail] = useState<number | null>(null);
+  // Beállítások → Naptár-integráció; defaults to shown until the row
+  // loads (or if it never existed) — matches the column's own db default.
+  const [goldCardReminderEnabled, setGoldCardReminderEnabled] = useState(true);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -100,6 +103,7 @@ export default function OverviewPage() {
           wildCardCompletionsRes,
           surpriseQuestionLogRes,
           notificationItems,
+          companySettingsRes,
         ] = await Promise.all([
           supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -113,6 +117,7 @@ export default function OverviewPage() {
           supabase.from("wild_card_completions").select("*").order("created_at", { ascending: false }).limit(5),
           supabase.from("surprise_question_log").select("*").order("created_at", { ascending: false }).limit(5),
           fetchDueNotifications(supabase),
+          supabase.from("company_settings").select("gold_card_reminder_enabled").maybeSingle(),
         ]);
 
         const firstError =
@@ -244,6 +249,7 @@ export default function OverviewPage() {
         setBusinessActivity(business);
         setRitualActivity(ritual);
         setNotifications(notificationItems);
+        setGoldCardReminderEnabled(companySettingsRes.data?.gold_card_reminder_enabled ?? true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Nem sikerült betölteni a dashboard adatait.");
       } finally {
@@ -470,10 +476,18 @@ export default function OverviewPage() {
 
             <div className="card p-5">
               <h2 className="font-serif text-lg text-forest">Következő Gold Card levél</h2>
-              <p className="mt-4 font-serif text-2xl text-forest">
-                {nextLetterDays <= 0 ? "Ma esedékes" : `${nextLetterDays} nap`}
-              </p>
-              <p className="mt-1 text-xs text-muted">{formatDate(nextLetterDate.toISOString())}</p>
+              {goldCardReminderEnabled ? (
+                <>
+                  <p className="mt-4 font-serif text-2xl text-forest">
+                    {nextLetterDays <= 0 ? "Ma esedékes" : `${nextLetterDays} nap`}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">{formatDate(nextLetterDate.toISOString())}</p>
+                </>
+              ) : (
+                <p className="mt-4 text-sm text-muted">
+                  A negyedéves emlékeztető szüneteltetve — állítsd vissza a Beállításokban.
+                </p>
+              )}
               <p className="mt-3 text-xs text-muted">{stats.goldCardLettersTotal} levél lepecsételve eddig</p>
               <Link
                 href="/personal-ritual"

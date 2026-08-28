@@ -329,6 +329,24 @@ export type TogetherSettingsInsert = Partial<Omit<TogetherSettings, "id" | "crea
 };
 export type TogetherSettingsUpdate = Partial<Omit<TogetherSettings, "id" | "created_at">>;
 
+export type CurrencyCode = "CHF" | "USD" | "EUR";
+
+export interface CompanySettings {
+  id: string;
+  company_name: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  logo_url: string | null;
+  email_signature: string | null;
+  currency: CurrencyCode;
+  gold_card_reminder_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+export type CompanySettingsInsert = Partial<Omit<CompanySettings, "id" | "created_at" | "updated_at">>;
+export type CompanySettingsUpdate = Partial<Omit<CompanySettings, "id" | "created_at">>;
+
 export interface SurpriseQuestionLog {
   id: string;
   question_text: string;
@@ -533,6 +551,12 @@ export interface Database {
         Update: Partial<Omit<DemandLinkShare, "id" | "created_at">>;
         Relationships: [];
       };
+      company_settings: {
+        Row: CompanySettings;
+        Insert: CompanySettingsInsert;
+        Update: CompanySettingsUpdate;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -540,3 +564,38 @@ export interface Database {
     CompositeTypes: { [_ in never]: never };
   };
 }
+
+/**
+ * Every anon-accessible table name, in the exact order Database.Tables
+ * above lists them — read by the Beállítások "Minden adat exportálása"
+ * (all of them) and "Minden adat törlése" (all except together_settings
+ * and company_settings, kept so a reset doesn't also lock the founder
+ * out of the Közös tér link or wipe Márka-adatok — see
+ * components/DangerZoneSection.tsx) features. Keep this in sync by hand
+ * whenever a table is added to or removed from Database.Tables — there's
+ * no way to derive a runtime string array from a TypeScript interface.
+ */
+export const ANON_TABLE_NAMES = [
+  "suppliers",
+  "tasks",
+  "task_templates",
+  "finance_products",
+  "marketing_campaigns",
+  "marketing_content",
+  "marketing_assets",
+  "documents",
+  "future_plans",
+  "orders",
+  "card_assets",
+  "price_quotes",
+  "landing_letters",
+  "landing_responses",
+  "gold_card_letters",
+  "journey_memories",
+  "wild_card_completions",
+  "surprise_question_log",
+  "together_settings",
+  "share_contacts",
+  "demand_link_shares",
+  "company_settings",
+] as const satisfies readonly (keyof Database["public"]["Tables"])[];

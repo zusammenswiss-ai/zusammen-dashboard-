@@ -803,3 +803,57 @@ create trigger set_updated_at before update on public.together_settings
 alter table public.gold_card_letters add column if not exists added_by text;
 alter table public.journey_memories add column if not exists added_by text;
 alter table public.wild_card_completions add column if not exists added_by text;
+
+-- =====================================================================
+-- Company settings — a second singleton row, alongside together_settings
+-- above, this time for the Beállítások page's Márka-adatok / Email-
+-- aláírás / Naptár-integráció / Pénznem preferencia sections. Same
+-- reasoning as together_settings: not a secret, gets the usual
+-- permissive anon policy rather than the gmail_connection treatment.
+-- =====================================================================
+create table if not exists public.company_settings (
+  id uuid primary key default gen_random_uuid(),
+  company_name text,
+  address text,
+  phone text,
+  email text,
+  logo_url text,
+  -- Appended to every email sent through /api/send-email — see that
+  -- route. NULL/empty falls back to the DEFAULT_EMAIL_SIGNATURE
+  -- constant in lib/company-settings.ts, not to a stored default here,
+  -- so the fallback text lives in exactly one place.
+  email_signature text,
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  -- Whether the negyedéves Gold Card Letters due-date shows up on
+  -- Naptár and the "Következő Gold Card levél" countdown on Áttekintés
+  -- — see the gating in those two pages. Sealed letters already on
+  -- record keep showing either way; this only affects the forward-
+  -- looking reminder.
+  gold_card_reminder_enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.company_settings enable row level security;
+
+drop policy if exists "anon full access" on public.company_settings;
+create policy "anon full access" on public.company_settings for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.company_settings;
+create trigger set_updated_at before update on public.company_settings
+  for each row execute function public.set_updated_at();
+
+-- Storage — bucket for the company logo uploaded on Beállítások
+insert into storage.buckets (id, name, public)
+values ('company-logo', 'company-logo', true)
+on conflict (id) do nothing;
+
+drop policy if exists "company-logo bucket anon read" on storage.objects;
+create policy "company-logo bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'company-logo');
+
+drop policy if exists "company-logo bucket anon write" on storage.objects;
+create policy "company-logo bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'company-logo');

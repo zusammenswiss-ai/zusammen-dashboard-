@@ -9,7 +9,9 @@ import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
-import { formatCHF } from "@/lib/format";
+import { formatMoney } from "@/lib/currency";
+import { DEFAULT_CURRENCY } from "@/lib/company-settings";
+import type { CurrencyCode } from "@/lib/supabase/types";
 import { ORDER_STATUS_HU } from "@/lib/labels";
 
 function byProductRecency(a: FinanceProduct, b: FinanceProduct) {
@@ -22,6 +24,8 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Beállítások → Pénznem preferencia — display only, see lib/currency.ts.
+  const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -30,13 +34,15 @@ export default function FinancePage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [productsRes, ordersRes] = await Promise.all([
+    const [productsRes, ordersRes, companySettingsRes] = await Promise.all([
       supabase.from("finance_products").select("*").order("created_at", { ascending: true }),
       supabase.from("orders").select("*"),
+      supabase.from("company_settings").select("currency").maybeSingle(),
     ]);
     if (productsRes.error) setError(productsRes.error.message);
     else setProducts(productsRes.data ?? []);
     if (!ordersRes.error) setOrders(ordersRes.data ?? []);
+    setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
     setLoading(false);
   }, [supabase]);
 
@@ -137,14 +143,14 @@ export default function FinancePage() {
           </p>
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <SummaryCard label="Valós bevétel (árazott rendelésekből)" value={formatCHF(orderRevenue.total)} />
+            <SummaryCard label="Valós bevétel (árazott rendelésekből)" value={formatMoney(orderRevenue.total, currency)} />
             {(Object.keys(orderRevenue.byStatus) as (keyof typeof orderRevenue.byStatus)[])
               .sort()
               .map((status) => (
                 <SummaryCard
                   key={status}
                   label={ORDER_STATUS_HU[status as keyof typeof ORDER_STATUS_HU] ?? status}
-                  value={formatCHF(orderRevenue.byStatus[status])}
+                  value={formatMoney(orderRevenue.byStatus[status], currency)}
                 />
               ))}
           </div>
@@ -173,8 +179,8 @@ export default function FinancePage() {
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Termék</th>
-                  <th className="px-4 py-3 font-medium">Ár (CHF)</th>
-                  <th className="px-4 py-3 font-medium">Önköltség (CHF)</th>
+                  <th className="px-4 py-3 font-medium">Ár ({currency})</th>
+                  <th className="px-4 py-3 font-medium">Önköltség ({currency})</th>
                   <th className="px-4 py-3 font-medium">Darabszám</th>
                   <th className="px-4 py-3 font-medium">Bevétel</th>
                   <th className="px-4 py-3 font-medium">Árrés</th>
@@ -186,6 +192,7 @@ export default function FinancePage() {
                   <FinanceRow
                     key={product.id}
                     product={product}
+                    currency={currency}
                     onUpdate={(patch) => updateRow(product.id, patch)}
                     onDelete={() => deleteRow(product.id)}
                   />
@@ -196,9 +203,9 @@ export default function FinancePage() {
                   <td className="px-4 py-3" colSpan={4}>
                     Összesen
                   </td>
-                  <td className="px-4 py-3">{formatCHF(totals.revenue)}</td>
+                  <td className="px-4 py-3">{formatMoney(totals.revenue, currency)}</td>
                   <td className="px-4 py-3">
-                    {formatCHF(totals.margin)}{" "}
+                    {formatMoney(totals.margin, currency)}{" "}
                     <span className="text-xs font-normal text-muted">
                       ({totals.marginPct.toFixed(1)}%)
                     </span>
@@ -210,11 +217,11 @@ export default function FinancePage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <SummaryCard label="Teljes bevétel" value={formatCHF(totals.revenue)} />
-            <SummaryCard label="Teljes önköltség" value={formatCHF(totals.cogsTotal)} />
+            <SummaryCard label="Teljes bevétel" value={formatMoney(totals.revenue, currency)} />
+            <SummaryCard label="Teljes önköltség" value={formatMoney(totals.cogsTotal, currency)} />
             <SummaryCard
               label="Bruttó árrés"
-              value={`${formatCHF(totals.margin)} · ${totals.marginPct.toFixed(1)}%`}
+              value={`${formatMoney(totals.margin, currency)} · ${totals.marginPct.toFixed(1)}%`}
             />
           </div>
         </>
@@ -236,10 +243,12 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 
 function FinanceRow({
   product,
+  currency,
   onUpdate,
   onDelete,
 }: {
   product: FinanceProduct;
+  currency: CurrencyCode;
   onUpdate: (patch: Partial<FinanceProduct>) => void;
   onDelete: () => void;
 }) {
@@ -266,9 +275,9 @@ function FinanceRow({
       <td className="px-4 py-2">
         <NumberCell value={product.units} onCommit={(v) => onUpdate({ units: v })} step="1" />
       </td>
-      <td className="px-4 py-2 font-medium text-forest">{formatCHF(revenue)}</td>
+      <td className="px-4 py-2 font-medium text-forest">{formatMoney(revenue, currency)}</td>
       <td className={`px-4 py-2 font-medium ${margin < 0 ? "text-red-600" : "text-forest"}`}>
-        {formatCHF(margin)}
+        {formatMoney(margin, currency)}
       </td>
       <td className="px-4 py-2 text-right">
         <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Sor törlése">

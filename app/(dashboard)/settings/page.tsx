@@ -8,6 +8,9 @@ import { Spinner } from "@/components/Feedback";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { TogetherSettings } from "@/lib/supabase/types";
 import { generateAccessCode } from "@/lib/together";
+import CompanySettingsSection from "@/components/CompanySettingsSection";
+import DataExportSection from "@/components/DataExportSection";
+import DangerZoneSection from "@/components/DangerZoneSection";
 
 type GmailStatus = { configured: boolean; connected: boolean; email: string | null };
 
@@ -19,7 +22,14 @@ export default function SettingsPage() {
         <Suspense fallback={<Spinner />}>
           <GmailConnectionCard />
         </Suspense>
-        {isSupabaseConfigured && <TogetherAccessCard />}
+        {isSupabaseConfigured && (
+          <>
+            <TogetherAccessCard />
+            <CompanySettingsSection />
+            <DataExportSection />
+            <DangerZoneSection />
+          </>
+        )}
       </div>
     </>
   );
