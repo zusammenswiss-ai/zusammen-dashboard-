@@ -276,6 +276,10 @@ export interface GoldCardLetter {
   sealed_date: string;
   uploaded_by: string;
   photo_url: string;
+  // Who recorded this from /together — the locally-remembered viewer
+  // name, auto-filled there (see app/together). Independent of
+  // uploaded_by, which is still hand-typed on the admin dashboard.
+  added_by: string | null;
   created_at: string;
 }
 export type GoldCardLetterInsert = Partial<Omit<GoldCardLetter, "id" | "created_at">> & {
@@ -291,6 +295,7 @@ export interface JourneyMemory {
   experience: string;
   note: string | null;
   photo_url: string | null;
+  added_by: string | null;
   created_at: string;
 }
 export type JourneyMemoryInsert = Partial<Omit<JourneyMemory, "id" | "created_at">> & {
@@ -305,11 +310,24 @@ export interface WildCardCompletion {
   wildcard_name: WildCardName;
   completed_date: string;
   note: string | null;
+  added_by: string | null;
   created_at: string;
 }
 export type WildCardCompletionInsert = Partial<Omit<WildCardCompletion, "id" | "created_at">> & {
   wildcard_name: WildCardName;
 };
+
+export interface TogetherSettings {
+  id: string;
+  access_code: string;
+  opening_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type TogetherSettingsInsert = Partial<Omit<TogetherSettings, "id" | "created_at" | "updated_at">> & {
+  access_code: string;
+};
+export type TogetherSettingsUpdate = Partial<Omit<TogetherSettings, "id" | "created_at">>;
 
 export interface SurpriseQuestionLog {
   id: string;
@@ -495,6 +513,12 @@ export interface Database {
         Row: SurpriseQuestionLog;
         Insert: SurpriseQuestionLogInsert;
         Update: Partial<Omit<SurpriseQuestionLog, "id" | "created_at">>;
+        Relationships: [];
+      };
+      together_settings: {
+        Row: TogetherSettings;
+        Insert: TogetherSettingsInsert;
+        Update: TogetherSettingsUpdate;
         Relationships: [];
       };
       share_contacts: {

@@ -24,7 +24,12 @@ function todayISO() {
 
 const EMPTY_FORM = { date: todayISO(), place: "", experience: "", note: "" };
 
-export default function JourneyPassportSection() {
+export default function JourneyPassportSection({
+  addedBy,
+}: {
+  /** See the same prop on GoldCardLettersSection — set from /together, undefined on the admin dashboard. */
+  addedBy?: string;
+}) {
   const [memories, setMemories] = useState<JourneyMemory[]>([]);
   const [wildCards, setWildCards] = useState<WildCardCompletion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +92,7 @@ export default function JourneyPassportSection() {
           experience: form.experience.trim(),
           note: form.note.trim() || null,
           photo_url: photoUrl,
+          added_by: addedBy ?? null,
         })
         .select()
         .single();
@@ -108,7 +114,7 @@ export default function JourneyPassportSection() {
     setError(null);
     const { data, error: insertError } = await supabase
       .from("wild_card_completions")
-      .insert({ wildcard_name: name, completed_date: todayISO() })
+      .insert({ wildcard_name: name, completed_date: todayISO(), added_by: addedBy ?? null })
       .select()
       .single();
     setCompletingCard(null);
@@ -240,6 +246,7 @@ export default function JourneyPassportSection() {
               {completion ? (
                 <span className="mt-auto flex items-center gap-1 text-xs font-medium text-bronze">
                   <Check size={13} /> {formatDate(completion.completed_date)}
+                  {completion.added_by && ` · ${completion.added_by}`}
                 </span>
               ) : (
                 <button
@@ -269,6 +276,7 @@ export default function JourneyPassportSection() {
                 <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-bronze" />
                 <div className="flex items-center gap-1.5 text-xs text-muted">
                   <MapPin size={12} /> {memory.place} · {formatDate(memory.date)}
+                  {memory.added_by && ` · ${memory.added_by}`}
                 </div>
                 <p className="mt-0.5 text-sm font-medium text-forest">{memory.experience}</p>
                 {memory.note && <p className="mt-0.5 text-sm text-muted">{memory.note}</p>}

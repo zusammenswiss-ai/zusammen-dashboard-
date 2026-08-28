@@ -26,7 +26,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Személyes rituálé** (Personal Ritual) | Three private rituals for the founders themselves, not the business. **Gold Card Letters**: a hero countdown ("X nap a következő levélig", first round 2026.09.01 then every 3 months) with 4 seal icons that fill up as letters are sealed, an always-visible rituálé-útmutató panel with the 3 fixed prompt questions, and an upload form (ki tölti fel, dátum, fotó) — every sealed letter's photo shows blurred and darkened with a seal icon and "Lepecsételve" overlay, never the actual contents. **Személyes Journey (Passport)**: a free-form emlék-napló (hely, élmény, jegyzet, optional fotó) as a timeline, a fixed 5-card Wild Card grid (Coffee Break / Silence / Memory / Adventure / Gratitude) each checkable off with a date, and a progress bar ("X/5 Wild Card teljesítve" + memory count). **Meglepetés kérdés**: "Húzz egy lapot" shuffles through a 58-question Hungarian pool for ~1.5s before landing on one, framed by a random intro/outro (every outro explicitly mentions putting the phone down) and a fixed reminder that the phone is only for sending the message — "Másolás küldéshez" copies the full text ready to send. Every letter, memory, Wild Card completion, and question draw shows up in the Áttekintés activity feed |
 | **Postaláda** (Inbox) | Read-only view of the connected Gmail account's inbox (needs the `gmail.readonly` scope — see the reconnect note below) — sender, subject, snippet, and relative time per row, a Gmail-syntax search box (e.g. `from:supplier@example.com`), "Továbbiak betöltése" pagination, and clicking a row opens the full message body. No mark-as-read/archive/delete actions by design, just viewing |
 | **Megosztások** (Shares) | **Megosztható link és QR kód**: the live `/landing` URL (DE/EN toggle) with a "Link másolása" button, a self-generated QR code (`/api/qr`, no third-party service) with a "QR kód letöltése" PNG download, and — where the browser supports it — a native "Megosztás" share-sheet button. Shows even before Supabase is configured, since it needs neither. **Kapcsolatok**: a sajtó/influencer/ismerős contact list (name, email, kategória, jegyzet), each with its own **Email küldése** — a successful send auto-fills "Kiküldött email" and ticks "Megkeresve", same as Beszállítók — and a **Levelezés** toggle per card previews the Gmail thread with that contact and auto-ticks "Megkeresve" the moment they reply, same mechanism as Beszállítók. **Demand-test link megosztásai**: a log of every time the `/landing` igényfelmérés link was emailed out — "+ Új megosztás" picks an existing kapcsolat or a one-off name/email, opens the compose window pre-filled with the link, and a successful send adds a row to the log |
-| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below |
+| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below. **Közös tér linkje** — generates/regenerates the access code for the partner-shared `/together` page and shows the full link to send. See [`/together`](#together--shareable-partner-page) below |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
@@ -177,6 +177,40 @@ and the preview card match.
    (see the env var comment in `.env.example`) — without it, the social
    preview image/canonical URLs point at the default Vercel preview
    domain, which won't match wherever you actually deploy.
+
+## `/together` — shareable partner page
+
+A separate, standalone page (no dashboard chrome, no login) at
+`/together`, reached only through a 6-character access code — not part
+of the founder Dashboard's own navigation, and not linked from it either.
+Generate the code and the full link from the Dashboard's **Beállítások →
+Közös tér linkje** ("Link generálása" the first time, "Új kód
+generálása" any time after — regenerating invalidates the old link for
+anyone still using it).
+
+**Access model**: the code is a soft UX gate, not a hard security
+boundary — same as everything else in this app except `gmail_connection`
+(see the comment on `together_settings` in `supabase/schema.sql`). Anyone
+opening the link (`…/together?code=XXXXXX`) is verified against
+`together_settings.access_code`; on success the code is remembered in
+that browser's `localStorage` so it isn't asked again. First time in,
+it also asks **"Ki vagy?"** (a quick "Barbara" button or a free-text name
+for anyone else) and remembers that too — every Gold Card letter, journey
+memory, or Wild Card completion added from `/together` after that is
+tagged with that name automatically (the `added_by` column added to
+`gold_card_letters`, `journey_memories`, `wild_card_completions`), no
+manual "who's uploading this" field to fill in.
+
+**What's on it**: a hero — "A mi utunk a Café to Connect megnyitójáig" —
+with an opening-date field either person can set or change right there
+(symbolic "A dátum még nincs kitűzve — de az út már elkezdődött." copy
+when it's empty); once set, a daily countdown plus the same 4-seal Gold
+Card progress indicator used elsewhere. Below that, the exact same three
+Személyes rituálé sections as the founder Dashboard's own
+**Személyes rituálé** page — Gold Card Letters, Journey/Passport
+(memories + Wild Card grid), Meglepetés kérdés — reading and writing the
+same shared Supabase tables, since there was never a per-user split to
+begin with.
 
 ---
 

@@ -2,9 +2,12 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Mail, CheckCircle2, Unplug } from "lucide-react";
+import { Mail, CheckCircle2, Unplug, HeartHandshake, Copy, Check, RefreshCw } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { Spinner } from "@/components/Feedback";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import type { TogetherSettings } from "@/lib/supabase/types";
+import { generateAccessCode } from "@/lib/together";
 
 type GmailStatus = { configured: boolean; connected: boolean; email: string | null };
 
@@ -12,10 +15,108 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title="Beállítások" subtitle="Globális integrációk és fiók-összekapcsolások." />
-      <Suspense fallback={<Spinner />}>
-        <GmailConnectionCard />
-      </Suspense>
+      <div className="flex flex-col gap-6">
+        <Suspense fallback={<Spinner />}>
+          <GmailConnectionCard />
+        </Suspense>
+        {isSupabaseConfigured && <TogetherAccessCard />}
+      </div>
     </>
+  );
+}
+
+function TogetherAccessCard() {
+  const supabase = getSupabaseClient();
+  const [settings, setSettings] = useState<TogetherSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [origin, setOrigin] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("together_settings")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setSettings(data ?? null);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+    if (supabase) void load();
+  }, [supabase, load]);
+
+  async function generate() {
+    if (!supabase) return;
+    setGenerating(true);
+    const code = generateAccessCode();
+    const { data, error } = settings
+      ? await supabase.from("together_settings").update({ access_code: code }).eq("id", settings.id).select().single()
+      : await supabase.from("together_settings").insert({ access_code: code }).select().single();
+    setGenerating(false);
+    if (!error && data) setSettings(data);
+  }
+
+  const link = settings && origin ? `${origin}/together?code=${settings.access_code}` : "";
+
+  async function copyLink() {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard API can be unavailable — the link is still visible to select and copy manually.
+    }
+  }
+
+  return (
+    <div className="card max-w-xl p-5 sm:p-6">
+      <div className="flex items-center gap-2">
+        <HeartHandshake size={18} className="text-bronze" />
+        <h2 className="font-serif text-lg text-forest">Közös tér linkje</h2>
+      </div>
+      <p className="mt-1.5 text-sm text-muted">
+        A /together oldal — Gold Card Letters, Journey/Passport és a Meglepetés kérdés — a partnerednek is
+        elérhető, a fő Dashboard-bejelentkezés nélkül, egyedül ezzel a linkkel.
+      </p>
+
+      {loading ? (
+        <Spinner />
+      ) : (
+        <>
+          {settings && (
+            <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border bg-ivory-dim/60 px-4 py-3">
+              <label className="text-xs font-medium text-muted">Link</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input className="input min-w-0 flex-1 font-mono text-xs" readOnly value={link} onFocus={(e) => e.target.select()} />
+                <button type="button" onClick={copyLink} className="btn btn-ghost shrink-0 text-xs" disabled={!link}>
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? "Másolva" : "Másolás"}
+                </button>
+              </div>
+              <p className="text-xs text-muted">
+                Kód: <span className="font-mono font-medium text-forest">{settings.access_code}</span>
+              </p>
+            </div>
+          )}
+          <button type="button" onClick={generate} disabled={generating} className="btn btn-primary mt-4 w-fit">
+            <RefreshCw size={15} /> {generating ? "Generálás…" : settings ? "Új kód generálása" : "Link generálása"}
+          </button>
+          {settings && (
+            <p className="mt-2 text-xs text-muted">
+              Új kód generálása érvényteleníti a régi linket — akinek korábban elküldted, annak újra el kell küldeni.
+            </p>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
