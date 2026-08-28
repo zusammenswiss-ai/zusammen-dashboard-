@@ -29,6 +29,21 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below. **Közös tér linkje** — generates/regenerates the access code for the partner-shared `/together` page and shows the full link to send. See [`/together`](#together--shareable-partner-page) below |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
+**Navigáció**: the sidebar (`components/Nav.tsx`) groups everything but
+Áttekintés into 4 labeled sections — **üzlet** (Beszállítók, Megrendelések,
+Pénzügyek, Igényfelmérés), **tartalom** (Kártya-fájlok, Marketing,
+Dokumentumok), **munkafolyamat** (Feladatok, Naptár, Jövőbeli tervek),
+**kapcsolat** (Postaláda, Megosztások) — with **Személyes rituálé** set
+visually apart below them (a warm bronze background + left border even
+while inactive, since it's a private ritual, not a business function) and
+**Beállítások** alone at the bottom, each behind its own divider.
+`lib/nav-items.ts` is the single list both the sidebar and the **Cmd+K /
+Ctrl+K** quick-switcher (`components/CommandPalette.tsx`, built on
+[`cmdk`](https://cmdk.paco.me/)) read from, so the two can't drift apart —
+type to filter, Enter to jump straight to any page (there's also a
+"Gyorskeresés…" button at the top of the sidebar for anyone who doesn't
+know the shortcut). Collapses behind the usual hamburger menu on mobile.
+
 Every delete action (Beszállítók, Feladatok, Pénzügyek, Dokumentumok,
 Jövőbeli tervek, Megrendelések) removes the row immediately and shows a
 **Visszavonás** (undo) toast for a few seconds before it's actually deleted

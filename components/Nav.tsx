@@ -2,50 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  CalendarRange,
-  Users,
-  KanbanSquare,
-  Package,
-  Calculator,
-  Sprout,
-  FolderOpen,
-  Lightbulb,
-  ClipboardList,
-  Archive,
-  Menu,
-  X,
-  Rocket,
-  HeartHandshake,
-  Share2,
-  Settings,
-  Inbox,
-} from "lucide-react";
+import { Menu, X, Search } from "lucide-react";
 import { useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
-
-const NAV_ITEMS = [
-  { href: "/", label: "Áttekintés", icon: LayoutDashboard },
-  { href: "/calendar", label: "Naptár", icon: CalendarRange },
-  { href: "/suppliers", label: "Beszállítók", icon: Users },
-  { href: "/tasks", label: "Feladatok", icon: KanbanSquare },
-  { href: "/orders", label: "Megrendelések", icon: Package },
-  { href: "/finance", label: "Pénzügyek", icon: Calculator },
-  { href: "/marketing", label: "Marketing", icon: Sprout },
-  { href: "/demand", label: "Igényfelmérés", icon: ClipboardList },
-  { href: "/documents", label: "Dokumentumok", icon: FolderOpen },
-  { href: "/card-assets", label: "Kártya-fájlok", icon: Archive },
-  { href: "/personal-ritual", label: "Személyes rituálé", icon: HeartHandshake },
-  { href: "/inbox", label: "Postaláda", icon: Inbox },
-  { href: "/shares", label: "Megosztások", icon: Share2 },
-  { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
-  { href: "/settings", label: "Beállítások", icon: Settings },
-];
+import CommandPalette from "@/components/CommandPalette";
+import {
+  NAV_TOP_ITEM,
+  NAV_GROUPS,
+  NAV_RITUAL_ITEM,
+  NAV_SETTINGS_ITEM,
+  NAV_LANDING_ITEM,
+  type NavItem,
+} from "@/lib/nav-items";
 
 export default function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  function isActive(item: NavItem) {
+    return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+  }
 
   return (
     <>
@@ -74,39 +50,64 @@ export default function Nav() {
           <Brand />
           <NotificationBell />
         </div>
+
+        <div className="px-3 pb-2 lg:px-4">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
+            className="flex w-full items-center gap-2.5 rounded-lg border border-ivory/10 bg-forest-light/40 px-3 py-2 text-left text-sm text-ivory/50 transition-colors hover:border-ivory/20 hover:text-ivory/80"
+          >
+            <Search size={15} />
+            <span className="flex-1">Gyorskeresés…</span>
+            <kbd className="rounded border border-ivory/15 px-1.5 py-0.5 font-mono text-[10px] text-ivory/40">⌘K</kbd>
+          </button>
+        </div>
+
         <nav className="flex flex-col gap-1 px-3 pb-3 lg:px-4">
-          {NAV_ITEMS.map((item) => {
-            const active =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-bronze text-white"
-                    : "text-ivory/80 hover:bg-forest-light hover:text-ivory"
-                }`}
-              >
-                <Icon size={17} strokeWidth={2} />
-                {item.label}
-              </Link>
-            );
-          })}
+          <NavLink item={NAV_TOP_ITEM} active={isActive(NAV_TOP_ITEM)} onNavigate={() => setOpen(false)} />
+
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="mt-3">
+              <p className="mb-1 px-3 font-mono text-[10px] font-medium tracking-[0.16em] text-ivory/35">
+                {group.label}
+              </p>
+              <div className="flex flex-col gap-1">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} item={item} active={isActive(item)} onNavigate={() => setOpen(false)} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Személyes rituálé — visually set apart from the business
+              groups above: a warm background + gold left border even
+              while inactive, not just on the active state everything
+              else gets. */}
+          <div className="mt-3 border-t border-ivory/10 pt-3">
+            <NavLink
+              item={NAV_RITUAL_ITEM}
+              active={isActive(NAV_RITUAL_ITEM)}
+              onNavigate={() => setOpen(false)}
+              ritual
+            />
+          </div>
+
+          <div className="mt-1 border-t border-ivory/10 pt-3">
+            <NavLink item={NAV_SETTINGS_ITEM} active={isActive(NAV_SETTINGS_ITEM)} onNavigate={() => setOpen(false)} />
+          </div>
         </nav>
+
         <div className="px-3 pb-6 lg:px-4">
           <div className="border-t border-ivory/10 pt-3">
             <Link
-              href="/landing"
+              href={NAV_LANDING_ITEM.href}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-bronze-light transition-colors hover:bg-forest-light hover:text-ivory"
             >
-              <Rocket size={17} strokeWidth={2} />
-              Landing oldal
+              <NAV_LANDING_ITEM.icon size={17} strokeWidth={2} />
+              {NAV_LANDING_ITEM.label}
             </Link>
           </div>
         </div>
@@ -114,7 +115,37 @@ export default function Nav() {
           Zusammen — prémium svájci beszélgetőkártyák. Alapítói dashboard, v1.
         </div>
       </aside>
+
+      <CommandPalette />
     </>
+  );
+}
+
+function NavLink({
+  item,
+  active,
+  onNavigate,
+  ritual = false,
+}: {
+  item: NavItem;
+  active: boolean;
+  onNavigate: () => void;
+  /** Személyes rituálé — gets a warm/gold treatment even while inactive. */
+  ritual?: boolean;
+}) {
+  const Icon = item.icon;
+  const baseClasses = "flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5 text-sm font-medium transition-colors";
+  const stateClasses = active
+    ? "border-bronze bg-bronze text-white"
+    : ritual
+      ? "border-bronze/40 bg-bronze/10 text-ivory/90 hover:border-bronze/60 hover:bg-bronze/15"
+      : "border-transparent text-ivory/80 hover:bg-forest-light hover:text-ivory";
+
+  return (
+    <Link href={item.href} onClick={onNavigate} className={`${baseClasses} ${stateClasses}`}>
+      <Icon size={17} strokeWidth={2} />
+      {item.label}
+    </Link>
   );
 }
 
