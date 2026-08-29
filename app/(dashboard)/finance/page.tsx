@@ -1,41 +1,42 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Calculator, Package } from "lucide-react";
+import Link from "next/link";
+import { Calculator, Package, Tag } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { FinanceProduct, Order } from "@/lib/supabase/types";
+import type { Order, Product } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
-import UndoToast from "@/components/UndoToast";
-import { useUndoAction } from "@/lib/useUndoAction";
 import { formatMoney } from "@/lib/currency";
 import { DEFAULT_CURRENCY } from "@/lib/company-settings";
 import type { CurrencyCode } from "@/lib/supabase/types";
 import { ORDER_STATUS_HU } from "@/lib/labels";
 
-function byProductRecency(a: FinanceProduct, b: FinanceProduct) {
-  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-}
-
+/**
+ * The calculator reads straight from the Termékek katalógus (products
+ * table) instead of its own separate finance_products rows — a product's
+ * name/ár/COGS only ever gets entered once, on Termékek; this page just
+ * asks for the one thing it uniquely owns, planned_units, and computes
+ * bevétel/árrés from there. See supabase/schema.sql's comment on
+ * products.planned_units for why it lives on that table.
+ */
 export default function FinancePage() {
-  const [products, setProducts] = useState<FinanceProduct[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
   // Beállítások → Pénznem preferencia — display only, see lib/currency.ts.
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
 
   const supabase = getSupabaseClient();
-  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const loadProducts = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
     setError(null);
     const [productsRes, ordersRes, companySettingsRes] = await Promise.all([
-      supabase.from("finance_products").select("*").order("created_at", { ascending: true }),
+      supabase.from("products").select("*").order("created_at", { ascending: true }),
       supabase.from("orders").select("*"),
       supabase.from("company_settings").select("currency").maybeSingle(),
     ]);
@@ -51,47 +52,16 @@ export default function FinancePage() {
     if (supabase) void loadProducts();
   }, [supabase, loadProducts]);
 
-  async function addRow() {
+  async function updateUnits(id: string, units: number) {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, planned_units: units } : p)));
     if (!supabase) return;
-    setAdding(true);
-    const { data, error } = await supabase
-      .from("finance_products")
-      .insert({ name: "Új termék", price: 0, cogs: 0, units: 0 })
-      .select()
-      .single();
-    setAdding(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    if (data) setProducts((prev) => [...prev, data]);
-  }
-
-  async function updateRow(id: string, patch: Partial<FinanceProduct>) {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-    if (!supabase) return;
-    const { error } = await supabase.from("finance_products").update(patch).eq("id", id);
-    if (error) setError(error.message);
-  }
-
-  function deleteRow(id: string) {
-    if (!supabase) return;
-    const removed = products.find((p) => p.id === id);
-    if (!removed) return;
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    scheduleUndo(
-      `"${removed.name}" törölve.`,
-      async () => {
-        const { error } = await supabase.from("finance_products").delete().eq("id", id);
-        if (error) setError(error.message);
-      },
-      () => setProducts((prev) => [...prev, removed].sort(byProductRecency))
-    );
+    const { error: updateError } = await supabase.from("products").update({ planned_units: units }).eq("id", id);
+    if (updateError) setError(updateError.message);
   }
 
   const totals = useMemo(() => {
-    const revenue = products.reduce((sum, p) => sum + p.price * p.units, 0);
-    const cogsTotal = products.reduce((sum, p) => sum + p.cogs * p.units, 0);
+    const revenue = products.reduce((sum, p) => sum + (p.sale_price ?? 0) * p.planned_units, 0);
+    const cogsTotal = products.reduce((sum, p) => sum + (p.cogs ?? 0) * p.planned_units, 0);
     const margin = revenue - cogsTotal;
     const marginPct = revenue > 0 ? (margin / revenue) * 100 : 0;
     return { revenue, cogsTotal, margin, marginPct };
@@ -122,11 +92,11 @@ export default function FinancePage() {
     <>
       <PageHeader
         title="Pénzügyek"
-        subtitle="Tervezési kalkulátor a teljes termékpalettádhoz — a valós bevételt lásd lent, a Megrendelések alapján."
+        subtitle="Tervezési kalkulátor a Termékek katalógusból — a valós bevételt lásd lent, a Megrendelések alapján."
         action={
-          <button className="btn btn-bronze" onClick={addRow} disabled={adding}>
-            <Plus size={16} /> Termék hozzáadása
-          </button>
+          <Link href="/products" className="btn btn-ghost">
+            <Tag size={16} /> Termékek kezelése
+          </Link>
         }
       />
 
@@ -170,7 +140,7 @@ export default function FinancePage() {
         <EmptyState
           icon={Calculator}
           title="Még nincs termék"
-          description="Adj hozzá egy terméksort, hogy elkezdhesd számolni a bevételt és az árrést."
+          description="Adj hozzá egy terméket a Termékek fülön, hogy elkezdhesd számolni a bevételt és az árrést."
         />
       ) : (
         <>
@@ -180,11 +150,10 @@ export default function FinancePage() {
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Termék</th>
                   <th className="px-4 py-3 font-medium">Ár ({currency})</th>
-                  <th className="px-4 py-3 font-medium">Önköltség ({currency})</th>
-                  <th className="px-4 py-3 font-medium">Darabszám</th>
+                  <th className="px-4 py-3 font-medium">Önköltség</th>
+                  <th className="px-4 py-3 font-medium">Tervezett darabszám</th>
                   <th className="px-4 py-3 font-medium">Bevétel</th>
                   <th className="px-4 py-3 font-medium">Árrés</th>
-                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -193,8 +162,7 @@ export default function FinancePage() {
                     key={product.id}
                     product={product}
                     currency={currency}
-                    onUpdate={(patch) => updateRow(product.id, patch)}
-                    onDelete={() => deleteRow(product.id)}
+                    onUpdateUnits={(units) => updateUnits(product.id, units)}
                   />
                 ))}
               </tbody>
@@ -210,11 +178,14 @@ export default function FinancePage() {
                       ({totals.marginPct.toFixed(1)}%)
                     </span>
                   </td>
-                  <td />
                 </tr>
               </tfoot>
             </table>
           </div>
+          <p className="mt-2 text-xs text-muted">
+            Az ár és az önköltség a Termékek fülről érkezik — ott szerkeszthető. Itt csak a tervezett darabszámot
+            add meg termékenként.
+          </p>
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <SummaryCard label="Teljes bevétel" value={formatMoney(totals.revenue, currency)} />
@@ -226,8 +197,6 @@ export default function FinancePage() {
           </div>
         </>
       )}
-
-      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
   );
 }
@@ -244,45 +213,43 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function FinanceRow({
   product,
   currency,
-  onUpdate,
-  onDelete,
+  onUpdateUnits,
 }: {
-  product: FinanceProduct;
+  product: Product;
   currency: CurrencyCode;
-  onUpdate: (patch: Partial<FinanceProduct>) => void;
-  onDelete: () => void;
+  onUpdateUnits: (units: number) => void;
 }) {
-  const [name, setName] = useState(product.name);
-  const revenue = product.price * product.units;
-  const margin = (product.price - product.cogs) * product.units;
+  const salePrice = product.sale_price ?? 0;
+  const cogs = product.cogs ?? 0;
+  const revenue = salePrice * product.planned_units;
+  const margin = (salePrice - cogs) * product.planned_units;
+  const currencyMismatch = Boolean(product.cogs_currency && product.cogs_currency !== currency);
 
   return (
     <tr className="border-b border-border last:border-0">
       <td className="px-4 py-2">
-        <input
-          className="input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name !== product.name && onUpdate({ name })}
-        />
+        <Link href="/products" className="font-medium text-forest hover:text-bronze">
+          {product.name}
+        </Link>
+        {product.edition && <p className="text-xs text-muted">{product.edition}</p>}
+      </td>
+      <td className="px-4 py-2 text-forest">{product.sale_price != null ? formatMoney(salePrice, currency) : "—"}</td>
+      <td className="px-4 py-2 text-forest">
+        {product.cogs != null ? (
+          <>
+            {formatMoney(cogs, (product.cogs_currency as CurrencyCode) ?? "CHF")}
+            {currencyMismatch && <span className="ml-1 text-xs text-yellow-700">⚠</span>}
+          </>
+        ) : (
+          "—"
+        )}
       </td>
       <td className="px-4 py-2">
-        <NumberCell value={product.price} onCommit={(v) => onUpdate({ price: v })} />
-      </td>
-      <td className="px-4 py-2">
-        <NumberCell value={product.cogs} onCommit={(v) => onUpdate({ cogs: v })} />
-      </td>
-      <td className="px-4 py-2">
-        <NumberCell value={product.units} onCommit={(v) => onUpdate({ units: v })} step="1" />
+        <NumberCell value={product.planned_units} onCommit={onUpdateUnits} step="1" />
       </td>
       <td className="px-4 py-2 font-medium text-forest">{formatMoney(revenue, currency)}</td>
       <td className={`px-4 py-2 font-medium ${margin < 0 ? "text-red-600" : "text-forest"}`}>
         {formatMoney(margin, currency)}
-      </td>
-      <td className="px-4 py-2 text-right">
-        <button onClick={onDelete} className="text-muted hover:text-red-600" aria-label="Sor törlése">
-          <Trash2 size={15} />
-        </button>
       </td>
     </tr>
   );

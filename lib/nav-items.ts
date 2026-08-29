@@ -8,6 +8,7 @@ import {
   Calculator,
   BarChart3,
   Layers,
+  Tag,
   Megaphone,
   FileText,
   Columns3,
@@ -46,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "tartalom",
     items: [
       { href: "/card-assets", label: "Kártya-fájlok", icon: Layers },
+      { href: "/products", label: "Termékek", icon: Tag },
       { href: "/marketing", label: "Marketing", icon: Megaphone },
       { href: "/documents", label: "Dokumentumok", icon: FileText },
     ],

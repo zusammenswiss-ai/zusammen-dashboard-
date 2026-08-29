@@ -930,3 +930,80 @@ create trigger set_updated_at before update on public.calendar_events
 -- it), it just keeps the .ics URL from being casually guessable if it
 -- ever leaks out of a calendar app's own settings screen.
 alter table public.company_settings add column if not exists ics_token text;
+
+-- =====================================================================
+-- Termékek — the product catalog, linking each SKU/idea to its Kártya-
+-- fájlok version and Beszállító. planned_units lives here too (not on a
+-- separate finance_products row) so a product's price/COGS/volume is
+-- only ever entered once — Pénzügyek reads straight from this table.
+-- =====================================================================
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  edition text,
+  status text not null default 'Fejlesztés alatt'
+    check (status in ('Fejlesztés alatt', 'Tesztelés', 'Élő', 'Jövőbeli terv')),
+  card_asset_id uuid references public.card_assets(id) on delete set null,
+  supplier_id uuid references public.suppliers(id) on delete set null,
+  cogs numeric(12, 2),
+  -- Independent of Beállítások → Pénznem preferencia (a display-only
+  -- setting) — this is the actual currency the cost was quoted in, so a
+  -- USD COGS on a CHF sale price stays USD rather than getting silently
+  -- relabeled. Pénzügyek/Termékek flag the mismatch instead of pretending
+  -- to convert it — there's no exchange-rate source anywhere in this app.
+  cogs_currency text default 'CHF',
+  sale_price numeric(12, 2),
+  description text,
+  production_note text,
+  image_url text,
+  planned_units numeric(12, 2) not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.products enable row level security;
+
+drop policy if exists "anon full access" on public.products;
+create policy "anon full access" on public.products for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.products;
+create trigger set_updated_at before update on public.products
+  for each row execute function public.set_updated_at();
+
+-- Storage — bucket for product photos
+insert into storage.buckets (id, name, public)
+values ('product-images', 'product-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "product-images bucket anon read" on storage.objects;
+create policy "product-images bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'product-images');
+
+drop policy if exists "product-images bucket anon write" on storage.objects;
+create policy "product-images bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'product-images');
+
+-- Seed the starter catalog — on conflict do nothing so re-running this
+-- file never duplicates them or overwrites any edits made in the app.
+insert into public.products (name, edition, status, cogs, cogs_currency, sale_price, description, production_note) values
+  (
+    'Connection Cards', 'Pear Edition', 'Tesztelés', 6.77, 'USD', 29,
+    '58 lapos beszélgetőkártya-pakli (52 kérdés + 5 Wild Card + 1 Gold Card)',
+    null
+  ),
+  (
+    'Gold Card', 'Pear Edition', 'Tesztelés', null, 'CHF', null,
+    'A pakli 58. lapja — a levél-rituálé kártyája. A teszttételnél a többi kártyával együtt, normál színes nyomtatással készül.',
+    'FONTOS — a végleges (nagy tételes) gyártásnál ez KÜLÖN nyomtatási folyamat lesz (valódi aranyfólia), nem mehet egyben a többi 57 lappal.'
+  ),
+  (
+    'Zusammen Reconnect Box (Christmas Collection 2026)', 'Pear Edition kiegészítő', 'Fejlesztés alatt', 25, 'CHF', 49,
+    'Karácsonyi ajándékdoboz pároknak — Connection Cards + lezárt "Open only after dessert" boríték 10 kérdéssel + zárt csoki/kávé szaszé + kis svájci csokoládé. Részletes terv a Dokumentumok fülön.',
+    null
+  ),
+  ('Zusammen Ritual Kit', null, 'Jövőbeli terv', null, 'CHF', null, 'Connection Cards + Travel Pouch csomag', null),
+  ('Signature Gift Box', null, 'Jövőbeli terv', null, 'CHF', 75, null, null),
+  ('Corporate Gift', null, 'Jövőbeli terv', null, 'CHF', 65, null, null)
+on conflict (name) do nothing;

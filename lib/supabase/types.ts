@@ -9,6 +9,7 @@ export type Season = "Spring" | "Summer" | "Autumn" | "Winter";
 export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
 export type ContractStatus = "None" | "Signed" | "Failed" | "Expired";
 export type RecurrenceType = "Napi" | "Heti" | "Havi" | "Negyedéves" | "Éves";
+export type ProductStatus = "Fejlesztés alatt" | "Tesztelés" | "Élő" | "Jövőbeli terv";
 
 export interface SupplierProduct {
   id: string;
@@ -97,6 +98,32 @@ export interface FinanceProduct {
 export type FinanceProductInsert = Partial<Omit<FinanceProduct, "id" | "created_at">> & {
   name: string;
 };
+
+// The product catalog — see supabase/schema.sql's comment on why
+// planned_units lives here (not a separate finance_products row):
+// Pénzügyek reads this table directly instead of asking for the same
+// product a second time.
+export interface Product {
+  id: string;
+  name: string;
+  edition: string | null;
+  status: ProductStatus;
+  card_asset_id: string | null;
+  supplier_id: string | null;
+  cogs: number | null;
+  cogs_currency: string | null;
+  sale_price: number | null;
+  description: string | null;
+  production_note: string | null;
+  image_url: string | null;
+  planned_units: number;
+  created_at: string;
+  updated_at: string;
+}
+export type ProductInsert = Partial<Omit<Product, "id" | "created_at" | "updated_at">> & {
+  name: string;
+};
+export type ProductUpdate = Partial<Omit<Product, "id" | "created_at">>;
 export type FinanceProductUpdate = Partial<Omit<FinanceProduct, "id" | "created_at">>;
 
 export interface MarketingCampaign {
@@ -588,6 +615,12 @@ export interface Database {
         Update: CalendarEventUpdate;
         Relationships: [];
       };
+      products: {
+        Row: Product;
+        Insert: ProductInsert;
+        Update: ProductUpdate;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -629,5 +662,6 @@ export const ANON_TABLE_NAMES = [
   "share_contacts",
   "demand_link_shares",
   "calendar_events",
+  "products",
   "company_settings",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];

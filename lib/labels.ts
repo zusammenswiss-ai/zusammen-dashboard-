@@ -1,7 +1,16 @@
 // Hungarian display labels for enum-like values stored in English in
 // Supabase (CHECK constraints reference the English values in schema.sql —
 // translating only the display label avoids a schema migration).
-import type { TaskPriority, PlanStatus, Season, OrderStatus, ContractStatus, PrintStatus, RecurrenceType } from "./supabase/types";
+import type {
+  TaskPriority,
+  PlanStatus,
+  Season,
+  OrderStatus,
+  ContractStatus,
+  PrintStatus,
+  RecurrenceType,
+  ProductStatus,
+} from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
   Low: "Alacsony",
@@ -49,6 +58,17 @@ export const PRINT_STATUS_STYLES: Record<PrintStatus, string> = {
   "Nyomdának elküldve": "bg-yellow-100 text-yellow-800",
   Megrendelve: "bg-blue-100 text-blue-700",
   Megérkezett: "bg-green-100 text-green-700",
+};
+
+// status is already stored in Hungarian (see the schema check constraint
+// on products) — just display order + badge color, same convention as
+// print_status above.
+export const PRODUCT_STATUSES: ProductStatus[] = ["Fejlesztés alatt", "Tesztelés", "Élő", "Jövőbeli terv"];
+export const PRODUCT_STATUS_STYLES: Record<ProductStatus, string> = {
+  "Fejlesztés alatt": "bg-gray-200 text-gray-700",
+  Tesztelés: "bg-yellow-100 text-yellow-800",
+  Élő: "bg-green-100 text-green-700",
+  "Jövőbeli terv": "bg-blue-100 text-blue-700",
 };
 
 // Fixed preview slots a card-asset ZIP is scanned for on upload — shared
