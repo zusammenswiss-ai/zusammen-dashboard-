@@ -17,11 +17,16 @@ export default function EmailCampaignSendForm({
   demandCount,
   newsletterCount,
   onSent,
+  presetTemplateId,
 }: {
   templates: EmailTemplate[];
   demandCount: number;
   newsletterCount: number;
   onSent: (contentItem: MarketingContent) => void;
+  // Set by EmailTemplatesSection's "Kampányhoz csatolás" button so
+  // picking a sablon up there jumps straight into this form pre-selected
+  // instead of making the founder find it again in the dropdown.
+  presetTemplateId?: string | null;
 }) {
   const [brevoConfigured, setBrevoConfigured] = useState<boolean | null>(null);
   const [templateId, setTemplateId] = useState("");
@@ -37,6 +42,13 @@ export default function EmailCampaignSendForm({
       .then((data: { configured: boolean }) => setBrevoConfigured(data.configured))
       .catch(() => setBrevoConfigured(false));
   }, []);
+
+  useEffect(() => {
+    if (presetTemplateId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTemplateId(presetTemplateId);
+    }
+  }, [presetTemplateId]);
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const totalRecipients =

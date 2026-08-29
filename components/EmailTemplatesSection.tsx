@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { FileCode, Plus, Trash2, Eye, EyeOff, Image as ImageIcon } from "lucide-react";
+import { FileCode, Plus, Trash2, Eye, EyeOff, Image as ImageIcon, Pencil, Send } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { EmailTemplate } from "@/lib/supabase/types";
+import type { EmailTemplate, EmailTemplateUpdate } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
 import { formatDate } from "@/lib/format";
 
@@ -15,15 +15,22 @@ const LOGO_PLACEHOLDER = /YOUR_LOGO_URL/g;
  * A logo file can be attached at upload time — it's pushed to the
  * email-assets Storage bucket and every YOUR_LOGO_URL placeholder in the
  * HTML is swapped for the real link before the row is ever saved, so the
- * template that ends up in the DB is already send-ready. */
+ * template that ends up in the DB is already send-ready. Each saved
+ * template can be renamed/edited in place, previewed in a framed
+ * email-sized window, and sent straight to the campaign form below via
+ * "Kampányhoz csatolás". */
 export default function EmailTemplatesSection({
   templates,
   onAdd,
+  onUpdate,
   onDelete,
+  onUseInCampaign,
 }: {
   templates: EmailTemplate[];
   onAdd: (template: EmailTemplate) => void;
+  onUpdate: (template: EmailTemplate) => void;
   onDelete: (id: string) => void;
+  onUseInCampaign: (id: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
 
@@ -41,7 +48,7 @@ export default function EmailTemplatesSection({
 
       {showForm && (
         <TemplateForm
-          onCreated={(t) => {
+          onSaved={(t) => {
             onAdd(t);
             setShowForm(false);
           }}
@@ -54,7 +61,13 @@ export default function EmailTemplatesSection({
       ) : (
         <div className="flex flex-col gap-2">
           {templates.map((t) => (
-            <TemplateRow key={t.id} template={t} onDelete={() => onDelete(t.id)} />
+            <TemplateRow
+              key={t.id}
+              template={t}
+              onUpdated={onUpdate}
+              onDelete={() => onDelete(t.id)}
+              onUseInCampaign={() => onUseInCampaign(t.id)}
+            />
           ))}
         </div>
       )}
@@ -62,19 +75,55 @@ export default function EmailTemplatesSection({
   );
 }
 
-function TemplateRow({ template, onDelete }: { template: EmailTemplate; onDelete: () => void }) {
+function TemplateRow({
+  template,
+  onUpdated,
+  onDelete,
+  onUseInCampaign,
+}: {
+  template: EmailTemplate;
+  onUpdated: (template: EmailTemplate) => void;
+  onDelete: () => void;
+  onUseInCampaign: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <div className="rounded-md border border-bronze/40 p-3">
+        <TemplateForm
+          template={template}
+          onSaved={(t) => {
+            onUpdated(t);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md border border-border">
-      <div className="flex items-center justify-between gap-2 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3">
         <div className="min-w-0">
           <p className="truncate font-medium text-forest">{template.name}</p>
           <p className="text-xs text-muted">Feltöltve: {formatDate(template.created_at)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button onClick={() => setExpanded((v) => !v)} className="btn btn-ghost !px-2 text-xs" title="HTML előnézet">
+          <button
+            onClick={onUseInCampaign}
+            className="btn btn-ghost !px-2 text-xs text-bronze"
+            title="Kampányhoz csatolás — kiválasztja lent a küldés-formon"
+          >
+            <Send size={14} /> Kampányhoz csatolás
+          </button>
+          <button onClick={() => setExpanded((v) => !v)} className="btn btn-ghost !px-2 text-xs" title="Előnézet">
             {expanded ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+          <button onClick={() => setEditing(true)} className="btn btn-ghost !px-2 text-xs" title="Szerkesztés">
+            <Pencil size={14} />
           </button>
           <button onClick={onDelete} className="btn btn-ghost !px-2 text-xs text-muted/70 hover:text-red-600" title="Törlés">
             <Trash2 size={14} />
@@ -82,8 +131,19 @@ function TemplateRow({ template, onDelete }: { template: EmailTemplate; onDelete
         </div>
       </div>
       {expanded && (
-        <div className="border-t border-border bg-ivory-dim/50 p-2">
-          <iframe title={`${template.name} előnézet`} srcDoc={template.html_content} className="h-64 w-full rounded bg-white" sandbox="" />
+        <div className="border-t border-border bg-ivory-dim/50 p-4">
+          {/* Framed to roughly an email client's reading width, not the
+           * full card width — a raw unbounded iframe made the HTML hard
+           * to judge at a glance since real emails are never that wide. */}
+          <div className="mx-auto max-w-[600px] overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm">
+            <div className="flex items-center gap-1.5 border-b border-black/5 bg-ivory-dim px-3 py-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-300" />
+              <span className="h-2.5 w-2.5 rounded-full bg-green-300" />
+              <span className="ml-2 truncate text-xs text-muted">{template.name}</span>
+            </div>
+            <iframe title={`${template.name} előnézet`} srcDoc={template.html_content} className="h-96 w-full" sandbox="" />
+          </div>
         </div>
       )}
     </div>
@@ -91,14 +151,17 @@ function TemplateRow({ template, onDelete }: { template: EmailTemplate; onDelete
 }
 
 function TemplateForm({
-  onCreated,
+  template,
+  onSaved,
   onCancel,
 }: {
-  onCreated: (template: EmailTemplate) => void;
+  template?: EmailTemplate;
+  onSaved: (template: EmailTemplate) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [htmlContent, setHtmlContent] = useState("");
+  const isEdit = Boolean(template);
+  const [name, setName] = useState(template?.name ?? "");
+  const [htmlContent, setHtmlContent] = useState(template?.html_content ?? "");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,13 +192,25 @@ function TemplateForm({
         finalHtml = finalHtml.replace(LOGO_PLACEHOLDER, logoUrl);
       }
 
-      const { data, error: insertError } = await supabase
-        .from("email_templates")
-        .insert({ name: name.trim(), html_content: finalHtml })
-        .select()
-        .single();
-      if (insertError) throw insertError;
-      if (data) onCreated(data);
+      if (isEdit && template) {
+        const patch: EmailTemplateUpdate = { name: name.trim(), html_content: finalHtml };
+        const { data, error: updateError } = await supabase
+          .from("email_templates")
+          .update(patch)
+          .eq("id", template.id)
+          .select()
+          .single();
+        if (updateError) throw updateError;
+        if (data) onSaved(data);
+      } else {
+        const { data, error: insertError } = await supabase
+          .from("email_templates")
+          .insert({ name: name.trim(), html_content: finalHtml })
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        if (data) onSaved(data);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nem sikerült menteni a sablont.");
     } finally {
@@ -144,13 +219,15 @@ function TemplateForm({
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 flex animate-fade-in flex-col gap-3 rounded-md border border-border p-4">
+    <form onSubmit={submit} className="mb-4 flex animate-fade-in flex-col gap-3 rounded-md border border-border p-4 last:mb-0">
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">Sablon neve *</label>
         <input className="input" required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="pl. Karácsonyi kampány 2026" />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-muted">HTML fájl feltöltése</label>
+        <label className="mb-1 block text-xs font-medium text-muted">
+          {isEdit ? "HTML fájl cseréje (opcionális)" : "HTML fájl feltöltése"}
+        </label>
         <input
           type="file"
           accept=".html,text/html"
@@ -161,7 +238,7 @@ function TemplateForm({
           }}
         />
         <p className="mt-1 text-xs text-muted">
-          Vagy illeszd be közvetlenül lent. Használhatod a <code>{"{{first_name}}"}</code> és <code>{"{{unsubscribe_url}}"}</code> helyőrzőket, illetve a{" "}
+          Vagy szerkeszd közvetlenül lent. Használhatod a <code>{"{{first_name}}"}</code> és <code>{"{{unsubscribe_url}}"}</code> helyőrzőket, illetve a{" "}
           <code>YOUR_LOGO_URL</code> szöveget a lenti logó helyén.
         </p>
         <textarea
@@ -173,7 +250,7 @@ function TemplateForm({
       </div>
       <div>
         <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted">
-          <ImageIcon size={13} /> Logó feltöltése (opcionális — lecseréli a YOUR_LOGO_URL helyőrzőt)
+          <ImageIcon size={13} /> {isEdit ? "Logó cseréje" : "Logó feltöltése"} (opcionális — lecseréli a YOUR_LOGO_URL helyőrzőt)
         </label>
         <input
           type="file"
@@ -185,7 +262,7 @@ function TemplateForm({
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? "Mentés…" : "Sablon mentése"}
+          {saving ? "Mentés…" : isEdit ? "Módosítások mentése" : "Sablon mentése"}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Mégse
