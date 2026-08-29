@@ -19,7 +19,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee, keresés, CSV export. Overdue cards (past due date, not yet Kész) get a red border and a **Lejárt** badge so they stand out on the board itself, not just in the daily reminder email. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons). **Sablonból hozzáadás**: pick any number of preset task templates (grouped by category, checkboxes) and add them all as Teendő tasks in one go; **Sablonok kezelése** (gear icon) is the full CRUD editor for those templates — create/edit/delete, with categories chosen from existing ones or typed fresh, plus an **Ismétlődő feladat** toggle (típus: Napi/Heti/Havi/Negyedéves/Éves, gyakoriság, első esedékesség) — a 🔁 badge and the next due date show right in the list. A recurring template whose due date has arrived or passed auto-generates its next Teendő task the moment Feladatok is opened (no cron — see `lib/recurring-templates.ts`), and rolls its own next_due_date forward on the same schedule; the seeded set already has 7 of them turned on (havi pénzügyi áttekintés, negyedéves fedezeti pont, éves AHV/Treuhand + domain ellenőrzés, heti Instagram/Feedback/Founder Wall). **Archiválás**: every Kész card gets an archive icon (next to Törlés) to take it off the board without deleting it — an "Összes archiválása" link in the Kész column header archives every Kész card currently shown there in one go. Archived tasks live in a separate **Archívum** view (header button, shows a count) with a Visszaállítás button per row to bring one back, or a real Törlés if you're done with it for good |
 | **Megrendelések** (Orders) | Customer orders — vevő, termék, mennyiség, egységár, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése**, keresés, CSV export |
 | **Pénzügyek** (Finance) | Planning calculator, sourced straight from the **Termékek** catalog (see below) — ár and önköltség come from there and are read-only here, this page only asks for **tervezett darabszám** per product, so nothing is ever entered twice. Plus a **Tényleges bevétel** section computed from real Megrendelések egységár data |
-| **Marketing** | Three tabs. **Évszakos stratégia**: the original 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése**. **Tartalom-naptár**: every scheduled post/story/email/campaign as a card (type + season + color-coded status badges, image preview, copy-text preview), nearest date first, with month/type/status filters and a "+ Új tartalom" form (title, type, optional season, date, copy text, status, and either an image upload **or** "Válassz a mentett anyagokból" — a gallery picker of already-uploaded Marketing anyagok, so the same image never gets uploaded twice); each card's **"→ Feladat létrehozása"** spins off a linked Kanban task (due date = the scheduled date, category "Marketing") — marking that task Kész automatically flips the content item's status to "Kiküldve". **Marketing anyagok**: an image library grouped by language (HU/EN/DE), each asset tagged with an optional platform and season, and a **kép-típus** — Koncepció / Valódi termékfotó / Lifestyle, shown as a loud color-coded badge (yellow/green/blue) directly on the thumbnail so a mockup is never mistaken for a real product photo (e.g. only "Valódi termékfotó" should ever go out on the webshop) — each asset's **"→ Tartalom létrehozása ebből"** opens the naptár form pre-filled with that image, so the chain Marketing anyag → Tartalom → Feladat stays fully linked without duplicating data at any level |
+| **Marketing** | Four tabs. **Évszakos stratégia**: the original 4 fixed seasonal campaign cards (Tavasz/Nyár/Ősz/Tél) — editable theme & product focus, **Email küldése**. **Tartalom-naptár**: every scheduled post/story/email/campaign as a card (type + season + color-coded status badges, image preview, copy-text preview), nearest date first, with month/type/status filters and a "+ Új tartalom" form (title, type, optional season, date, copy text, status, and either an image upload **or** "Válassz a mentett anyagokból" — a gallery picker of already-uploaded Marketing anyagok, so the same image never gets uploaded twice); each card's **"→ Feladat létrehozása"** spins off a linked Kanban task (due date = the scheduled date, category "Marketing") — marking that task Kész automatically flips the content item's status to "Kiküldve". **Marketing anyagok**: an image library grouped by language (HU/EN/DE), each asset tagged with an optional platform and season, and a **kép-típus** — Koncepció / Valódi termékfotó / Lifestyle, shown as a loud color-coded badge (yellow/green/blue) directly on the thumbnail so a mockup is never mistaken for a real product photo (e.g. only "Valódi termékfotó" should ever go out on the webshop) — each asset's **"→ Tartalom létrehozása ebből"** opens the naptár form pre-filled with that image, so the chain Marketing anyag → Tartalom → Feladat stays fully linked without duplicating data at any level. **Email kampányok**: upload raw HTML email templates (an attached `.html` file or pasted straight in) with an optional logo upload that auto-replaces every `YOUR_LOGO_URL` placeholder in the template; a minimal hírlevél feliratkozók list (name/email, add/delete); and an "Email kampány küldése" form — pick a sablon, tárgy, and who it goes to (demand-test feliratkozók from the Igényfelmérés survey emails, hírlevél feliratkozók, or both), **Előnézet** shows the filled-in template with a test name, **Küldés** actually sends it through [Brevo](https://brevo.com), personalized per recipient (`{{first_name}}`) with an automatic leiratkozás link, and the sent campaign is logged on the Tartalom-naptár with status "Kiküldve". See [Set up Brevo](#2c-optional-email-campaigns-brevo) below |
 | **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails |
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
 | **Termékek** (Products) | The full product catalog — every card each grouped by státusz (Fejlesztés alatt / Tesztelés / Élő / Jövőbeli terv), with an optional photo, edition, and links to the **Kártya-verzió** (Kártya-fájlok) and **Beszállító** it's tied to. Click a card to expand it: linked kártya-verzió/beszállító (each a link to that page), COGS (in its own stored currency — e.g. a USD quote stays USD, no fake conversion), eladási ár (shown in your Beállítások → Pénznem preferencia), and the computed **árrés** (absolute + %) — flagged with a ⚠ if COGS and sale price are in different currencies, since there's no exchange-rate source anywhere in this app. Gold Card and anything else with a **gyártási megjegyzés** gets a loud yellow **"Külön gyártási folyamat"** badge so a different production process is never missed. **"+ Új termék hozzáadása"** picks the kártya-verzió/beszállító from existing records via dropdowns. The **Pénzügyek** calculator reads this table directly — see below |
@@ -239,11 +239,14 @@ begin with.
    **New query**.
 3. Open [`supabase/schema.sql`](./supabase/schema.sql) from this repo,
    copy its entire contents, paste into the SQL editor, and click **Run**.
-   This creates all the tables, seeds the 4 marketing seasons and the
-   starter **Termékek** catalog, sets up Row Level Security, and creates
-   the `documents`, `card-assets`, `price-quotes`, `marketing`,
-   `gold-card-letters`, `journey-memories`, `company-logo`, and
-   `product-images` Storage buckets used for file uploads.
+   This creates all the tables (including `email_templates`,
+   `newsletter_subscribers`, and `email_unsubscribes` for the Marketing →
+   Email kampányok tab), seeds the 4 marketing seasons and the starter
+   **Termékek** catalog, sets up Row Level Security, and creates the
+   `documents`, `card-assets`, `price-quotes`, `marketing`,
+   `gold-card-letters`, `journey-memories`, `company-logo`,
+   `product-images`, and `email-assets` Storage buckets used for file
+   uploads.
    Safe to re-run any time you pull schema changes — every statement is guarded so it
    won't fail or duplicate data on a second run.
 4. Go to **Project Settings → API**. You'll need two values from here:
@@ -274,12 +277,14 @@ them unset to keep the dashboard open to anyone with the link.
   as the Supabase keys — see the deploy step below), then **redeploy**
   — Vercel only picks up new/changed environment variables on the next
   deployment, not on already-running ones.
-- `/landing`, `/api/reminder-email` (the daily cron summary), and
+- `/landing`, `/api/reminder-email` (the daily cron summary),
   `/api/calendar/ics` (the Naptár subscription feed — see Beállítások →
-  "Naptár feliratkozás") are always excluded, so the public funnel, the
-  reminder email, and your calendar app all keep working even with the
-  lock on. The `.ics` feed has its own gate instead (a `?token=` checked
-  against a value generated on Beállítások) since calendar apps
+  "Naptár feliratkozás"), and `/api/newsletter/unsubscribe` (the
+  leiratkozás link at the bottom of every campaign email) are always
+  excluded, so the public funnel, the reminder email, your calendar app,
+  and anyone unsubscribing from a campaign all keep working even with
+  the lock on. The `.ics` feed has its own gate instead (a `?token=`
+  checked against a value generated on Beállítások) since calendar apps
   generally can't supply Basic Auth credentials when polling a
   subscription URL.
 
@@ -409,6 +414,36 @@ optionally `RESEND_REPLY_TO` — no code changes needed either way.
 
 ---
 
+### 2c. Optional: Email campaigns (Brevo)
+
+Powers the **Marketing → Email kampányok** tab — bulk, personalized HTML
+campaigns to your demand-test and hírlevél feliratkozók, independent of
+`EMAIL_PROVIDER` above (that setting is for the single-recipient "Email
+küldése" buttons app-wide; this is a different, bulk-sending feature with
+its own transport, `lib/brevo.ts`). Leave it unset and the campaign form
+simply shows "Brevo nincs beállítva" — Előnézet still works, nothing else
+on the dashboard is affected.
+
+1. Go to [brevo.com](https://brevo.com) → **Sign up** (free — 300
+   emails/day, plenty for a founder-sized list).
+2. In the Brevo dashboard, open **Settings → SMTP & API → API Keys** →
+   **Generate a new API key**. Give it any name and copy it.
+3. Add it as an environment variable named `BREVO_API_KEY`.
+4. Optionally set `BREVO_FROM_EMAIL` / `BREVO_FROM_NAME` — both default
+   to `zusammen.swiss@gmail.com` / `Zusammen` if unset. Note the sending
+   address needs to be a domain/sender Brevo lets you send from (see
+   their dashboard) — free accounts can usually verify a single sender
+   email without owning the whole domain.
+
+Templates are raw HTML you upload on the Email kampányok tab —
+`{{first_name}}` gets replaced per recipient, and either an explicit
+`{{unsubscribe_url}}` placeholder or (if the template doesn't have one) an
+automatically appended footer line links to `/api/newsletter/unsubscribe`,
+which is excluded from the optional Basic Auth lock (see above) since it's
+clicked from an inbox, not the dashboard.
+
+---
+
 ## 3. Set up the daily reminder email (optional)
 
 This uses `RESEND_API_KEY` from [section 2b](#2b-alternative-resend)
@@ -482,6 +517,7 @@ Open [http://localhost:3000](http://localhost:3000).
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon public key |
    | `RESEND_API_KEY` | your Resend API key (needed for the Email küldése buttons) |
    | `CRON_SECRET` *(optional)* | needed only for the daily reminder email — see step 3 |
+   | `BREVO_API_KEY` *(optional)* | needed only for Marketing → Email kampányok — see step 2c |
    | `DASHBOARD_USER` *(optional)* | a username, to lock the dashboard |
    | `DASHBOARD_PASSWORD` *(optional)* | a password, to lock the dashboard |
    | `RESEND_FROM_EMAIL` *(optional)* | only once you've verified your own domain in Resend |

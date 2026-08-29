@@ -30,6 +30,11 @@ import { NextResponse, type NextRequest } from "next/server";
 // either. It has its own gate instead (a ?token= checked inside the
 // route against company_settings.ics_token), same soft-gate reasoning
 // as the /together access code.
+//
+// /api/newsletter/unsubscribe is excluded for the same reason: it's the
+// leiratkozás link at the bottom of every campaign email (see
+// lib/email-campaign.ts), clicked by an external recipient's browser
+// with no Basic Auth credentials to offer.
 export function proxy(request: NextRequest) {
   const user = process.env.DASHBOARD_USER;
   const password = process.env.DASHBOARD_PASSWORD;
@@ -61,5 +66,5 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher:
-    "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email|api/og|api/calendar/ics).*)",
+    "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe).*)",
 };

@@ -21,6 +21,7 @@ import {
   Images,
   Upload,
   LibraryBig,
+  Send,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
@@ -32,12 +33,17 @@ import type {
   MarketingAssetLanguage,
   MarketingAssetType,
   Season,
+  EmailTemplate,
+  NewsletterSubscriber,
 } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
+import EmailTemplatesSection from "@/components/EmailTemplatesSection";
+import NewsletterSubscribersSection from "@/components/NewsletterSubscribersSection";
+import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { SEASON_HU } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
@@ -82,7 +88,7 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-type Tab = "seasons" | "calendar" | "assets";
+type Tab = "seasons" | "calendar" | "assets" | "email";
 
 // What "→ Tartalom létrehozása ebből" hands the content form: enough to
 // pre-select the asset in the gallery picker and seed a sensible title —
@@ -94,6 +100,12 @@ export default function MarketingPage() {
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [content, setContent] = useState<MarketingContent[]>([]);
   const [assets, setAssets] = useState<MarketingAsset[]>([]);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
+  // Just a count — the send-campaign route resolves the actual addresses
+  // server-side at send time, so this only needs to inform the checkbox
+  // label on EmailCampaignSendForm.
+  const [demandEmailCount, setDemandEmailCount] = useState(0);
   // Lightweight — just enough to know which content items already have a
   // linked task, and which task to deep-link to. Not the full TaskItem
   // shape; the Tasks page owns everything else about these rows.
@@ -122,12 +134,16 @@ export default function MarketingPage() {
     (async () => {
       setLoading(true);
       setError(null);
-      const [campaignsRes, contentRes, assetsRes, tasksRes] = await Promise.all([
-        supabase.from("marketing_campaigns").select("*"),
-        supabase.from("marketing_content").select("*").order("scheduled_date", { ascending: true }),
-        supabase.from("marketing_assets").select("*").order("created_at", { ascending: false }),
-        supabase.from("tasks").select("id, content_id").not("content_id", "is", null),
-      ]);
+      const [campaignsRes, contentRes, assetsRes, tasksRes, templatesRes, newsletterRes, demandRes] =
+        await Promise.all([
+          supabase.from("marketing_campaigns").select("*"),
+          supabase.from("marketing_content").select("*").order("scheduled_date", { ascending: true }),
+          supabase.from("marketing_assets").select("*").order("created_at", { ascending: false }),
+          supabase.from("tasks").select("id, content_id").not("content_id", "is", null),
+          supabase.from("email_templates").select("*").order("created_at", { ascending: false }),
+          supabase.from("newsletter_subscribers").select("*").order("subscribed_at", { ascending: false }),
+          supabase.from("landing_responses").select("email").not("email", "is", null),
+        ]);
       if (campaignsRes.error) setError(campaignsRes.error.message);
       else {
         const sorted = [...(campaignsRes.data ?? [])].sort(
@@ -140,6 +156,14 @@ export default function MarketingPage() {
       if (assetsRes.error) setError(assetsRes.error.message);
       else setAssets(assetsRes.data ?? []);
       setLinkedTasks(tasksRes.data ?? []);
+      if (templatesRes.error) setError(templatesRes.error.message);
+      else setTemplates(templatesRes.data ?? []);
+      if (newsletterRes.error) setError(newsletterRes.error.message);
+      else setNewsletterSubscribers(newsletterRes.data ?? []);
+      if (!demandRes.error) {
+        const demandRows: { email: string | null }[] = demandRes.data ?? [];
+        setDemandEmailCount(new Set(demandRows.map((r) => r.email?.trim().toLowerCase()).filter(Boolean)).size);
+      }
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,6 +261,28 @@ export default function MarketingPage() {
     setShowContentForm(true);
   }
 
+  function addTemplate(template: EmailTemplate) {
+    setTemplates((prev) => [template, ...prev]);
+  }
+
+  async function deleteTemplate(id: string) {
+    if (!supabase) return;
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
+    const { error } = await supabase.from("email_templates").delete().eq("id", id);
+    if (error) setError(error.message);
+  }
+
+  function addNewsletterSubscriber(subscriber: NewsletterSubscriber) {
+    setNewsletterSubscribers((prev) => [subscriber, ...prev]);
+  }
+
+  async function deleteNewsletterSubscriber(id: string) {
+    if (!supabase) return;
+    setNewsletterSubscribers((prev) => prev.filter((s) => s.id !== id));
+    const { error } = await supabase.from("newsletter_subscribers").delete().eq("id", id);
+    if (error) setError(error.message);
+  }
+
   if (!isSupabaseConfigured) {
     return (
       <>
@@ -273,6 +319,9 @@ export default function MarketingPage() {
         <button onClick={() => setTab("assets")} className={`btn ${tab === "assets" ? "btn-bronze" : "btn-ghost"}`}>
           <Images size={15} /> Marketing anyagok
           {assets.length > 0 && ` (${assets.length})`}
+        </button>
+        <button onClick={() => setTab("email")} className={`btn ${tab === "email" ? "btn-bronze" : "btn-ghost"}`}>
+          <Send size={15} /> Email kampányok
         </button>
       </div>
 
@@ -317,6 +366,23 @@ export default function MarketingPage() {
               onDelete={deleteAsset}
               onCreateContent={createContentFromAsset}
             />
+          )}
+
+          {tab === "email" && (
+            <div className="flex flex-col gap-5">
+              <EmailTemplatesSection templates={templates} onAdd={addTemplate} onDelete={deleteTemplate} />
+              <NewsletterSubscribersSection
+                subscribers={newsletterSubscribers}
+                onAdd={addNewsletterSubscriber}
+                onDelete={deleteNewsletterSubscriber}
+              />
+              <EmailCampaignSendForm
+                templates={templates}
+                demandCount={demandEmailCount}
+                newsletterCount={newsletterSubscribers.filter((s) => !s.unsubscribed).length}
+                onSent={addContent}
+              />
+            </div>
           )}
         </>
       )}
