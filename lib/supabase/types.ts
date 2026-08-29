@@ -126,6 +126,38 @@ export type ProductInsert = Partial<Omit<Product, "id" | "created_at" | "updated
 export type ProductUpdate = Partial<Omit<Product, "id" | "created_at">>;
 export type FinanceProductUpdate = Partial<Omit<FinanceProduct, "id" | "created_at">>;
 
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  html_content: string;
+  created_at: string;
+}
+export type EmailTemplateInsert = Partial<Omit<EmailTemplate, "id" | "created_at">> & {
+  name: string;
+  html_content: string;
+};
+
+export interface NewsletterSubscriber {
+  id: string;
+  name: string | null;
+  email: string;
+  subscribed_at: string;
+  unsubscribed: boolean;
+}
+export type NewsletterSubscriberInsert = Partial<Omit<NewsletterSubscriber, "id" | "subscribed_at">> & {
+  email: string;
+};
+export type NewsletterSubscriberUpdate = Partial<Omit<NewsletterSubscriber, "id" | "subscribed_at">>;
+
+// Global send-suppression list — see the comment on this table in
+// supabase/schema.sql for why it's separate from
+// newsletter_subscribers.unsubscribed.
+export interface EmailUnsubscribe {
+  email: string;
+  unsubscribed_at: string;
+}
+export type EmailUnsubscribeInsert = { email: string };
+
 export interface MarketingCampaign {
   id: string;
   season: Season;
@@ -621,6 +653,24 @@ export interface Database {
         Update: ProductUpdate;
         Relationships: [];
       };
+      email_templates: {
+        Row: EmailTemplate;
+        Insert: EmailTemplateInsert;
+        Update: Partial<Omit<EmailTemplate, "id" | "created_at">>;
+        Relationships: [];
+      };
+      newsletter_subscribers: {
+        Row: NewsletterSubscriber;
+        Insert: NewsletterSubscriberInsert;
+        Update: NewsletterSubscriberUpdate;
+        Relationships: [];
+      };
+      email_unsubscribes: {
+        Row: EmailUnsubscribe;
+        Insert: EmailUnsubscribeInsert;
+        Update: Partial<EmailUnsubscribe>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -663,5 +713,8 @@ export const ANON_TABLE_NAMES = [
   "demand_link_shares",
   "calendar_events",
   "products",
+  "email_templates",
+  "newsletter_subscribers",
+  "email_unsubscribes",
   "company_settings",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];

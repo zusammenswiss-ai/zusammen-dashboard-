@@ -1007,3 +1007,69 @@ insert into public.products (name, edition, status, cogs, cogs_currency, sale_pr
   ('Signature Gift Box', null, 'Jövőbeli terv', null, 'CHF', 75, null, null),
   ('Corporate Gift', null, 'Jövőbeli terv', null, 'CHF', 65, null, null)
 on conflict (name) do nothing;
+
+-- =====================================================================
+-- Email-kampányok (Marketing → Email sablonok) — Brevo-n keresztül
+-- kiküldött kampányok sablonjai, feliratkozói és leiratkozás-naplója.
+-- Lásd lib/brevo.ts és app/api/marketing/send-campaign/route.ts.
+-- =====================================================================
+create table if not exists public.email_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  html_content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.email_templates enable row level security;
+
+drop policy if exists "anon full access" on public.email_templates;
+create policy "anon full access" on public.email_templates for all using (true) with check (true);
+
+-- Jövőbeli, közvetlen feliratkozások (nem az Igényfelmérés/landing_responses
+-- egyszeri email mezője — az a demand-test lista, ez itt egy önálló
+-- hírlevél-lista, saját leiratkozás-állapottal).
+create table if not exists public.newsletter_subscribers (
+  id uuid primary key default gen_random_uuid(),
+  name text,
+  email text not null unique,
+  subscribed_at timestamptz not null default now(),
+  unsubscribed boolean not null default false
+);
+
+alter table public.newsletter_subscribers enable row level security;
+
+drop policy if exists "anon full access" on public.newsletter_subscribers;
+create policy "anon full access" on public.newsletter_subscribers for all using (true) with check (true);
+
+-- Globális leiratkozás-napló — a demand-test feliratkozóknak (landing_
+-- responses) nincs saját "unsubscribed" mezőjük (egyszeri felmérés-
+-- válasz, nem előfizetés), úgyhogy a leiratkozás-link innen tiltja le
+-- az email címet minden jövőbeli kampányból, a forrásától függetlenül.
+-- Az unsubscribe route ide is ír, és a newsletter_subscribers.unsubscribed
+-- mezőt is frissíti, ha van egyező sor.
+create table if not exists public.email_unsubscribes (
+  email text primary key,
+  unsubscribed_at timestamptz not null default now()
+);
+
+alter table public.email_unsubscribes enable row level security;
+
+drop policy if exists "anon full access" on public.email_unsubscribes;
+create policy "anon full access" on public.email_unsubscribes for all using (true) with check (true);
+
+-- Storage — bucket a sablon-feltöltéskor csatolt logóhoz (a mentés a
+-- feltöltött kép URL-jével cseréli le a sablon HTML-jében szereplő
+-- YOUR_LOGO_URL helyőrzőt).
+insert into storage.buckets (id, name, public)
+values ('email-assets', 'email-assets', true)
+on conflict (id) do nothing;
+
+drop policy if exists "email-assets bucket anon read" on storage.objects;
+create policy "email-assets bucket anon read"
+  on storage.objects for select
+  using (bucket_id = 'email-assets');
+
+drop policy if exists "email-assets bucket anon write" on storage.objects;
+create policy "email-assets bucket anon write"
+  on storage.objects for insert
+  with check (bucket_id = 'email-assets');
