@@ -893,3 +893,40 @@ drop policy if exists "company-logo bucket anon write" on storage.objects;
 create policy "company-logo bucket anon write"
   on storage.objects for insert
   with check (bucket_id = 'company-logo');
+
+-- =====================================================================
+-- Naptár — kézzel felvett egyedi események (a többi Naptár-esemény más
+-- táblákból van aggregálva, ezek viszont önálló bejegyzések, semmilyen
+-- más rekordhoz nem kötődnek). Ugyanaz az "anon full access" minta,
+-- mint mindenhol máshol.
+-- =====================================================================
+create table if not exists public.calendar_events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  date date not null,
+  -- Free text ("14:00", "délután") rather than a time column — this is a
+  -- simple personal calendar note, not a scheduling system that needs to
+  -- do time-zone-aware arithmetic on it.
+  time text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.calendar_events enable row level security;
+
+drop policy if exists "anon full access" on public.calendar_events;
+create policy "anon full access" on public.calendar_events for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.calendar_events;
+create trigger set_updated_at before update on public.calendar_events
+  for each row execute function public.set_updated_at();
+
+-- iCal (.ics) feed subscription token — lives on company_settings
+-- alongside everything else in Beállítások. See app/api/calendar/ics/
+-- route.ts and the "Naptár feliratkozás" card on Beállítások. Same soft-
+-- gate reasoning as together_settings.access_code: this isn't a real
+-- secret (the anon key already exposes the same data to anyone who has
+-- it), it just keeps the .ics URL from being casually guessable if it
+-- ever leaks out of a calendar app's own settings screen.
+alter table public.company_settings add column if not exists ics_token text;

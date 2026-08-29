@@ -136,6 +136,9 @@ export const CALENDAR_CATEGORIES = {
   order: { label: "Megrendelések", color: "forest-light" },
   content: { label: "Tartalom-naptár", color: "clay" },
   ritual: { label: "Személyes rituálé", color: "teal" },
+  contract: { label: "Szerződés lejárat", color: "rose" },
+  recurring: { label: "Ismétlődő sablon", color: "indigo" },
+  event: { label: "Egyedi esemény", color: "emerald" },
 } as const;
 
 export type CalendarCategory = keyof typeof CALENDAR_CATEGORIES;
