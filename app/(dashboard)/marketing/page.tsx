@@ -106,6 +106,9 @@ export default function MarketingPage() {
   // server-side at send time, so this only needs to inform the checkbox
   // label on EmailCampaignSendForm.
   const [demandEmailCount, setDemandEmailCount] = useState(0);
+  // Set by "Kampányhoz csatolás" on a template card — pre-selects that
+  // sablon on EmailCampaignSendForm below.
+  const [campaignTemplateId, setCampaignTemplateId] = useState<string | null>(null);
   // Lightweight — just enough to know which content items already have a
   // linked task, and which task to deep-link to. Not the full TaskItem
   // shape; the Tasks page owns everything else about these rows.
@@ -265,11 +268,23 @@ export default function MarketingPage() {
     setTemplates((prev) => [template, ...prev]);
   }
 
+  function updateTemplate(template: EmailTemplate) {
+    setTemplates((prev) => prev.map((t) => (t.id === template.id ? template : t)));
+  }
+
   async function deleteTemplate(id: string) {
     if (!supabase) return;
     setTemplates((prev) => prev.filter((t) => t.id !== id));
     const { error } = await supabase.from("email_templates").delete().eq("id", id);
     if (error) setError(error.message);
+  }
+
+  // "Kampányhoz csatolás" on a template card — pre-selects it on
+  // EmailCampaignSendForm below and scrolls straight to it, so the
+  // founder doesn't have to re-find the same sablon in a dropdown.
+  function useTemplateInCampaign(id: string) {
+    setCampaignTemplateId(id);
+    document.getElementById("email-campaign-send-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function addNewsletterSubscriber(subscriber: NewsletterSubscriber) {
@@ -370,18 +385,27 @@ export default function MarketingPage() {
 
           {tab === "email" && (
             <div className="flex flex-col gap-5">
-              <EmailTemplatesSection templates={templates} onAdd={addTemplate} onDelete={deleteTemplate} />
+              <EmailTemplatesSection
+                templates={templates}
+                onAdd={addTemplate}
+                onUpdate={updateTemplate}
+                onDelete={deleteTemplate}
+                onUseInCampaign={useTemplateInCampaign}
+              />
               <NewsletterSubscribersSection
                 subscribers={newsletterSubscribers}
                 onAdd={addNewsletterSubscriber}
                 onDelete={deleteNewsletterSubscriber}
               />
-              <EmailCampaignSendForm
-                templates={templates}
-                demandCount={demandEmailCount}
-                newsletterCount={newsletterSubscribers.filter((s) => !s.unsubscribed).length}
-                onSent={addContent}
-              />
+              <div id="email-campaign-send-form">
+                <EmailCampaignSendForm
+                  templates={templates}
+                  demandCount={demandEmailCount}
+                  newsletterCount={newsletterSubscribers.filter((s) => !s.unsubscribed).length}
+                  onSent={addContent}
+                  presetTemplateId={campaignTemplateId}
+                />
+              </div>
             </div>
           )}
         </>

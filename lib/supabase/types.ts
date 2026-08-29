@@ -136,6 +136,7 @@ export type EmailTemplateInsert = Partial<Omit<EmailTemplate, "id" | "created_at
   name: string;
   html_content: string;
 };
+export type EmailTemplateUpdate = Partial<Omit<EmailTemplate, "id" | "created_at">>;
 
 export interface NewsletterSubscriber {
   id: string;
@@ -656,7 +657,7 @@ export interface Database {
       email_templates: {
         Row: EmailTemplate;
         Insert: EmailTemplateInsert;
-        Update: Partial<Omit<EmailTemplate, "id" | "created_at">>;
+        Update: EmailTemplateUpdate;
         Relationships: [];
       };
       newsletter_subscribers: {
