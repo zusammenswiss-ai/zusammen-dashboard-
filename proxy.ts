@@ -22,6 +22,14 @@ import { NextResponse, type NextRequest } from "next/server";
 // Slack's link-preview crawlers can't send Basic Auth credentials, so
 // without this exclusion every shared /landing link would show a broken
 // image the moment DASHBOARD_USER/DASHBOARD_PASSWORD are set.
+//
+// /api/calendar/ics is excluded too: it's the Naptár .ics subscription
+// feed (Beállítások → "Naptár feliratkozás"), meant to be pasted into
+// Google Calendar/Apple Naptár/a phone's calendar app — those poll the
+// URL periodically and generally can't supply Basic Auth credentials
+// either. It has its own gate instead (a ?token= checked inside the
+// route against company_settings.ics_token), same soft-gate reasoning
+// as the /together access code.
 export function proxy(request: NextRequest) {
   const user = process.env.DASHBOARD_USER;
   const password = process.env.DASHBOARD_PASSWORD;
@@ -52,5 +60,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email|api/og).*)",
+  matcher:
+    "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email|api/og|api/calendar/ics).*)",
 };

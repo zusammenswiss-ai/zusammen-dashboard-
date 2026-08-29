@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Building2, Signature, CalendarCheck, Banknote, Check, Upload } from "lucide-react";
+import { Building2, Signature, CalendarCheck, Banknote, Check, Upload, CalendarClock, Copy, RefreshCw } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CompanySettings, CompanySettingsUpdate, CurrencyCode } from "@/lib/supabase/types";
 import { DEFAULT_EMAIL_SIGNATURE } from "@/lib/company-settings";
@@ -65,6 +65,7 @@ export default function CompanySettingsSection() {
       <EmailSignatureCard settings={settings} onSave={patch} />
       <GoldCardReminderCard settings={settings} onSave={patch} />
       <CurrencyCard settings={settings} onSave={patch} />
+      <CalendarIcsCard settings={settings} onSave={patch} />
     </>
   );
 }
@@ -377,6 +378,77 @@ function CurrencyCard({ settings, onSave }: CardProps) {
         </select>
         <SavedTick show={saved} />
       </div>
+    </div>
+  );
+}
+
+function generateIcsToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function CalendarIcsCard({ settings, onSave }: CardProps) {
+  const [origin, setOrigin] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+  }, []);
+
+  async function generate() {
+    setGenerating(true);
+    await onSave({ ics_token: generateIcsToken() });
+    setGenerating(false);
+  }
+
+  const url = settings?.ics_token && origin ? `${origin}/api/calendar/ics?token=${settings.ics_token}` : "";
+
+  async function copyUrl() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard API can be unavailable — the link is still visible to select and copy manually.
+    }
+  }
+
+  return (
+    <div className="card max-w-xl p-5 sm:p-6">
+      <div className="flex items-center gap-2">
+        <CalendarClock size={18} className="text-bronze" />
+        <h2 className="font-serif text-lg text-forest">Naptár feliratkozás</h2>
+      </div>
+      <p className="mt-1.5 text-sm text-muted">
+        Egy .ics feliratkozási link, ami a Naptár összes eseményét (határidők, szerződés-lejáratok, ismétlődő
+        sablonok, egyedi események, stb.) a telefonod/Google Calendar-od saját naptárjába hozza — valódi, natív
+        emlékeztetőkkel.
+      </p>
+
+      {url && (
+        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border bg-ivory-dim/60 px-4 py-3">
+          <label className="text-xs font-medium text-muted">Feliratkozási link</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input className="input min-w-0 flex-1 font-mono text-xs" readOnly value={url} onFocus={(e) => e.target.select()} />
+            <button type="button" onClick={copyUrl} className="btn btn-ghost shrink-0 text-xs">
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? "Másolva" : "Másolás"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button type="button" onClick={generate} disabled={generating} className="btn btn-primary mt-4 w-fit">
+        <RefreshCw size={15} /> {generating ? "Generálás…" : settings?.ics_token ? "Új token generálása" : "Feliratkozási link generálása"}
+      </button>
+      {settings?.ics_token && (
+        <p className="mt-2 text-xs text-muted">
+          Új token generálása érvényteleníti a régi linket a naptáradban — ott is frissítened kell majd.
+        </p>
+      )}
     </div>
   );
 }

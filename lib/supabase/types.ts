@@ -349,11 +349,28 @@ export interface CompanySettings {
   email_signature: string | null;
   currency: CurrencyCode;
   gold_card_reminder_enabled: boolean;
+  // Naptár .ics feed subscription token — see app/api/calendar/ics/route.ts.
+  ics_token: string | null;
   created_at: string;
   updated_at: string;
 }
 export type CompanySettingsInsert = Partial<Omit<CompanySettings, "id" | "created_at" | "updated_at">>;
 export type CompanySettingsUpdate = Partial<Omit<CompanySettings, "id" | "created_at">>;
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string;
+  time: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type CalendarEventInsert = Partial<Omit<CalendarEvent, "id" | "created_at" | "updated_at">> & {
+  title: string;
+  date: string;
+};
+export type CalendarEventUpdate = Partial<Omit<CalendarEvent, "id" | "created_at">>;
 
 export interface SurpriseQuestionLog {
   id: string;
@@ -565,6 +582,12 @@ export interface Database {
         Update: CompanySettingsUpdate;
         Relationships: [];
       };
+      calendar_events: {
+        Row: CalendarEvent;
+        Insert: CalendarEventInsert;
+        Update: CalendarEventUpdate;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -605,5 +628,6 @@ export const ANON_TABLE_NAMES = [
   "together_settings",
   "share_contacts",
   "demand_link_shares",
+  "calendar_events",
   "company_settings",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];

@@ -12,19 +12,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, RecurrenceType, TaskItem, TaskTemplate } from "@/lib/supabase/types";
 import { startOfDay } from "@/lib/gold-card";
 
-function parseISODate(value: string): Date {
+// Exported — also used by lib/calendar-events.ts (which needs the same
+// ISO-string<->Date conversions and stepping logic to forecast a
+// recurring template's future occurrences for the Naptár/ics feed).
+export function parseISODate(value: string): Date {
   const [y, m, d] = value.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
-function toISODate(date: Date): string {
+export function toISODate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
-function addRecurrence(date: Date, type: RecurrenceType, step: number): Date {
+export function addRecurrence(date: Date, type: RecurrenceType, step: number): Date {
   switch (type) {
     case "Napi":
       return new Date(date.getFullYear(), date.getMonth(), date.getDate() + step);
@@ -55,6 +58,29 @@ export function nextOccurrenceAfter(dueDate: Date, type: RecurrenceType, interva
     next = addRecurrence(next, type, step);
   }
   return next;
+}
+
+/**
+ * Every occurrence of a recurring template from `start` up to and
+ * including `rangeEnd` — used to forecast a recurring template on the
+ * Naptár/ics feed before it's actually fired into a real task (unlike
+ * next_due_date, which only ever tracks the single next occurrence).
+ * Capped at 3000 iterations — comfortably covers even a daily
+ * recurrence across a multi-year window, and guards against an
+ * unexpected infinite loop rather than actually relying on the cap.
+ */
+export function occurrencesInRange(start: Date, type: RecurrenceType, interval: number, rangeEnd: Date): Date[] {
+  const step = Math.max(1, interval);
+  const end = startOfDay(rangeEnd);
+  const out: Date[] = [];
+  let d = startOfDay(start);
+  let guard = 0;
+  while (d.getTime() <= end.getTime() && guard < 3000) {
+    out.push(d);
+    d = addRecurrence(d, type, step);
+    guard++;
+  }
+  return out;
 }
 
 export type RecurringRunResult = {
