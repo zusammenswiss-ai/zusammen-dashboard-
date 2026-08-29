@@ -107,7 +107,7 @@ export default function OverviewPage() {
         ] = await Promise.all([
           supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-          supabase.from("finance_products").select("*"),
+          supabase.from("products").select("sale_price, cogs, planned_units"),
           supabase.from("documents").select("*").order("created_at", { ascending: false }),
           supabase.from("future_plans").select("*").order("created_at", { ascending: false }),
           supabase.from("orders").select("*").order("created_at", { ascending: false }),
@@ -136,6 +136,8 @@ export default function OverviewPage() {
 
         const suppliers = suppliersRes.data ?? [];
         const tasks = tasksRes.data ?? [];
+        // Termékek katalógus rows — see the same revenue/margin math on
+        // Pénzügyek, which reads this same table now.
         const finance = financeRes.data ?? [];
         const documents = documentsRes.data ?? [];
         const plans = plansRes.data ?? [];
@@ -145,8 +147,8 @@ export default function OverviewPage() {
         const wildCardCompletions = wildCardCompletionsRes.data ?? [];
         const surpriseQuestionLog = surpriseQuestionLogRes.data ?? [];
 
-        const revenue = finance.reduce((sum, p) => sum + p.price * p.units, 0);
-        const margin = finance.reduce((sum, p) => sum + (p.price - p.cogs) * p.units, 0);
+        const revenue = finance.reduce((sum, p) => sum + (p.sale_price ?? 0) * p.planned_units, 0);
+        const margin = finance.reduce((sum, p) => sum + ((p.sale_price ?? 0) - (p.cogs ?? 0)) * p.planned_units, 0);
 
         setStats({
           suppliersTotal: suppliers.length,
