@@ -13,18 +13,25 @@ const CONFIRM_WORD = "TÖRLÉS";
 // company_settings is the Márka-adatok/Email-aláírás/Pénznem row this
 // very page just configured — wiping either as part of "delete my
 // business data" would be a surprising, self-defeating side effect.
-const KEPT_TABLES = new Set(["together_settings", "company_settings"]);
+// email_unsubscribes is kept for the same reason: it's a consent/
+// suppression record (who explicitly opted out of campaign emails), not
+// founder-entered business content — wiping it would risk re-emailing
+// someone who deliberately unsubscribed, even though Brevo's own
+// account-wide suppression (see lib/email-campaign.ts) backstops actual
+// delivery regardless.
+const KEPT_TABLES = new Set(["together_settings", "company_settings", "email_unsubscribes"]);
 const WIPE_TABLES = ANON_TABLE_NAMES.filter((t) => !KEPT_TABLES.has(t));
 
 /**
  * "Minden adat törlése" — deletes every row from every founder-entered
  * business/content table (see WIPE_TABLES above), keeping only account-
  * level config (Gmail connection — already excluded since it isn't in
- * ANON_TABLE_NAMES at all — Közös tér code, Márka-adatok). One exception
- * inside the loop: marketing_campaigns is the fixed 4-season config seeded
- * by schema.sql (unique per season), not founder-created rows, so instead
- * of deleting those rows this clears their editable text back to empty
- * rather than leaving the Marketing page's Évszakos stratégia tab broken.
+ * ANON_TABLE_NAMES at all — Közös tér code, Márka-adatok, and the
+ * leiratkozás suppression list). One exception inside the loop:
+ * marketing_campaigns is the fixed 4-season config seeded by schema.sql
+ * (unique per season), not founder-created rows, so instead of deleting
+ * those rows this clears their editable text back to empty rather than
+ * leaving the Marketing page's Évszakos stratégia tab broken.
  */
 export default function DangerZoneSection() {
   const supabase = getSupabaseClient();
@@ -79,10 +86,13 @@ export default function DangerZoneSection() {
         <h2 className="font-serif text-lg text-red-700">Veszélyes zóna</h2>
       </div>
       <p className="mt-1.5 text-sm text-muted">
-        Minden üzleti és tartalmi adat (Beszállítók, Feladatok, Megrendelések, Pénzügyek, Marketing-tartalom,
-        Dokumentumok, Kártya-fájlok, Jövőbeli tervek, Igényfelmérés-válaszok, Megosztások, Személyes rituálé
-        bejegyzések) véglegesen törlődik. A Gmail-összekapcsolás, a Közös tér kódja és a Márka-adatok megmaradnak.
-        Ez nem vonható vissza — érdemes előbb exportálni fentebb.
+        Minden üzleti és tartalmi adat (Beszállítók, Feladatok — beleértve a saját, kézzel létrehozott
+        feladat-sablonokat is, a 19 beépített nem vész el, azok schema.sql újrafuttatásával visszatérnek —,
+        Termékek, Megrendelések, Pénzügyek, Marketing-tartalom, Email sablonok, Hírlevél feliratkozók,
+        Dokumentumok, Kártya-fájlok, Naptár egyedi események, Jövőbeli tervek, Igényfelmérés-válaszok,
+        Megosztások, Személyes rituálé bejegyzések) véglegesen törlődik. A Gmail-összekapcsolás, a Közös tér
+        kódja, a Márka-adatok és a leiratkozási lista (email_unsubscribes) megmaradnak. Ez nem vonható vissza —
+        érdemes előbb exportálni fentebb.
       </p>
 
       {error && (
