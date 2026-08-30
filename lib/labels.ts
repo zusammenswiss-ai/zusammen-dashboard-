@@ -113,6 +113,19 @@ export const TEMPLATE_CATEGORY_ORDER = [
 // being free text, but the template picker/editor only offers these.
 export const TEMPLATE_ASSIGNEE_OPTIONS = ["Barbara", "Partner", "Mindketten"];
 
+// Suggested categories for a Kiadás (expense) — free text on the table
+// itself (same convention as tasks.category), this is just what the
+// Pénzügyek "Költség hozzáadása" form offers as a starting dropdown; a
+// founder can still type her own.
+export const EXPENSE_CATEGORIES = [
+  "Szoftver & Hosting",
+  "Könyvelés & Jogi",
+  "Marketing",
+  "Gyártás & Csomagolás",
+  "Iroda & Eszközök",
+  "Egyéb",
+];
+
 // recurrence_type is already stored in Hungarian (see the schema check
 // constraint) — this is display order for the select, not a translation.
 export const RECURRENCE_TYPES: RecurrenceType[] = ["Napi", "Heti", "Havi", "Negyedéves", "Éves"];

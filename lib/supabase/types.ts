@@ -123,6 +123,13 @@ export interface Product {
   cogs: number | null;
   cogs_currency: string | null;
   sale_price: number | null;
+  // The currency sale_price is actually denominated in — see the
+  // comment on this column in supabase/schema.sql for why it exists
+  // (previously sale_price silently followed whatever Beállítások →
+  // Pénznem was set to). Pénzügyek uses this + cogs_currency with
+  // lib/exchange-rates.ts to convert everything to one currency before
+  // summing, instead of adding mismatched numbers together.
+  sale_price_currency: CurrencyCode;
   description: string | null;
   production_note: string | null;
   image_url: string | null;
@@ -135,6 +142,28 @@ export type ProductInsert = Partial<Omit<Product, "id" | "created_at" | "updated
 };
 export type ProductUpdate = Partial<Omit<Product, "id" | "created_at">>;
 export type FinanceProductUpdate = Partial<Omit<FinanceProduct, "id" | "created_at">>;
+
+// Operating costs, independent of a product's COGS — see the comment on
+// this table in supabase/schema.sql. Reuses RecurrenceType rather than
+// a separate enum (only meaningful when is_recurring is true, same
+// convention as TaskTemplate).
+export interface Expense {
+  id: string;
+  name: string;
+  category: string;
+  amount: number;
+  currency: CurrencyCode;
+  expense_date: string;
+  is_recurring: boolean;
+  recurrence_type: RecurrenceType | null;
+  created_at: string;
+  updated_at: string;
+}
+export type ExpenseInsert = Partial<Omit<Expense, "id" | "created_at" | "updated_at">> & {
+  name: string;
+  amount: number;
+};
+export type ExpenseUpdate = Partial<Omit<Expense, "id" | "created_at">>;
 
 export interface EmailTemplate {
   id: string;
@@ -264,8 +293,15 @@ export interface Order {
   customer_name: string;
   customer_email: string | null;
   product: string | null;
+  // Optional link into the Termékek catalog — see the comment on this
+  // column in supabase/schema.sql. product (free text) stays the
+  // display/label field either way; this is only what lets Pénzügyek
+  // compute a real, COGS-aware árrés for this order.
+  product_id: string | null;
   quantity: number;
   unit_price: number | null;
+  // See sale_price_currency on Product — same reasoning, same default.
+  unit_price_currency: CurrencyCode;
   delivery_date: string | null;
   status: OrderStatus;
   notes: string | null;
@@ -664,6 +700,12 @@ export interface Database {
         Update: ProductUpdate;
         Relationships: [];
       };
+      expenses: {
+        Row: Expense;
+        Insert: ExpenseInsert;
+        Update: ExpenseUpdate;
+        Relationships: [];
+      };
       email_templates: {
         Row: EmailTemplate;
         Insert: EmailTemplateInsert;
@@ -724,6 +766,7 @@ export const ANON_TABLE_NAMES = [
   "demand_link_shares",
   "calendar_events",
   "products",
+  "expenses",
   "email_templates",
   "newsletter_subscribers",
   "email_unsubscribes",

@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash, Mail, Search, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { Order, OrderStatus } from "@/lib/supabase/types";
+import type { CurrencyCode, Order, OrderStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import { useUndoAction } from "@/lib/useUndoAction";
-import { formatDate, formatCHF } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { ORDER_STATUS_HU } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
 
@@ -20,6 +21,7 @@ const EXPORT_HEADERS = [
   "product",
   "quantity",
   "unit_price",
+  "unit_price_currency",
   "delivery_date",
   "status",
   "notes",
@@ -32,6 +34,7 @@ function exportOrdersCSV(orders: Order[]) {
     o.product,
     o.quantity,
     o.unit_price,
+    o.unit_price_currency,
     o.delivery_date,
     ORDER_STATUS_HU[o.status],
     o.notes,
@@ -56,14 +59,22 @@ const EMPTY_FORM = {
   customer_name: "",
   customer_email: "",
   product: "",
+  product_id: "",
   quantity: "1",
   unit_price: "",
+  unit_price_currency: "CHF" as CurrencyCode,
   delivery_date: "",
   status: "New" as OrderStatus,
 };
 
+// Only what the "Kapcsolt termék" picker needs — not the full Product
+// shape, so a partial select doesn't have to pretend it fetched columns
+// it didn't ask for.
+type ProductOption = { id: string; name: string };
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -81,12 +92,16 @@ export default function OrdersPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) setError(error.message);
-    else setOrders(data ?? []);
+    const [ordersRes, productsRes] = await Promise.all([
+      supabase.from("orders").select("*").order("created_at", { ascending: false }),
+      supabase.from("products").select("id, name").order("name", { ascending: true }),
+    ]);
+    if (ordersRes.error) setError(ordersRes.error.message);
+    else setOrders(ordersRes.data ?? []);
+    if (!productsRes.error) {
+      const rows: ProductOption[] = productsRes.data ?? [];
+      setProducts(rows);
+    }
     setLoading(false);
   }, [supabase]);
 
@@ -107,8 +122,10 @@ export default function OrdersPage() {
         customer_name: form.customer_name.trim(),
         customer_email: form.customer_email.trim() || null,
         product: form.product.trim() || null,
+        product_id: form.product_id || null,
         quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
         unit_price: form.unit_price.trim() && Number.isFinite(unitPrice) ? unitPrice : null,
+        unit_price_currency: form.unit_price_currency,
         delivery_date: form.delivery_date || null,
         status: form.status,
       })
@@ -224,6 +241,32 @@ export default function OrdersPage() {
             />
           </div>
           <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Kapcsolt termék (Termékek katalógusból)</label>
+            <select
+              className="select"
+              value={form.product_id}
+              onChange={(e) => {
+                const productId = e.target.value;
+                const linked = products.find((p) => p.id === productId);
+                setForm((f) => ({
+                  ...f,
+                  product_id: productId,
+                  // Auto-fills the free-text label if it's still empty —
+                  // never overwrites something already typed.
+                  product: !f.product.trim() && linked ? linked.name : f.product,
+                }));
+              }}
+            >
+              <option value="">— nincs (egyedi tétel) —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">Kell a valós árréshez a Pénzügyeken — nem kötelező.</p>
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-medium text-muted">Mennyiség</label>
             <input
               type="number"
@@ -234,17 +277,33 @@ export default function OrdersPage() {
               onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Egységár (CHF)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="input"
-              value={form.unit_price}
-              onChange={(e) => setForm((f) => ({ ...f, unit_price: e.target.value }))}
-              placeholder="pl. 24.90"
-            />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-muted">Egységár</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="input"
+                value={form.unit_price}
+                onChange={(e) => setForm((f) => ({ ...f, unit_price: e.target.value }))}
+                placeholder="pl. 24.90"
+              />
+            </div>
+            <div className="w-24">
+              <label className="mb-1 block text-xs font-medium text-muted">Pénznem</label>
+              <select
+                className="select"
+                value={form.unit_price_currency}
+                onChange={(e) => setForm((f) => ({ ...f, unit_price_currency: e.target.value as CurrencyCode }))}
+              >
+                {CURRENCY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Szállítási határidő</label>
@@ -322,6 +381,7 @@ export default function OrdersPage() {
             <OrderRow
               key={order.id}
               order={order}
+              products={products}
               expanded={expanded === order.id}
               onToggle={() => setExpanded(expanded === order.id ? null : order.id)}
               onUpdate={(patch) => updateOrder(order.id, patch)}
@@ -352,6 +412,7 @@ export default function OrdersPage() {
 
 function OrderRow({
   order,
+  products,
   expanded,
   onToggle,
   onUpdate,
@@ -359,6 +420,7 @@ function OrderRow({
   onEmail,
 }: {
   order: Order;
+  products: ProductOption[];
   expanded: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<Order>) => void;
@@ -395,7 +457,7 @@ function OrderRow({
               </span>
               {order.unit_price != null && (
                 <span className="font-medium text-forest">
-                  {formatCHF(order.unit_price * order.quantity)}
+                  {formatMoney(order.unit_price * order.quantity, order.unit_price_currency)}
                 </span>
               )}
               {order.delivery_date && (
@@ -445,21 +507,52 @@ function OrderRow({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Egységár (CHF)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="input"
-              value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
-              onBlur={() => {
-                const parsed = Number(unitPrice);
-                const next = unitPrice.trim() && Number.isFinite(parsed) ? parsed : null;
-                if (next !== order.unit_price) onUpdate({ unit_price: next });
-              }}
-              placeholder="pl. 24.90"
-            />
+            <label className="mb-1 block text-xs font-medium text-muted">Kapcsolt termék (Termékek katalógusból)</label>
+            <select
+              className="select"
+              value={order.product_id ?? ""}
+              onChange={(e) => onUpdate({ product_id: e.target.value || null })}
+            >
+              <option value="">— nincs (egyedi tétel) —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-muted">Egységár</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="input"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value)}
+                onBlur={() => {
+                  const parsed = Number(unitPrice);
+                  const next = unitPrice.trim() && Number.isFinite(parsed) ? parsed : null;
+                  if (next !== order.unit_price) onUpdate({ unit_price: next });
+                }}
+                placeholder="pl. 24.90"
+              />
+            </div>
+            <div className="w-24">
+              <label className="mb-1 block text-xs font-medium text-muted">Pénznem</label>
+              <select
+                className="select"
+                value={order.unit_price_currency}
+                onChange={(e) => onUpdate({ unit_price_currency: e.target.value as CurrencyCode })}
+              >
+                {CURRENCY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Megjegyzés</label>

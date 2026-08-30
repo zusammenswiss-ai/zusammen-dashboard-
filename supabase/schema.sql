@@ -275,6 +275,28 @@ create table if not exists public.orders (
 alter table public.orders add column if not exists customer_email text;
 alter table public.orders add column if not exists unit_price numeric(12, 2);
 
+-- orders.product_id (FK into products) is added further down, right
+-- after the Termékek katalógus table is created — it can't be added
+-- here yet since public.products doesn't exist this early in a fresh
+-- run of this file.
+
+-- unit_price previously had no currency of its own, same situation and
+-- same reasoning as products.sale_price_currency above — defaults to
+-- CHF (this app's DEFAULT_CURRENCY) to match the number every existing
+-- order already implicitly meant.
+alter table public.orders add column if not exists unit_price_currency text not null default 'CHF';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'orders_unit_price_currency_check'
+  ) then
+    alter table public.orders
+      add constraint orders_unit_price_currency_check
+      check (unit_price_currency in ('CHF', 'USD', 'EUR'));
+  end if;
+end $$;
+
 -- ---------------------------------------------------------------------
 -- Seed the 4 marketing seasons if they don't exist yet
 -- ---------------------------------------------------------------------
@@ -977,8 +999,9 @@ create table if not exists public.products (
   -- Independent of Beállítások → Pénznem preferencia (a display-only
   -- setting) — this is the actual currency the cost was quoted in, so a
   -- USD COGS on a CHF sale price stays USD rather than getting silently
-  -- relabeled. Pénzügyek/Termékek flag the mismatch instead of pretending
-  -- to convert it — there's no exchange-rate source anywhere in this app.
+  -- relabeled. See sale_price_currency below and lib/exchange-rates.ts
+  -- for how Pénzügyek now actually converts between these live, instead
+  -- of just flagging the mismatch.
   cogs_currency text default 'CHF',
   sale_price numeric(12, 2),
   description text,
@@ -989,6 +1012,26 @@ create table if not exists public.products (
   updated_at timestamptz not null default now()
 );
 
+-- Added after launch — sale_price previously had no currency of its own
+-- (it silently followed whatever Beállítások → Pénznem was set to, see
+-- lib/currency.ts's formatMoney comment). Defaulting existing rows to
+-- CHF matches that previous implicit assumption exactly (CHF is this
+-- app's DEFAULT_CURRENCY) — no founder-visible number changes on
+-- upgrade, it just gives Pénzügyek's exchange-rate conversion a real
+-- "from" currency to work with instead of guessing.
+alter table public.products add column if not exists sale_price_currency text not null default 'CHF';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'products_sale_price_currency_check'
+  ) then
+    alter table public.products
+      add constraint products_sale_price_currency_check
+      check (sale_price_currency in ('CHF', 'USD', 'EUR'));
+  end if;
+end $$;
+
 alter table public.products enable row level security;
 
 drop policy if exists "anon full access" on public.products;
@@ -997,6 +1040,12 @@ create policy "anon full access" on public.products for all using (true) with ch
 drop trigger if exists set_updated_at on public.products;
 create trigger set_updated_at before update on public.products
   for each row execute function public.set_updated_at();
+
+-- orders.product_id — added here, not up with the rest of the orders
+-- table's columns, since it needs public.products to already exist (a
+-- fresh run of this file creates orders long before products). See the
+-- comment up there for what this column is for.
+alter table public.orders add column if not exists product_id uuid references public.products(id) on delete set null;
 
 -- Storage — bucket for product photos
 insert into storage.buckets (id, name, public)
@@ -1101,3 +1150,35 @@ drop policy if exists "email-assets bucket anon write" on storage.objects;
 create policy "email-assets bucket anon write"
   on storage.objects for insert
   with check (bucket_id = 'email-assets');
+
+-- =====================================================================
+-- Kiadások (Pénzügyek) — operating costs (hosting/tools, Treuhand,
+-- marketing spend, csomagolás/szállítás, …), independent of a product's
+-- COGS. is_recurring rows represent an ongoing monthly commitment (the
+-- break-even calculator normalizes recurrence_type down to a monthly
+-- figure — see lib/finance.ts); one-off rows are just a dated
+-- transaction. Reuses the same Napi/Heti/Havi/Negyedéves/Éves
+-- recurrence_type vocabulary as task_templates (no separate enum) even
+-- though Havi/Negyedéves/Éves are the realistic ones for a cost line.
+-- =====================================================================
+create table if not exists public.expenses (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  category text not null default 'Egyéb',
+  amount numeric(12, 2) not null,
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  expense_date date not null default current_date,
+  is_recurring boolean not null default false,
+  recurrence_type text check (recurrence_type in ('Napi', 'Heti', 'Havi', 'Negyedéves', 'Éves')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.expenses enable row level security;
+
+drop policy if exists "anon full access" on public.expenses;
+create policy "anon full access" on public.expenses for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.expenses;
+create trigger set_updated_at before update on public.expenses
+  for each row execute function public.set_updated_at();

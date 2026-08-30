@@ -24,8 +24,9 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { PRODUCT_STATUSES, PRODUCT_STATUS_STYLES } from "@/lib/labels";
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { DEFAULT_CURRENCY } from "@/lib/company-settings";
+import { convertAmount, fetchExchangeRates, type ExchangeRates } from "@/lib/exchange-rates";
 import type { CurrencyCode } from "@/lib/supabase/types";
 
 const STORAGE_BUCKET = "product-images";
@@ -39,6 +40,7 @@ const EMPTY_FORM = {
   cogs: "",
   cogs_currency: "CHF",
   sale_price: "",
+  sale_price_currency: "CHF" as CurrencyCode,
   description: "",
   production_note: "",
 };
@@ -61,9 +63,18 @@ export default function ProductsPage() {
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Live árfolyamok az Árrés kártyánkénti, valós számolásához — see
+  // lib/exchange-rates.ts (same approach as Pénzügyek).
+  const [rates, setRates] = useState<ExchangeRates | null>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
+
+  useEffect(() => {
+    fetchExchangeRates().then((result) => {
+      if (result.ok) setRates(result.rates);
+    });
+  }, []);
 
   const loadAll = useCallback(async () => {
     if (!supabase) return;
@@ -116,6 +127,7 @@ export default function ProductsPage() {
       cogs: p.cogs != null ? String(p.cogs) : "",
       cogs_currency: p.cogs_currency ?? "CHF",
       sale_price: p.sale_price != null ? String(p.sale_price) : "",
+      sale_price_currency: p.sale_price_currency,
       description: p.description ?? "",
       production_note: p.production_note ?? "",
     });
@@ -140,6 +152,7 @@ export default function ProductsPage() {
       cogs: form.cogs.trim() ? Number(form.cogs) : null,
       cogs_currency: form.cogs_currency || null,
       sale_price: form.sale_price.trim() ? Number(form.sale_price) : null,
+      sale_price_currency: form.sale_price_currency,
       description: form.description.trim() || null,
       production_note: form.production_note.trim() || null,
       image_url: imageUrl,
@@ -299,16 +312,29 @@ export default function ProductsPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Eladási ár ({currency})</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            className="input"
-            value={form.sale_price}
-            onChange={(e) => setForm((f) => ({ ...f, sale_price: e.target.value }))}
-            placeholder="pl. 29"
-          />
+          <label className="mb-1 block text-xs font-medium text-muted">Eladási ár</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input"
+              value={form.sale_price}
+              onChange={(e) => setForm((f) => ({ ...f, sale_price: e.target.value }))}
+              placeholder="pl. 29"
+            />
+            <select
+              className="select w-24 shrink-0"
+              value={form.sale_price_currency}
+              onChange={(e) => setForm((f) => ({ ...f, sale_price_currency: e.target.value as CurrencyCode }))}
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -428,6 +454,7 @@ export default function ProductsPage() {
                     key={product.id}
                     product={product}
                     currency={currency}
+                    rates={rates}
                     cardAsset={product.card_asset_id ? cardAssetById.get(product.card_asset_id) : undefined}
                     supplier={product.supplier_id ? supplierById.get(product.supplier_id) : undefined}
                     expanded={expandedId === product.id}
@@ -450,6 +477,7 @@ export default function ProductsPage() {
 function ProductCard({
   product,
   currency,
+  rates,
   cardAsset,
   supplier,
   expanded,
@@ -459,6 +487,7 @@ function ProductCard({
 }: {
   product: Product;
   currency: CurrencyCode;
+  rates: ExchangeRates | null;
   cardAsset?: Pick<CardAsset, "id" | "language" | "version">;
   supplier?: Pick<Supplier, "id" | "name">;
   expanded: boolean;
@@ -468,9 +497,14 @@ function ProductCard({
 }) {
   const hasProductionNote = Boolean(product.production_note);
   const hasMargin = product.sale_price != null && product.cogs != null;
-  const margin = hasMargin ? (product.sale_price as number) - (product.cogs as number) : null;
-  const marginPct = hasMargin && product.sale_price ? ((margin as number) / (product.sale_price as number)) * 100 : null;
-  const currencyMismatch = Boolean(product.cogs_currency && product.cogs_currency !== currency);
+  const cogsCurrency = (product.cogs_currency as CurrencyCode | null) ?? "CHF";
+  const convertedSalePrice = convertAmount(product.sale_price ?? 0, product.sale_price_currency, currency, rates);
+  const convertedCogs = convertAmount(product.cogs ?? 0, cogsCurrency, currency, rates);
+  const margin = hasMargin ? convertedSalePrice - convertedCogs : null;
+  const marginPct = hasMargin && convertedSalePrice ? ((margin as number) / convertedSalePrice) * 100 : null;
+  // Only a real warning if the conversion itself failed (rates null) —
+  // a currency mismatch is otherwise handled, not just flagged.
+  const showRatesWarning = rates == null && Boolean(product.sale_price_currency !== currency || (product.cogs != null && cogsCurrency !== currency));
 
   return (
     <div className="card overflow-hidden">
@@ -554,24 +588,26 @@ function ProductCard({
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted">Egységköltség (COGS)</p>
               <p className="mt-1 text-sm text-forest">
-                {product.cogs != null ? formatMoney(product.cogs, (product.cogs_currency as CurrencyCode) ?? "CHF") : "—"}
+                {product.cogs != null ? formatMoney(product.cogs, cogsCurrency) : "—"}
               </p>
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted">Eladási ár</p>
               <p className="mt-1 text-sm text-forest">
-                {product.sale_price != null ? formatMoney(product.sale_price, currency) : "—"}
+                {product.sale_price != null ? formatMoney(product.sale_price, product.sale_price_currency) : "—"}
               </p>
             </div>
             <div className="sm:col-span-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">Árrés</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                Árrés {(product.sale_price_currency !== currency || cogsCurrency !== currency) && `(${currency}-ra átváltva)`}
+              </p>
               {hasMargin ? (
                 <p className={`mt-1 text-sm font-medium ${(margin as number) < 0 ? "text-red-600" : "text-forest"}`}>
                   {formatMoney(margin as number, currency)}{" "}
                   <span className="text-xs font-normal text-muted">({(marginPct as number).toFixed(1)}%)</span>
-                  {currencyMismatch && (
+                  {showRatesWarning && (
                     <span className="ml-2 text-xs font-normal text-yellow-700">
-                      ⚠ a COGS {product.cogs_currency}-ban van megadva, nincs valós árfolyam-átváltás
+                      ⚠ nem sikerült élő árfolyamot lekérni, ez a szám átváltás nélküli
                     </span>
                   )}
                 </p>
