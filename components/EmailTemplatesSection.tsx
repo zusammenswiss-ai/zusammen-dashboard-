@@ -238,8 +238,10 @@ function TemplateForm({
           }}
         />
         <p className="mt-1 text-xs text-muted">
-          Vagy szerkeszd közvetlenül lent. Használhatod a <code>{"{{first_name}}"}</code> és <code>{"{{unsubscribe_url}}"}</code> helyőrzőket, illetve a{" "}
-          <code>YOUR_LOGO_URL</code> szöveget a lenti logó helyén.
+          Vagy szerkeszd közvetlenül lent. Küldéskor/előnézetkor automatikusan kitöltődik: <code>{"{{first_name}}"}</code> (a
+          feliratkozó neve), <code>{"{{ritual_link}}"}</code> (a Közös tér linkje), <code>{"{{privacy_link}}"}</code> (az
+          adatvédelmi tájékoztató) és <code>{"{{unsubscribe_link}}"}</code> (Brevo saját, automatikus leiratkozás-linkje) —
+          plusz a <code>YOUR_LOGO_URL</code> szöveg a lenti logó helyén.
         </p>
         <textarea
           className="textarea mt-2 min-h-32 font-mono text-xs"
