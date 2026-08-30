@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { TaskItem, TaskPriority, TaskStatus, TaskTemplate } from "@/lib/supabase/types";
+import type { TaskItem, TaskPriority, TaskStatus, TaskTemplate, TaskType } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -27,7 +27,7 @@ import TemplatePickerModal from "@/components/TemplatePickerModal";
 import TemplateManagerModal from "@/components/TemplateManagerModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
-import { PRIORITY_HU } from "@/lib/labels";
+import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_STYLES, TASK_TYPE_ICON } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import { runRecurringTemplateCheck } from "@/lib/recurring-templates";
 
@@ -48,12 +48,24 @@ function isOverdue(task: TaskItem): boolean {
   return task.due_date < new Date().toISOString().slice(0, 10);
 }
 
-const EXPORT_HEADERS = ["title", "category", "priority", "status", "due_date", "assignee", "notes"];
+const EXPORT_HEADERS = [
+  "title",
+  "category",
+  "task_type",
+  "campaign_id",
+  "priority",
+  "status",
+  "due_date",
+  "assignee",
+  "notes",
+];
 
 function exportTasksCSV(tasks: TaskItem[]) {
   const rows = tasks.map((t) => [
     t.title,
     t.category,
+    t.task_type,
+    t.campaign_id,
     PRIORITY_HU[t.priority],
     t.status,
     t.due_date,
@@ -63,7 +75,7 @@ function exportTasksCSV(tasks: TaskItem[]) {
   downloadCSV("feladatok.csv", toCSV(EXPORT_HEADERS, rows));
 }
 
-const COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
+const STATUS_COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
@@ -72,12 +84,21 @@ const PRIORITY_STYLES: Record<TaskPriority, string> = {
   High: "bg-red-100 text-red-700",
 };
 
+// Kanban board grouping — "status" is the original 3-column board
+// (Teendő/Folyamatban/Kész); "type" regroups the same tasks into
+// Egyszeri/Ismétlődő/Kampány columns, status-independent, so the founder
+// can see everything tied to campaigns (or the recurring engine) in one
+// place regardless of where each task currently sits.
+type GroupBy = "status" | "type";
+
 const EMPTY_FORM = {
   title: "",
   category: "",
   priority: "Medium" as TaskPriority,
   due_date: "",
   assignee: "",
+  task_type: "Egyszeri" as TaskType,
+  campaign_id: "",
 };
 
 export default function TasksPage() {
@@ -87,9 +108,11 @@ export default function TasksPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"" | TaskType>("");
+  const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
@@ -171,6 +194,8 @@ export default function TasksPage() {
         due_date: form.due_date || null,
         assignee: form.assignee.trim() || null,
         status: "Teendő",
+        task_type: form.task_type,
+        campaign_id: form.task_type === "Kampány" ? form.campaign_id.trim() || null : null,
       })
       .select()
       .single();
@@ -221,14 +246,16 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return activeTasks;
-    return activeTasks.filter(
-      (t) =>
+    return activeTasks.filter((t) => {
+      if (typeFilter && t.task_type !== typeFilter) return false;
+      if (!q) return true;
+      return (
         t.title.toLowerCase().includes(q) ||
         (t.category ?? "").toLowerCase().includes(q) ||
         (t.assignee ?? "").toLowerCase().includes(q)
-    );
-  }, [activeTasks, query]);
+      );
+    });
+  }, [activeTasks, query, typeFilter]);
 
   function archiveTask(id: string) {
     void updateTask(id, { archived_at: new Date().toISOString() });
@@ -246,10 +273,15 @@ export default function TasksPage() {
     if (error) setError(error.message);
   }
 
-  function handleDrop(status: TaskStatus) {
+  // Drop target's meaning depends on the current grouping — a status
+  // column reschedules the card's állapot, a type column recategorizes
+  // it (Egyszeri/Ismétlődő/Kampány), same drag interaction either way.
+  function handleDrop(column: TaskStatus | TaskType) {
     setDragOverCol(null);
     const id = draggedId.current;
-    if (id) void updateTask(id, { status });
+    if (!id) return;
+    if (groupBy === "status") void updateTask(id, { status: column as TaskStatus });
+    else void updateTask(id, { task_type: column as TaskType });
   }
 
   if (!isSupabaseConfigured) {
@@ -299,21 +331,62 @@ export default function TasksPage() {
       {error && <ErrorBanner message={error} />}
 
       {!loading && tasks.length > 0 && (
-        <div className="relative mb-4 max-w-xs">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            className="input pl-9"
-            placeholder="Feladatok keresése…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="relative w-full max-w-xs">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                className="input pl-9"
+                placeholder="Feladatok keresése…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Típus</label>
+              <select
+                className="select !py-1.5 text-xs"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as TaskType | "")}
+              >
+                <option value="">Összes</option>
+                {TASK_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Kanban-tábla csoportosítás — az állapot szerinti (alapértelmezett)
+              3 oszlop mellett a típus szerinti nézet a Kampányhoz/Ismétlődő
+              sablonhoz tartozó feladatokat is átlátja, státusztól függetlenül. */}
+          <div className="flex items-center gap-1 rounded-md bg-ivory-dim p-1 text-xs">
+            <button
+              onClick={() => setGroupBy("status")}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                groupBy === "status" ? "bg-white text-forest shadow-sm" : "text-muted hover:text-forest"
+              }`}
+            >
+              Csoportosítás: Állapot szerint
+            </button>
+            <button
+              onClick={() => setGroupBy("type")}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                groupBy === "type" ? "bg-white text-forest shadow-sm" : "text-muted hover:text-forest"
+              }`}
+            >
+              Típus szerint
+            </button>
+          </div>
         </div>
       )}
 
       {showForm && (
         <form
           onSubmit={addTask}
-          className="card mb-6 grid animate-fade-in grid-cols-1 gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+          className="card mb-6 grid animate-fade-in grid-cols-1 gap-3 p-5 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
         >
           <div className="lg:col-span-2">
             <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
@@ -350,6 +423,20 @@ export default function TasksPage() {
             </select>
           </div>
           <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Típus</label>
+            <select
+              className="select"
+              value={form.task_type}
+              onChange={(e) => setForm((f) => ({ ...f, task_type: e.target.value as TaskType }))}
+            >
+              {TASK_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-medium text-muted">Határidő</label>
             <input
               type="date"
@@ -358,18 +445,27 @@ export default function TasksPage() {
               onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
             />
           </div>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-muted">Felelős</label>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Felelős</label>
+            <input
+              className="input"
+              value={form.assignee}
+              onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
+              placeholder="Ki"
+            />
+          </div>
+          {form.task_type === "Kampány" && (
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block text-xs font-medium text-muted">Kampány neve</label>
               <input
                 className="input"
-                value={form.assignee}
-                onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
-                placeholder="Ki"
+                value={form.campaign_id}
+                onChange={(e) => setForm((f) => ({ ...f, campaign_id: e.target.value }))}
+                placeholder="pl. Ősz — CONNECT"
               />
             </div>
-          </div>
-          <div className="flex gap-2 lg:col-span-5">
+          )}
+          <div className="flex gap-2 sm:col-span-2 lg:col-span-6">
             <button type="submit" disabled={saving} className="btn btn-primary">
               {saving ? "Mentés…" : "Feladat hozzáadása"}
             </button>
@@ -392,30 +488,40 @@ export default function TasksPage() {
         <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {COLUMNS.map((status) => {
-            const columnTasks = filteredTasks.filter((t) => t.status === status);
+          {(groupBy === "status" ? STATUS_COLUMNS : TASK_TYPES).map((column) => {
+            const columnTasks =
+              groupBy === "status"
+                ? filteredTasks.filter((t) => t.status === column)
+                : filteredTasks.filter((t) => t.task_type === column);
+            // "Összes archiválása" only makes sense for the Kész status
+            // column — a type column can hold a mix of statuses, so
+            // bulk-archiving everything shown there would also archive
+            // tasks that aren't actually done yet.
+            const isDoneColumn = groupBy === "status" && column === "Kész";
+            const columnLabel =
+              groupBy === "status" ? column : `${TASK_TYPE_ICON[column as TaskType]}${column}`;
             return (
               <div
-                key={status}
+                key={column}
                 onDragOver={(e) => {
                   e.preventDefault();
-                  setDragOverCol(status);
+                  setDragOverCol(column);
                 }}
-                onDragLeave={() => setDragOverCol((c) => (c === status ? null : c))}
+                onDragLeave={() => setDragOverCol((c) => (c === column ? null : c))}
                 onDrop={(e) => {
                   e.preventDefault();
-                  handleDrop(status);
+                  handleDrop(column);
                 }}
                 className={`flex min-h-[16rem] flex-col gap-3 rounded-xl border-2 border-dashed p-3 transition-colors ${
-                  dragOverCol === status ? "border-bronze bg-bronze/5" : "border-transparent"
+                  dragOverCol === column ? "border-bronze bg-bronze/5" : "border-transparent"
                 }`}
               >
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
-                    <h2 className="font-serif text-base text-forest">{status}</h2>
+                    <h2 className="font-serif text-base text-forest">{columnLabel}</h2>
                     <span className="badge bg-ivory-dim text-walnut">{columnTasks.length}</span>
                   </div>
-                  {status === "Kész" && columnTasks.length > 0 && (
+                  {isDoneColumn && columnTasks.length > 0 && (
                     <button
                       onClick={() => bulkArchive(columnTasks.map((t) => t.id))}
                       className="flex items-center gap-1 text-xs text-muted hover:text-forest"
@@ -434,7 +540,7 @@ export default function TasksPage() {
                     }}
                     onOpen={() => setOpenTaskId(task.id)}
                     onDelete={() => deleteTask(task.id)}
-                    onArchive={status === "Kész" ? () => archiveTask(task.id) : undefined}
+                    onArchive={task.status === "Kész" ? () => archiveTask(task.id) : undefined}
                     onStatusChange={(status) => updateTask(task.id, { status })}
                   />
                 ))}
@@ -544,6 +650,16 @@ function TaskCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span className={`badge ${PRIORITY_STYLES[task.priority]}`}>{PRIORITY_HU[task.priority]}</span>
+        {/* Típus dimension — independent of category, always shown (even
+            for the neutral "Egyszeri" default) so it reads at a glance,
+            same as the priority badge right next to it. */}
+        <span className={`badge ${TASK_TYPE_STYLES[task.task_type]}`}>
+          {TASK_TYPE_ICON[task.task_type]}
+          {task.task_type}
+        </span>
+        {task.task_type === "Kampány" && task.campaign_id && (
+          <span className="badge bg-ivory-dim text-walnut">{task.campaign_id}</span>
+        )}
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
         {overdue && <span className="badge bg-red-100 text-red-700">Lejárt</span>}
       </div>
@@ -579,7 +695,7 @@ function TaskCard({
         onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
         aria-label="Állapot módosítása"
       >
-        {COLUMNS.map((status) => (
+        {STATUS_COLUMNS.map((status) => (
           <option key={status} value={status}>
             {status}
           </option>
@@ -633,6 +749,10 @@ function ArchiveModal({
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className={`badge ${PRIORITY_STYLES[task.priority]}`}>
                         {PRIORITY_HU[task.priority]}
+                      </span>
+                      <span className={`badge ${TASK_TYPE_STYLES[task.task_type]}`}>
+                        {TASK_TYPE_ICON[task.task_type]}
+                        {task.task_type}
                       </span>
                       {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
                     </div>

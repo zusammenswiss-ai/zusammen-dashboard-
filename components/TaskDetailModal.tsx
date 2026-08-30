@@ -2,8 +2,8 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 import { X, Trash2, CalendarDays, User, Tag, Lock, Unlock } from "lucide-react";
-import type { TaskItem, TaskPriority, TaskStatus } from "@/lib/supabase/types";
-import { PRIORITY_HU } from "@/lib/labels";
+import type { TaskItem, TaskPriority, TaskStatus, TaskType } from "@/lib/supabase/types";
+import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_ICON } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 
 const STATUSES: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
@@ -34,6 +34,8 @@ export default function TaskDetailModal({
     due_date: task.due_date ?? "",
     assignee: task.assignee ?? "",
     notes: task.notes ?? "",
+    task_type: task.task_type,
+    campaign_id: task.campaign_id ?? "",
   });
 
   useEffect(() => {
@@ -57,6 +59,8 @@ export default function TaskDetailModal({
       due_date: draft.due_date || null,
       assignee: draft.assignee.trim() || null,
       notes: draft.notes.trim() || null,
+      task_type: draft.task_type,
+      campaign_id: draft.task_type === "Kampány" ? draft.campaign_id.trim() || null : null,
     });
     onClose();
   }
@@ -98,10 +102,14 @@ export default function TaskDetailModal({
                 <Field icon={Tag} label="Kategória" value={draft.category || "—"} />
                 <Field label="Állapot" value={draft.status} />
                 <Field label="Prioritás" value={PRIORITY_HU[draft.priority]} />
+                <Field label="Típus" value={`${TASK_TYPE_ICON[draft.task_type]}${draft.task_type}`} />
                 <Field icon={CalendarDays} label="Határidő" value={formatDate(draft.due_date)} />
-                <div className="col-span-2">
-                  <Field icon={User} label="Felelős" value={draft.assignee || "—"} />
-                </div>
+                <Field icon={User} label="Felelős" value={draft.assignee || "—"} />
+                {draft.task_type === "Kampány" && draft.campaign_id && (
+                  <div className="col-span-2">
+                    <Field label="Kampány" value={draft.campaign_id} />
+                  </div>
+                )}
               </div>
               <div className="mt-4">
                 <label className="mb-1 block text-xs font-medium text-muted">Megjegyzés</label>
@@ -163,6 +171,20 @@ export default function TaskDetailModal({
                     onChange={(e) => setDraft((d) => ({ ...d, due_date: e.target.value }))}
                   />
                 </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Típus</label>
+                  <select
+                    className="select"
+                    value={draft.task_type}
+                    onChange={(e) => setDraft((d) => ({ ...d, task_type: e.target.value as TaskType }))}
+                  >
+                    {TASK_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="col-span-2">
                   <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted">
                     <User size={12} /> Felelős
@@ -174,6 +196,17 @@ export default function TaskDetailModal({
                     placeholder="Ki felelős ezért?"
                   />
                 </div>
+                {draft.task_type === "Kampány" && (
+                  <div className="col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-muted">Kampány neve</label>
+                    <input
+                      className="input"
+                      value={draft.campaign_id}
+                      onChange={(e) => setDraft((d) => ({ ...d, campaign_id: e.target.value }))}
+                      placeholder="pl. Ősz — CONNECT"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="mt-4">

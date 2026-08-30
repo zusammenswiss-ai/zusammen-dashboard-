@@ -4,6 +4,7 @@
 
 export type TaskStatus = "Teendő" | "Folyamatban" | "Kész";
 export type TaskPriority = "Low" | "Medium" | "High";
+export type TaskType = "Egyszeri" | "Ismétlődő" | "Kampány";
 export type PlanStatus = "Idea" | "Considering" | "Planned";
 export type Season = "Spring" | "Summer" | "Autumn" | "Winter";
 export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
@@ -57,6 +58,15 @@ export interface TaskItem {
   // "→ Feladat létrehozása" — a DB trigger flips that item's status to
   // "Kiküldve" the moment this task's status becomes "Kész".
   content_id: string | null;
+  // Independent of category — see the comment on this column in
+  // supabase/schema.sql. Set automatically by the recurring-template
+  // engine (lib/recurring-templates.ts) and by "→ Feladat létrehozása"
+  // on Marketing content; otherwise defaults to "Egyszeri".
+  task_type: TaskType;
+  // Free-text campaign label, only meaningful when task_type = "Kampány"
+  // (e.g. "Ősz — CONNECT") — see the comment on this column in
+  // supabase/schema.sql for why it's not a foreign key.
+  campaign_id: string | null;
   created_at: string;
   updated_at: string;
 }

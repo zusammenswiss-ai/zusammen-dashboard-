@@ -123,6 +123,9 @@ export async function runRecurringTemplateCheck(
         assignee: t.default_assignee,
         notes: t.notes_template,
         due_date: todayISO,
+        // Every task this engine fires is by definition Ismétlődő —
+        // see the Típus dimension on tasks (supabase/schema.sql).
+        task_type: "Ismétlődő" as const,
       }))
     )
     .select();

@@ -3,6 +3,7 @@
 // translating only the display label avoids a schema migration).
 import type {
   TaskPriority,
+  TaskType,
   PlanStatus,
   Season,
   OrderStatus,
@@ -16,6 +17,21 @@ export const PRIORITY_HU: Record<TaskPriority, string> = {
   Low: "Alacsony",
   Medium: "Közepes",
   High: "Magas",
+};
+
+// task_type is already stored in Hungarian (see the schema check
+// constraint on tasks) — display order, badge color, and an icon prefix
+// for the card badge, same convention as print_status/product status.
+export const TASK_TYPES: TaskType[] = ["Egyszeri", "Ismétlődő", "Kampány"];
+export const TASK_TYPE_STYLES: Record<TaskType, string> = {
+  Egyszeri: "bg-gray-200 text-gray-700",
+  Ismétlődő: "bg-blue-100 text-blue-700",
+  Kampány: "bg-bronze/20 text-walnut",
+};
+export const TASK_TYPE_ICON: Record<TaskType, string> = {
+  Egyszeri: "",
+  Ismétlődő: "🔁 ",
+  Kampány: "🎯 ",
 };
 
 export const PLAN_STATUS_HU: Record<PlanStatus, string> = {

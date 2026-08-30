@@ -81,6 +81,34 @@ alter table public.tasks add column if not exists notes text;
 -- than deleting it outright.
 alter table public.tasks add column if not exists archived_at timestamptz;
 
+-- Típus dimension, independent of the free-text category field — lets
+-- the Kanban board visually and by-filter distinguish one-off tasks from
+-- ones that came out of the recurring-template engine (see
+-- lib/recurring-templates.ts, which sets this automatically) or that
+-- belong to a marketing push (set automatically by "→ Feladat
+-- létrehozása" on a Tartalom-naptár item — see app/(dashboard)/marketing).
+alter table public.tasks add column if not exists task_type text not null default 'Egyszeri';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'tasks_task_type_check'
+  ) then
+    alter table public.tasks
+      add constraint tasks_task_type_check
+      check (task_type in ('Egyszeri', 'Ismétlődő', 'Kampány'));
+  end if;
+end $$;
+
+-- Which campaign a "Kampány"-típusú task belongs to. Deliberately plain
+-- text rather than a foreign key into marketing_content or
+-- marketing_campaigns — a task can be spun off a single Tartalom-naptár
+-- item (which already has its own content_id below) or just describe a
+-- whole seasonal push by name (e.g. "Ősz — CONNECT"), and forcing one
+-- specific table's id here would make the other case awkward. Only
+-- meaningful when task_type = 'Kampány'.
+alter table public.tasks add column if not exists campaign_id text;
+
 -- ---------------------------------------------------------------------
 -- Task templates — presets for the "Sablonból hozzáadás" quick-add on
 -- Feladatok and its "Sablonok kezelése" editor.

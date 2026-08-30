@@ -220,6 +220,11 @@ export default function MarketingPage() {
   async function createTaskFromContent(item: MarketingContent) {
     if (!supabase) return;
     const preview = item.copy_text ? item.copy_text.slice(0, 140) : null;
+    // A task spun off the Tartalom-naptár is by definition Kampány-típusú
+    // (see the Típus dimension on tasks) — campaign_id is a display label
+    // here, not a foreign key (see the comment on that column in
+    // supabase/schema.sql), so "season — title" is enough to identify it.
+    const campaignLabel = item.season ? `${SEASON_HU[item.season]} — ${item.title}` : item.title;
     const { data, error } = await supabase
       .from("tasks")
       .insert({
@@ -229,6 +234,8 @@ export default function MarketingPage() {
         due_date: item.scheduled_date,
         notes: preview,
         content_id: item.id,
+        task_type: "Kampány",
+        campaign_id: campaignLabel,
       })
       .select("id, content_id")
       .single();
