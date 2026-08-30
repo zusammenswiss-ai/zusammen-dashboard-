@@ -3,15 +3,23 @@
 import { useEffect, useState } from "react";
 import { Send, Eye, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { EmailTemplate, MarketingContent } from "@/lib/supabase/types";
-import { personalizeTemplate } from "@/lib/email-campaign";
 
 type Audience = "demand" | "newsletter";
 
+type PreviewData = {
+  recipient: { email: string; name: string | null };
+  isSample: boolean;
+  subject: string;
+  html: string;
+};
+
 /** e) Email kampány küldése — sablon + tárgy + címzett-kör(ök) kiválasztása,
- * "Előnézet" (kitöltött sablon egy teszt névvel, ugyanazzal a
- * personalizeTemplate függvénnyel, mint amit a valódi küldés is használ —
- * lásd lib/email-campaign.ts), és "Küldés", ami ténylegesen kimegy a
- * Brevo API-n keresztül (app/api/marketing/send-campaign). */
+ * "Előnézet" (a tényleges első címzett valós adataival kitöltve, a
+ * /api/marketing/preview-campaign route-on keresztül, ami ugyanazt a
+ * lib/email-campaign.ts-beli recipient-feloldást és personalizeTemplate-et
+ * futtatja, mint a valódi küldés — így az előnézet garantáltan ugyanazt
+ * mutatja, mint ami kimegy), és "Küldés", ami ténylegesen kimegy a Brevo
+ * API-n keresztül (app/api/marketing/send-campaign). */
 export default function EmailCampaignSendForm({
   templates,
   demandCount,
@@ -32,7 +40,9 @@ export default function EmailCampaignSendForm({
   const [templateId, setTemplateId] = useState("");
   const [subject, setSubject] = useState("");
   const [audiences, setAudiences] = useState<Set<Audience>>(new Set());
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -61,6 +71,26 @@ export default function EmailCampaignSendForm({
       else next.add(a);
       return next;
     });
+  }
+
+  async function openPreview() {
+    if (!templateId) return;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const res = await fetch("/api/marketing/preview-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId, subject, audiences: Array.from(audiences) }),
+      });
+      const data = await res.json();
+      if (data.ok) setPreview(data);
+      else setPreviewError(data.error || "Nem sikerült előnézetet készíteni.");
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "Hálózati hiba az előnézet közben.");
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   async function send() {
@@ -149,10 +179,11 @@ export default function EmailCampaignSendForm({
             <button
               type="button"
               className="btn btn-ghost"
-              disabled={!selectedTemplate}
-              onClick={() => setPreviewOpen(true)}
+              disabled={!selectedTemplate || audiences.size === 0 || previewLoading}
+              onClick={openPreview}
+              title={audiences.size === 0 ? "Előbb válaszd ki, kinek menjen ki, hogy valós feliratkozó adataival tudjunk előnézetet mutatni" : undefined}
             >
-              <Eye size={15} /> Előnézet
+              <Eye size={15} /> {previewLoading ? "Betöltés…" : "Előnézet"}
             </button>
             <button
               type="button"
@@ -163,6 +194,7 @@ export default function EmailCampaignSendForm({
               <Send size={15} /> {sending ? "Küldés…" : "Küldés"}
             </button>
           </div>
+          {previewError && <p className="text-xs text-red-600">{previewError}</p>}
 
           {result && (
             <div
@@ -177,31 +209,29 @@ export default function EmailCampaignSendForm({
         </div>
       )}
 
-      {previewOpen && selectedTemplate && (
-        <PreviewModal
-          subject={subject}
-          html={personalizeTemplate(selectedTemplate.html_content, { firstName: "Éva", unsubscribeUrl: "#" })}
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
+      {preview && <PreviewModal preview={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }
 
-function PreviewModal({ subject, html, onClose }: { subject: string; html: string; onClose: () => void }) {
+function PreviewModal({ preview, onClose }: { preview: PreviewData; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border p-4">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Előnézet — teszt névvel (Éva)</p>
-            <p className="font-serif text-lg text-forest">{subject || "(nincs tárgy megadva)"}</p>
+            <p className="text-xs uppercase tracking-wide text-muted">
+              {preview.isSample
+                ? "Előnézet — minta adatokkal (még nincs valós feliratkozó a kiválasztott körben)"
+                : `Előnézet — valós feliratkozó: ${preview.recipient.name ? `${preview.recipient.name} · ` : ""}${preview.recipient.email}`}
+            </p>
+            <p className="font-serif text-lg text-forest">{preview.subject || "(nincs tárgy megadva)"}</p>
           </div>
           <button onClick={onClose} className="btn btn-ghost !px-2">
             <X size={16} />
           </button>
         </div>
-        <iframe title="Sablon előnézet" srcDoc={html} className="min-h-[50vh] w-full flex-1" sandbox="" />
+        <iframe title="Sablon előnézet" srcDoc={preview.html} className="min-h-[50vh] w-full flex-1" sandbox="" />
       </div>
     </div>
   );

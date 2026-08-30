@@ -2,15 +2,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
-// GET /api/newsletter/unsubscribe?email=... — the link every campaign
-// email ends with (see lib/email-campaign.ts's personalizeTemplate).
-// Deliberately unauthenticated (a person clicking this from their inbox
-// has no dashboard session) and works for BOTH recipient sources: it
-// always records the address in the global email_unsubscribes
-// suppression list checked by every future send (see the comment on
-// that table in supabase/schema.sql), and additionally flips
-// newsletter_subscribers.unsubscribed when a matching row exists.
+// GET /api/newsletter/unsubscribe?email=... — a manual/admin-facing
+// unsubscribe route, independent of what actually goes out in a
+// campaign email. Campaign emails themselves now carry Brevo's own
+// {unsubscribe} merge tag instead of a link to this route (see
+// lib/email-campaign.ts's personalizeTemplate) — Brevo enforces that
+// suppression account-wide the moment it's clicked, no sync needed back
+// into this app. This route stays as a manual fallback (e.g. the
+// founder marking an address unsubscribed by hand) and keeps both
+// records used elsewhere in the app in sync: email_unsubscribes (the
+// pre-send filter checked by every campaign, see the comment on that
+// table in supabase/schema.sql) and newsletter_subscribers.unsubscribed.
 //
+// Deliberately unauthenticated — works even without a dashboard session.
 // Builds its own anon client inline — same pattern as /api/calendar/ics
 // and /api/send-email.
 export async function GET(request: Request) {
