@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -26,11 +26,14 @@ import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
-import { formatCHF, formatDate, timeAgo } from "@/lib/format";
+import { formatDate, timeAgo } from "@/lib/format";
+import { formatMoney } from "@/lib/currency";
+import { DEFAULT_CURRENCY } from "@/lib/company-settings";
 import { PLAN_STATUS_HU, ORDER_STATUS_HU } from "@/lib/labels";
 import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
 import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
-import type { PlanStatus, OrderStatus } from "@/lib/supabase/types";
+import { convertAmount, fetchExchangeRates, type ExchangeRates } from "@/lib/exchange-rates";
+import type { CurrencyCode, PlanStatus, OrderStatus } from "@/lib/supabase/types";
 
 // Two separate activity kinds, deliberately not merged into one feed —
 // "the business" and "the personal ritual" are different concerns for a
@@ -55,8 +58,6 @@ type Stats = {
   tasksTodo: number;
   tasksInProgress: number;
   tasksDone: number;
-  revenue: number;
-  margin: number;
   documentsTotal: number;
   ideasTotal: number;
   ordersOpen: number;
@@ -75,6 +76,19 @@ export default function OverviewPage() {
   // error) — a disconnected Gmail just leaves this section shorter, not
   // broken-looking.
   const [unreadMail, setUnreadMail] = useState<number | null>(null);
+  // Raw Termékek rows + Beállítások → Pénznem, kept separate from Stats
+  // (rather than folded into one setStats call) so the revenue/margin
+  // stat card can be a useMemo depending on live exchange rates — those
+  // load on their own schedule (see the effect below), independently of
+  // this page's one-shot data fetch.
+  const [financeRows, setFinanceRows] = useState<
+    { sale_price: number | null; sale_price_currency: CurrencyCode; cogs: number | null; cogs_currency: string | null; planned_units: number }[]
+  >([]);
+  const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
+  // Live árfolyamok a "Várható bevétel" stat card mixed-currency
+  // összegzéséhez — see lib/exchange-rates.ts. Null just means "not
+  // converted yet"; convertAmount degrades gracefully either way.
+  const [rates, setRates] = useState<ExchangeRates | null>(null);
   // Beállítások → Naptár-integráció; defaults to shown until the row
   // loads (or if it never existed) — matches the column's own db default.
   const [goldCardReminderEnabled, setGoldCardReminderEnabled] = useState(true);
@@ -107,7 +121,7 @@ export default function OverviewPage() {
         ] = await Promise.all([
           supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-          supabase.from("products").select("sale_price, cogs, planned_units"),
+          supabase.from("products").select("sale_price, sale_price_currency, cogs, cogs_currency, planned_units"),
           supabase.from("documents").select("*").order("created_at", { ascending: false }),
           supabase.from("future_plans").select("*").order("created_at", { ascending: false }),
           supabase.from("orders").select("*").order("created_at", { ascending: false }),
@@ -117,7 +131,7 @@ export default function OverviewPage() {
           supabase.from("wild_card_completions").select("*").order("created_at", { ascending: false }).limit(5),
           supabase.from("surprise_question_log").select("*").order("created_at", { ascending: false }).limit(5),
           fetchDueNotifications(supabase),
-          supabase.from("company_settings").select("gold_card_reminder_enabled").maybeSingle(),
+          supabase.from("company_settings").select("gold_card_reminder_enabled, currency").maybeSingle(),
         ]);
 
         const firstError =
@@ -137,8 +151,10 @@ export default function OverviewPage() {
         const suppliers = suppliersRes.data ?? [];
         const tasks = tasksRes.data ?? [];
         // Termékek katalógus rows — see the same revenue/margin math on
-        // Pénzügyek, which reads this same table now.
-        const finance = financeRes.data ?? [];
+        // Pénzügyek, which reads this same table now. Kept in their own
+        // state (not reduced here) so the stat card can react to
+        // exchange rates loading asynchronously — see the useMemo below.
+        setFinanceRows(financeRes.data ?? []);
         const documents = documentsRes.data ?? [];
         const plans = plansRes.data ?? [];
         const orders = ordersRes.data ?? [];
@@ -146,9 +162,7 @@ export default function OverviewPage() {
         const journeyMemories = journeyMemoriesRes.data ?? [];
         const wildCardCompletions = wildCardCompletionsRes.data ?? [];
         const surpriseQuestionLog = surpriseQuestionLogRes.data ?? [];
-
-        const revenue = finance.reduce((sum, p) => sum + (p.sale_price ?? 0) * p.planned_units, 0);
-        const margin = finance.reduce((sum, p) => sum + ((p.sale_price ?? 0) - (p.cogs ?? 0)) * p.planned_units, 0);
+        setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
 
         setStats({
           suppliersTotal: suppliers.length,
@@ -157,8 +171,6 @@ export default function OverviewPage() {
           tasksTodo: tasks.filter((t) => t.status === "Teendő").length,
           tasksInProgress: tasks.filter((t) => t.status === "Folyamatban").length,
           tasksDone: tasks.filter((t) => t.status === "Kész").length,
-          revenue,
-          margin,
           documentsTotal: documents.length,
           ideasTotal: plans.length,
           ordersOpen: orders.filter((o) => o.status !== "Done").length,
@@ -272,6 +284,29 @@ export default function OverviewPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    // A failed fetch just leaves rates null — the revenue stat card's
+    // convertAmount calls fall back to unconverted sums, same as
+    // before this feature existed, rather than breaking the page.
+    fetchExchangeRates().then((result) => {
+      if (result.ok) setRates(result.rates);
+    });
+  }, []);
+
+  // Converted into `currency` (Beállítások → Pénznem) rather than just
+  // summed raw — same fix as Pénzügyek's totals, see lib/exchange-rates.ts.
+  const { revenue, margin } = useMemo(() => {
+    let rev = 0;
+    let mar = 0;
+    for (const p of financeRows) {
+      const price = convertAmount(p.sale_price ?? 0, p.sale_price_currency, currency, rates);
+      const cogs = convertAmount(p.cogs ?? 0, (p.cogs_currency as CurrencyCode | null) ?? "CHF", currency, rates);
+      rev += price * p.planned_units;
+      mar += (price - cogs) * p.planned_units;
+    }
+    return { revenue: rev, margin: mar };
+  }, [financeRows, currency, rates]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -390,8 +425,8 @@ export default function OverviewPage() {
             <StatCard
               icon={Wallet}
               label="Várható bevétel"
-              value={formatCHF(stats.revenue)}
-              hint={`${formatCHF(stats.margin)} árrés`}
+              value={formatMoney(revenue, currency)}
+              hint={`${formatMoney(margin, currency)} árrés`}
             />
             <StatCard
               icon={FolderOpen}
