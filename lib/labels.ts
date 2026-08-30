@@ -11,6 +11,7 @@ import type {
   PrintStatus,
   RecurrenceType,
   ProductStatus,
+  CampaignStatus,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -85,6 +86,16 @@ export const PRODUCT_STATUS_STYLES: Record<ProductStatus, string> = {
   Tesztelés: "bg-yellow-100 text-yellow-800",
   Élő: "bg-green-100 text-green-700",
   "Jövőbeli terv": "bg-blue-100 text-blue-700",
+};
+
+// status is already stored in Hungarian (see the schema check constraint
+// on campaigns) — just display order + badge color, same convention as
+// print_status/product status above.
+export const CAMPAIGN_STATUSES: CampaignStatus[] = ["Tervezve", "Aktív", "Lezárva"];
+export const CAMPAIGN_STATUS_STYLES: Record<CampaignStatus, string> = {
+  Tervezve: "bg-gray-200 text-gray-700",
+  Aktív: "bg-green-100 text-green-700",
+  Lezárva: "bg-blue-100 text-blue-700",
 };
 
 // Fixed preview slots a card-asset ZIP is scanned for on upload — shared

@@ -11,6 +11,7 @@ export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
 export type ContractStatus = "None" | "Signed" | "Failed" | "Expired";
 export type RecurrenceType = "Napi" | "Heti" | "Havi" | "Negyedéves" | "Éves";
 export type ProductStatus = "Fejlesztés alatt" | "Tesztelés" | "Élő" | "Jövőbeli terv";
+export type CampaignStatus = "Tervezve" | "Aktív" | "Lezárva";
 
 export interface SupplierProduct {
   id: string;
@@ -63,10 +64,14 @@ export interface TaskItem {
   // engine (lib/recurring-templates.ts) and by "→ Feladat létrehozása"
   // on Marketing content; otherwise defaults to "Egyszeri".
   task_type: TaskType;
-  // Free-text campaign label, only meaningful when task_type = "Kampány"
-  // (e.g. "Ősz — CONNECT") — see the comment on this column in
-  // supabase/schema.sql for why it's not a foreign key.
+  // Real link into campaigns, only meaningful when task_type = "Kampány"
+  // — set via the "Melyik kampányhoz tartozik?" picker.
   campaign_id: string | null;
+  // Legacy free-text campaign label from before campaign_id was a real
+  // FK (see the campaigns table's comment in supabase/schema.sql) —
+  // shown only as a fallback when campaign_id is null, e.g. an older
+  // task that hasn't been linked to a real Kampány row yet.
+  campaign_label: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +79,27 @@ export type TaskInsert = Partial<Omit<TaskItem, "id" | "created_at" | "updated_a
   title: string;
 };
 export type TaskUpdate = Partial<Omit<TaskItem, "id" | "created_at">>;
+
+// Named marketing pushes (e.g. "ZUSAMMEN FIRST 20") — distinct from
+// MarketingCampaign below (the 4 fixed Évszakos stratégia rows, one per
+// season). A Campaign optionally belongs to a season and groups
+// together the Feladatok (via TaskItem.campaign_id) and Marketing
+// tartalom (via MarketingContent.campaign_id) that serve it.
+export interface Campaign {
+  id: string;
+  name: string;
+  season: Season | null;
+  status: CampaignStatus;
+  start_date: string | null;
+  end_date: string | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type CampaignInsert = Partial<Omit<Campaign, "id" | "created_at" | "updated_at">> & {
+  name: string;
+};
+export type CampaignUpdate = Partial<Omit<Campaign, "id" | "created_at">>;
 
 export interface TaskTemplate {
   id: string;
@@ -227,6 +253,10 @@ export interface MarketingContent {
   asset_id: string | null;
   status: MarketingContentStatus;
   notes: string | null;
+  // Optional link to the Campaign this piece of content serves — shown
+  // on that campaign's részletes nézet. Independent of season above
+  // (a campaign has its own, separately-set season).
+  campaign_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -568,6 +598,12 @@ export interface Database {
         Update: TaskUpdate;
         Relationships: [];
       };
+      campaigns: {
+        Row: Campaign;
+        Insert: CampaignInsert;
+        Update: CampaignUpdate;
+        Relationships: [];
+      };
       task_templates: {
         Row: TaskTemplate;
         Insert: TaskTemplateInsert;
@@ -745,6 +781,7 @@ export interface Database {
 export const ANON_TABLE_NAMES = [
   "suppliers",
   "tasks",
+  "campaigns",
   "task_templates",
   "finance_products",
   "marketing_campaigns",

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
+  Campaign,
   MarketingCampaign,
   MarketingContent,
   MarketingContentType,
@@ -33,6 +34,8 @@ import type {
   MarketingAssetLanguage,
   MarketingAssetType,
   Season,
+  TaskStatus,
+  TaskType,
   EmailTemplate,
   NewsletterSubscriber,
 } from "@/lib/supabase/types";
@@ -44,8 +47,10 @@ import EmailComposeModal from "@/components/EmailComposeModal";
 import EmailTemplatesSection from "@/components/EmailTemplatesSection";
 import NewsletterSubscribersSection from "@/components/NewsletterSubscribersSection";
 import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
+import CampaignFormModal from "@/components/CampaignFormModal";
+import CampaignDetailModal from "@/components/CampaignDetailModal";
 import { useUndoAction } from "@/lib/useUndoAction";
-import { SEASON_HU } from "@/lib/labels";
+import { SEASON_HU, CAMPAIGN_STATUS_STYLES } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 
 const STORAGE_BUCKET = "marketing";
@@ -97,7 +102,11 @@ type ContentPrefill = { assetId: string; title: string; season: Season | null };
 
 export default function MarketingPage() {
   const [tab, setTab] = useState<Tab>("seasons");
-  const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
+  // The 4 fixed Évszakos stratégia rows (Tavasz/Nyár/Ősz/Tél) — distinct
+  // from `campaigns` below, the named-marketing-push entity (e.g.
+  // "ZUSAMMEN FIRST 20"). See the comment on the Campaign type.
+  const [seasonalStrategies, setSeasonalStrategies] = useState<MarketingCampaign[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [content, setContent] = useState<MarketingContent[]>([]);
   const [assets, setAssets] = useState<MarketingAsset[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -110,12 +119,23 @@ export default function MarketingPage() {
   // sablon on EmailCampaignSendForm below.
   const [campaignTemplateId, setCampaignTemplateId] = useState<string | null>(null);
   // Lightweight — just enough to know which content items already have a
-  // linked task, and which task to deep-link to. Not the full TaskItem
+  // linked task (and which task to deep-link to), and to render a
+  // kampány's mini Kanban in CampaignDetailModal. Not the full TaskItem
   // shape; the Tasks page owns everything else about these rows.
-  const [linkedTasks, setLinkedTasks] = useState<{ id: string; content_id: string | null }[]>([]);
+  const [linkedTasks, setLinkedTasks] = useState<
+    { id: string; title: string; status: TaskStatus; task_type: TaskType; content_id: string | null; campaign_id: string | null }[]
+  >([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [composeFor, setComposeFor] = useState<MarketingCampaign | null>(null);
+
+  // Kampány részletes nézet state: which campaigns.id is open (set by
+  // clicking a kampány mini-card under a season, or by the
+  // /marketing?campaign=<id> deep link a Feladatok Kanban card's
+  // kampány-badge jumps to), and the "+ Új kampány" quick-add form
+  // (defaultSeason null when opened without a season prefill).
+  const [openCampaignId, setOpenCampaignId] = useState<string | null>(null);
+  const [campaignFormSeason, setCampaignFormSeason] = useState<Season | "" | null>(null);
 
   // Lifted out of ContentCalendarSection (rather than kept local there) so
   // that "→ Tartalom létrehozása ebből" on an asset card — rendered under a
@@ -132,28 +152,45 @@ export default function MarketingPage() {
 
   const supabase = getSupabaseClient();
 
+  // Deep link support: /marketing?campaign=<id>, jumped to from a
+  // Feladatok Kanban card's kampány-badge. Read via window.location
+  // instead of useSearchParams to avoid needing a Suspense boundary just
+  // for this one-time check (same convention as /tasks?open=<id>).
+  useEffect(() => {
+    const campaignId = new URLSearchParams(window.location.search).get("campaign");
+    if (campaignId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenCampaignId(campaignId);
+      setTab("seasons");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (!supabase) return;
     (async () => {
       setLoading(true);
       setError(null);
-      const [campaignsRes, contentRes, assetsRes, tasksRes, templatesRes, newsletterRes, demandRes] =
+      const [strategiesRes, kampanyokRes, contentRes, assetsRes, tasksRes, templatesRes, newsletterRes, demandRes] =
         await Promise.all([
           supabase.from("marketing_campaigns").select("*"),
+          supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
           supabase.from("marketing_content").select("*").order("scheduled_date", { ascending: true }),
           supabase.from("marketing_assets").select("*").order("created_at", { ascending: false }),
-          supabase.from("tasks").select("id, content_id").not("content_id", "is", null),
+          supabase.from("tasks").select("id, title, status, task_type, content_id, campaign_id"),
           supabase.from("email_templates").select("*").order("created_at", { ascending: false }),
           supabase.from("newsletter_subscribers").select("*").order("subscribed_at", { ascending: false }),
           supabase.from("landing_responses").select("email").not("email", "is", null),
         ]);
-      if (campaignsRes.error) setError(campaignsRes.error.message);
+      if (strategiesRes.error) setError(strategiesRes.error.message);
       else {
-        const sorted = [...(campaignsRes.data ?? [])].sort(
+        const sorted = [...(strategiesRes.data ?? [])].sort(
           (a, b) => SEASON_ORDER.indexOf(a.season) - SEASON_ORDER.indexOf(b.season)
         );
-        setCampaigns(sorted);
+        setSeasonalStrategies(sorted);
       }
+      if (kampanyokRes.error) setError(kampanyokRes.error.message);
+      else setCampaigns(kampanyokRes.data ?? []);
       if (contentRes.error) setError(contentRes.error.message);
       else setContent(contentRes.data ?? []);
       if (assetsRes.error) setError(assetsRes.error.message);
@@ -184,10 +221,29 @@ export default function MarketingPage() {
     return map;
   }, [assets]);
 
-  async function updateCampaign(id: string, patch: Partial<MarketingCampaign>) {
-    setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  const campaignById = useMemo(() => {
+    const map = new Map<string, Campaign>();
+    for (const c of campaigns) map.set(c.id, c);
+    return map;
+  }, [campaigns]);
+
+  const openCampaign = openCampaignId ? campaignById.get(openCampaignId) ?? null : null;
+
+  async function updateSeasonalStrategy(id: string, patch: Partial<MarketingCampaign>) {
+    setSeasonalStrategies((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     if (!supabase) return;
     const { error } = await supabase.from("marketing_campaigns").update(patch).eq("id", id);
+    if (error) setError(error.message);
+  }
+
+  function addCampaign(campaign: Campaign) {
+    setCampaigns((prev) => [campaign, ...prev]);
+  }
+
+  async function updateCampaign(id: string, patch: Partial<Campaign>) {
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    if (!supabase) return;
+    const { error } = await supabase.from("campaigns").update(patch).eq("id", id);
     if (error) setError(error.message);
   }
 
@@ -221,10 +277,11 @@ export default function MarketingPage() {
     if (!supabase) return;
     const preview = item.copy_text ? item.copy_text.slice(0, 140) : null;
     // A task spun off the Tartalom-naptár is by definition Kampány-típusú
-    // (see the Típus dimension on tasks) — campaign_id is a display label
-    // here, not a foreign key (see the comment on that column in
-    // supabase/schema.sql), so "season — title" is enough to identify it.
-    const campaignLabel = item.season ? `${SEASON_HU[item.season]} — ${item.title}` : item.title;
+    // (see the Típus dimension on tasks). If this content item is itself
+    // linked to a real kampány (campaign_id), the new task inherits that
+    // same link; otherwise campaign_label just carries a readable
+    // "season — title" fallback, same as before campaign_id was a real FK.
+    const campaignLabel = item.campaign_id ? null : item.season ? `${SEASON_HU[item.season]} — ${item.title}` : item.title;
     const { data, error } = await supabase
       .from("tasks")
       .insert({
@@ -235,9 +292,10 @@ export default function MarketingPage() {
         notes: preview,
         content_id: item.id,
         task_type: "Kampány",
-        campaign_id: campaignLabel,
+        campaign_id: item.campaign_id,
+        campaign_label: campaignLabel,
       })
-      .select("id, content_id")
+      .select("id, title, status, task_type, content_id, campaign_id")
       .single();
     if (error) {
       setError(error.message);
@@ -353,12 +411,15 @@ export default function MarketingPage() {
         <>
           {tab === "seasons" && (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {campaigns.map((campaign) => (
+              {seasonalStrategies.map((strategy) => (
                 <CampaignCard
-                  key={campaign.id}
-                  campaign={campaign}
-                  onUpdate={(patch) => updateCampaign(campaign.id, patch)}
-                  onEmail={() => setComposeFor(campaign)}
+                  key={strategy.id}
+                  campaign={strategy}
+                  onUpdate={(patch) => updateSeasonalStrategy(strategy.id, patch)}
+                  onEmail={() => setComposeFor(strategy)}
+                  relatedCampaigns={campaigns.filter((k) => k.season === strategy.season)}
+                  onOpenCampaign={setOpenCampaignId}
+                  onAddCampaign={() => setCampaignFormSeason(strategy.season)}
                 />
               ))}
             </div>
@@ -369,6 +430,8 @@ export default function MarketingPage() {
               content={content}
               assets={assets}
               assetById={assetById}
+              campaigns={campaigns}
+              campaignById={campaignById}
               taskIdByContentId={taskIdByContentId}
               showForm={showContentForm}
               onShowFormChange={setShowContentForm}
@@ -378,6 +441,7 @@ export default function MarketingPage() {
               onDelete={deleteContent}
               onStatusChange={updateContentStatus}
               onCreateTask={createTaskFromContent}
+              onOpenCampaign={setOpenCampaignId}
             />
           )}
 
@@ -429,6 +493,29 @@ export default function MarketingPage() {
         />
       )}
 
+      {campaignFormSeason !== null && (
+        <CampaignFormModal
+          defaultSeason={campaignFormSeason || null}
+          onClose={() => setCampaignFormSeason(null)}
+          onCreated={(campaign) => {
+            addCampaign(campaign);
+            setCampaignFormSeason(null);
+            setOpenCampaignId(campaign.id);
+          }}
+        />
+      )}
+
+      {openCampaign && (
+        <CampaignDetailModal
+          campaign={openCampaign}
+          tasks={linkedTasks.filter((t) => t.campaign_id === openCampaign.id)}
+          content={content.filter((c) => c.campaign_id === openCampaign.id)}
+          assetById={assetById}
+          onClose={() => setOpenCampaignId(null)}
+          onUpdate={(patch) => updateCampaign(openCampaign.id, patch)}
+        />
+      )}
+
       {pendingUndoContent && <UndoToast message={pendingUndoContent.message} onUndo={undoNowContent} />}
       {pendingUndoAsset && <UndoToast message={pendingUndoAsset.message} onUndo={undoNowAsset} />}
     </>
@@ -439,10 +526,16 @@ function CampaignCard({
   campaign,
   onUpdate,
   onEmail,
+  relatedCampaigns,
+  onOpenCampaign,
+  onAddCampaign,
 }: {
   campaign: MarketingCampaign;
   onUpdate: (patch: Partial<MarketingCampaign>) => void;
   onEmail: () => void;
+  relatedCampaigns: Campaign[];
+  onOpenCampaign: (id: string) => void;
+  onAddCampaign: () => void;
 }) {
   // Locked by default so the card can't be edited by an accidental click —
   // "Feloldás" opens it up for editing, "Rögzítés" saves and locks it back.
@@ -556,6 +649,41 @@ function CampaignCard({
           </button>
         </div>
       )}
+
+      <div className="mt-4 border-t border-border pt-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-xs font-medium text-muted">Kampányok</h3>
+          <button
+            onClick={onAddCampaign}
+            className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
+          >
+            <Plus size={12} /> Új kampány hozzáadása
+          </button>
+        </div>
+        {relatedCampaigns.length === 0 ? (
+          <p className="text-xs text-muted">Még nincs kampány ehhez az évszakhoz.</p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {relatedCampaigns.map((k) => (
+              <button
+                key={k.id}
+                onClick={() => onOpenCampaign(k.id)}
+                className="flex w-full items-center justify-between gap-2 rounded-md bg-ivory-dim px-3 py-1.5 text-left hover:bg-ivory-dim/70"
+              >
+                <span className="truncate text-xs font-medium text-forest">{k.name}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span className={`badge ${CAMPAIGN_STATUS_STYLES[k.status]}`}>{k.status}</span>
+                  {(k.start_date || k.end_date) && (
+                    <span className="text-[10px] text-muted">
+                      {k.start_date ? formatDate(k.start_date) : "…"} – {k.end_date ? formatDate(k.end_date) : "…"}
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -568,6 +696,7 @@ const EMPTY_CONTENT_FORM = {
   copy_text: "",
   status: "Ötlet" as MarketingContentStatus,
   notes: "",
+  campaign_id: "",
 };
 
 /** b) Tartalom-naptár — every scheduled post/story/email/campaign, nearest
@@ -578,6 +707,8 @@ function ContentCalendarSection({
   content,
   assets,
   assetById,
+  campaigns,
+  campaignById,
   taskIdByContentId,
   showForm,
   onShowFormChange,
@@ -587,10 +718,13 @@ function ContentCalendarSection({
   onDelete,
   onStatusChange,
   onCreateTask,
+  onOpenCampaign,
 }: {
   content: MarketingContent[];
   assets: MarketingAsset[];
   assetById: Map<string, MarketingAsset>;
+  campaigns: Campaign[];
+  campaignById: Map<string, Campaign>;
   taskIdByContentId: Map<string, string>;
   showForm: boolean;
   onShowFormChange: (show: boolean) => void;
@@ -600,6 +734,7 @@ function ContentCalendarSection({
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: MarketingContentStatus) => void;
   onCreateTask: (item: MarketingContent) => void;
+  onOpenCampaign: (id: string) => void;
 }) {
   const [monthFilter, setMonthFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | MarketingContentType>("");
@@ -671,6 +806,7 @@ function ContentCalendarSection({
         <ContentForm
           key={prefill?.assetId ?? "new"}
           assets={assets}
+          campaigns={campaigns}
           prefill={prefill}
           onCreated={(item) => {
             onAdd(item);
@@ -700,9 +836,11 @@ function ContentCalendarSection({
               item={item}
               resolvedImageUrl={item.asset_id ? assetById.get(item.asset_id)?.image_url ?? null : item.image_url}
               linkedTaskId={taskIdByContentId.get(item.id) ?? null}
+              linkedCampaign={item.campaign_id ? campaignById.get(item.campaign_id) ?? null : null}
               onDelete={() => onDelete(item.id)}
               onStatusChange={(status) => onStatusChange(item.id, status)}
               onCreateTask={() => onCreateTask(item)}
+              onOpenCampaign={onOpenCampaign}
             />
           ))}
         </div>
@@ -713,11 +851,13 @@ function ContentCalendarSection({
 
 function ContentForm({
   assets,
+  campaigns,
   prefill,
   onCreated,
   onCancel,
 }: {
   assets: MarketingAsset[];
+  campaigns: Campaign[];
   prefill: ContentPrefill | null;
   onCreated: (item: MarketingContent) => void;
   onCancel: () => void;
@@ -771,6 +911,7 @@ function ContentForm({
           asset_id: assetId,
           status: form.status,
           notes: form.notes.trim() || null,
+          campaign_id: form.campaign_id || null,
         })
         .select()
         .single();
@@ -846,6 +987,21 @@ function ContentForm({
             {CONTENT_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Kampány</label>
+          <select
+            className="select"
+            value={form.campaign_id}
+            onChange={(e) => setForm((f) => ({ ...f, campaign_id: e.target.value }))}
+          >
+            <option value="">Nincs</option>
+            {campaigns.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.name}
               </option>
             ))}
           </select>
@@ -941,16 +1097,20 @@ function ContentCard({
   item,
   resolvedImageUrl,
   linkedTaskId,
+  linkedCampaign,
   onDelete,
   onStatusChange,
   onCreateTask,
+  onOpenCampaign,
 }: {
   item: MarketingContent;
   resolvedImageUrl: string | null;
   linkedTaskId: string | null;
+  linkedCampaign: Campaign | null;
   onDelete: () => void;
   onStatusChange: (status: MarketingContentStatus) => void;
   onCreateTask: () => void;
+  onOpenCampaign: (id: string) => void;
 }) {
   return (
     <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
@@ -976,6 +1136,14 @@ function ContentCard({
           <span className={`badge ${CONTENT_TYPE_STYLES[item.content_type]}`}>{item.content_type}</span>
           {item.season && <span className="badge bg-ivory-dim text-walnut">{SEASON_HU[item.season]}</span>}
           <span className={`badge ${CONTENT_STATUS_STYLES[item.status]}`}>{item.status}</span>
+          {linkedCampaign && (
+            <button
+              onClick={() => onOpenCampaign(linkedCampaign.id)}
+              className="badge bg-bronze/15 text-walnut hover:underline"
+            >
+              🎯 {linkedCampaign.name}
+            </button>
+          )}
         </div>
         <p className="mt-1 text-xs text-muted">{formatDate(item.scheduled_date)}</p>
         {item.copy_text && <p className="mt-1.5 line-clamp-2 text-sm text-forest">{item.copy_text}</p>}

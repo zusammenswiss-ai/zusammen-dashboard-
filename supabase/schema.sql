@@ -100,13 +100,12 @@ begin
   end if;
 end $$;
 
--- Which campaign a "Kampány"-típusú task belongs to. Deliberately plain
--- text rather than a foreign key into marketing_content or
--- marketing_campaigns — a task can be spun off a single Tartalom-naptár
--- item (which already has its own content_id below) or just describe a
--- whole seasonal push by name (e.g. "Ősz — CONNECT"), and forcing one
--- specific table's id here would make the other case awkward. Only
--- meaningful when task_type = 'Kampány'.
+-- Which campaign a "Kampány"-típusú task belongs to — originally plain
+-- text (a free-form label), later turned into a real FK once a
+-- campaigns table existed to point to. See the campaigns table and the
+-- tasks.campaign_id/campaign_label migration much further down this
+-- file for the full story; on a truly fresh database this line just
+-- creates the text column that migration immediately renames away.
 alter table public.tasks add column if not exists campaign_id text;
 
 -- ---------------------------------------------------------------------
@@ -1182,3 +1181,69 @@ create policy "anon full access" on public.expenses for all using (true) with ch
 drop trigger if exists set_updated_at on public.expenses;
 create trigger set_updated_at before update on public.expenses
   for each row execute function public.set_updated_at();
+
+-- =====================================================================
+-- Kampányok — named marketing pushes (e.g. "ZUSAMMEN FIRST 20"),
+-- distinct from marketing_campaigns above (the 4 fixed Évszakos
+-- stratégia rows, one per season, seeded once and never really
+-- "created" by the founder). A kampány optionally belongs to a season
+-- (same season-text FK pattern as marketing_content.season) and groups
+-- together the Feladatok and Marketing tartalom that serve it — see the
+-- Kampány részletes nézet on both Marketing and Feladatok. Placed this
+-- late in the file since it needs marketing_campaigns (for the season
+-- FK) and is itself referenced by the tasks/marketing_content columns
+-- added right below — both already exist by this point in the file.
+-- =====================================================================
+create table if not exists public.campaigns (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  season text references public.marketing_campaigns(season) on delete set null,
+  status text not null default 'Tervezve' check (status in ('Tervezve', 'Aktív', 'Lezárva')),
+  start_date date,
+  end_date date,
+  description text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.campaigns enable row level security;
+
+drop policy if exists "anon full access" on public.campaigns;
+create policy "anon full access" on public.campaigns for all using (true) with check (true);
+
+drop trigger if exists set_updated_at on public.campaigns;
+create trigger set_updated_at before update on public.campaigns
+  for each row execute function public.set_updated_at();
+
+-- tasks.campaign_id used to be free text (see the Típus dimension
+-- comment further up) — renamed to campaign_label to preserve whatever
+-- was already typed there as a legacy display fallback, and replaced
+-- with a real FK into campaigns above. Guarded so this rename only ever
+-- fires once: after it runs, campaign_id is the new uuid column, so the
+-- data_type check below is false on every subsequent run of this file.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'tasks'
+      and column_name = 'campaign_id' and data_type = 'text'
+  ) then
+    alter table public.tasks rename column campaign_id to campaign_label;
+  end if;
+end $$;
+
+alter table public.tasks add column if not exists campaign_label text;
+alter table public.tasks add column if not exists campaign_id uuid references public.campaigns(id) on delete set null;
+
+-- Optional link from a Tartalom-naptár item to the kampány it serves —
+-- shown on that kampány's részletes nézet alongside its Feladatok (and,
+-- via the content's own asset_id, its Marketing anyagok).
+alter table public.marketing_content add column if not exists campaign_id uuid references public.campaigns(id) on delete set null;
+
+-- Seed the founder's first real kampány. The 4 already-entered First20
+-- Kampány-feladatok need linking to it by hand afterwards, from the
+-- Feladatok oldal's "Melyik kampányhoz tartozik?" picker — this script
+-- has no reliable way to match existing tasks by title.
+insert into public.campaigns (name, season, status)
+select 'ZUSAMMEN FIRST 20', 'Autumn', 'Tervezve'
+where not exists (select 1 from public.campaigns where name = 'ZUSAMMEN FIRST 20');

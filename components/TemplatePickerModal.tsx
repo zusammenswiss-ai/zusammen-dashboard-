@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { TaskItem, TaskTemplate, TaskType } from "@/lib/supabase/types";
+import type { Campaign, TaskItem, TaskTemplate, TaskType } from "@/lib/supabase/types";
 import { PRIORITY_HU, TEMPLATE_CATEGORY_ORDER, TASK_TYPES, groupByCategory } from "@/lib/labels";
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -17,16 +17,20 @@ const PRIORITY_STYLES: Record<string, string> = {
  * insert. Grouped by category, same order as the Sablonok kezelése view. */
 export default function TemplatePickerModal({
   templates,
+  campaigns,
   onClose,
   onAdded,
 }: {
   templates: TaskTemplate[];
+  campaigns: Campaign[];
   onClose: () => void;
   onAdded: (tasks: TaskItem[]) => void;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Applies to every task created in this one batch — see the Típus
-  // dimension on the Feladatok board (lib/labels.ts).
+  // dimension on the Feladatok board (lib/labels.ts). No quick-add here
+  // (unlike the single-task forms) — kept simpler by design, the founder
+  // creates the kampány first on the Marketing oldal or a single task.
   const [taskType, setTaskType] = useState<TaskType>("Egyszeri");
   const [campaignId, setCampaignId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -58,7 +62,7 @@ export default function TemplatePickerModal({
         assignee: t.default_assignee,
         notes: t.notes_template,
         task_type: taskType,
-        campaign_id: taskType === "Kampány" ? campaignId.trim() || null : null,
+        campaign_id: taskType === "Kampány" ? campaignId || null : null,
       }));
     const { data, error: insertError } = await supabase.from("tasks").insert(inserts).select();
     setSaving(false);
@@ -116,13 +120,19 @@ export default function TemplatePickerModal({
                 </div>
                 {taskType === "Kampány" && (
                   <div className="flex-1">
-                    <label className="mb-1 block text-xs font-medium text-muted">Kampány neve</label>
-                    <input
-                      className="input !py-1.5 text-xs"
+                    <label className="mb-1 block text-xs font-medium text-muted">Melyik kampányhoz tartozik?</label>
+                    <select
+                      className="select !py-1.5 text-xs"
                       value={campaignId}
                       onChange={(e) => setCampaignId(e.target.value)}
-                      placeholder="pl. Ősz — CONNECT"
-                    />
+                    >
+                      <option value="">Nincs kiválasztva</option>
+                      {campaigns.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>

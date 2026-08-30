@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
+import Link from "next/link";
 import { X, Trash2, CalendarDays, User, Tag, Lock, Unlock } from "lucide-react";
-import type { TaskItem, TaskPriority, TaskStatus, TaskType } from "@/lib/supabase/types";
+import type { Campaign, TaskItem, TaskPriority, TaskStatus, TaskType } from "@/lib/supabase/types";
 import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_ICON } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
+import CampaignFormModal from "@/components/CampaignFormModal";
 
 const STATUSES: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
@@ -13,11 +15,15 @@ const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
  * deep-linked from the Overview activity feed via /tasks?open=<id>. */
 export default function TaskDetailModal({
   task,
+  campaigns,
+  onCampaignCreated,
   onClose,
   onSave,
   onDelete,
 }: {
   task: TaskItem;
+  campaigns: Campaign[];
+  onCampaignCreated: (campaign: Campaign) => void;
   onClose: () => void;
   onSave: (patch: Partial<TaskItem>) => void;
   onDelete: () => void;
@@ -37,6 +43,11 @@ export default function TaskDetailModal({
     task_type: task.task_type,
     campaign_id: task.campaign_id ?? "",
   });
+  // "+ Új kampány" quick-add reachable from the "Melyik kampányhoz
+  // tartozik?" select below — no season prefill here, same as the
+  // equivalent quick-add on the main Feladatok "Új feladat" form.
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
+  const campaignById = new Map(campaigns.map((c) => [c.id, c]));
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -60,7 +71,7 @@ export default function TaskDetailModal({
       assignee: draft.assignee.trim() || null,
       notes: draft.notes.trim() || null,
       task_type: draft.task_type,
-      campaign_id: draft.task_type === "Kampány" ? draft.campaign_id.trim() || null : null,
+      campaign_id: draft.task_type === "Kampány" ? draft.campaign_id || null : null,
     });
     onClose();
   }
@@ -105,9 +116,19 @@ export default function TaskDetailModal({
                 <Field label="Típus" value={`${TASK_TYPE_ICON[draft.task_type]}${draft.task_type}`} />
                 <Field icon={CalendarDays} label="Határidő" value={formatDate(draft.due_date)} />
                 <Field icon={User} label="Felelős" value={draft.assignee || "—"} />
-                {draft.task_type === "Kampány" && draft.campaign_id && (
+                {draft.task_type === "Kampány" && (draft.campaign_id || task.campaign_label) && (
                   <div className="col-span-2">
-                    <Field label="Kampány" value={draft.campaign_id} />
+                    <label className="mb-1 block text-xs font-medium text-muted">Kampány</label>
+                    {draft.campaign_id ? (
+                      <Link
+                        href={`/marketing?campaign=${draft.campaign_id}`}
+                        className="block rounded-md bg-ivory-dim px-3 py-2 text-forest hover:text-bronze hover:underline"
+                      >
+                        {campaignById.get(draft.campaign_id)?.name ?? "Kampány"}
+                      </Link>
+                    ) : (
+                      <p className="rounded-md bg-ivory-dim px-3 py-2 text-forest">{task.campaign_label}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -198,13 +219,26 @@ export default function TaskDetailModal({
                 </div>
                 {draft.task_type === "Kampány" && (
                   <div className="col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-muted">Kampány neve</label>
-                    <input
-                      className="input"
+                    <label className="mb-1 block text-xs font-medium text-muted">Melyik kampányhoz tartozik?</label>
+                    <select
+                      className="select"
                       value={draft.campaign_id}
-                      onChange={(e) => setDraft((d) => ({ ...d, campaign_id: e.target.value }))}
-                      placeholder="pl. Ősz — CONNECT"
-                    />
+                      onChange={(e) => {
+                        if (e.target.value === "__new__") {
+                          setShowCampaignForm(true);
+                          return;
+                        }
+                        setDraft((d) => ({ ...d, campaign_id: e.target.value }));
+                      }}
+                    >
+                      <option value="">Nincs kiválasztva</option>
+                      {campaigns.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Új kampány</option>
+                    </select>
                   </div>
                 )}
               </div>
@@ -242,6 +276,17 @@ export default function TaskDetailModal({
           </div>
         </div>
       </div>
+
+      {showCampaignForm && (
+        <CampaignFormModal
+          onClose={() => setShowCampaignForm(false)}
+          onCreated={(c) => {
+            onCampaignCreated(c);
+            setDraft((d) => ({ ...d, campaign_id: c.id }));
+            setShowCampaignForm(false);
+          }}
+        />
+      )}
     </div>
   );
 }
