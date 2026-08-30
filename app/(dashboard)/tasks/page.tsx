@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Plus,
   Trash2,
@@ -17,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { TaskItem, TaskPriority, TaskStatus, TaskTemplate, TaskType } from "@/lib/supabase/types";
+import type { Campaign, TaskItem, TaskPriority, TaskStatus, TaskTemplate, TaskType } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -25,6 +26,7 @@ import UndoToast from "@/components/UndoToast";
 import TaskDetailModal from "@/components/TaskDetailModal";
 import TemplatePickerModal from "@/components/TemplatePickerModal";
 import TemplateManagerModal from "@/components/TemplateManagerModal";
+import CampaignFormModal from "@/components/CampaignFormModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_STYLES, TASK_TYPE_ICON } from "@/lib/labels";
@@ -52,7 +54,7 @@ const EXPORT_HEADERS = [
   "title",
   "category",
   "task_type",
-  "campaign_id",
+  "campaign",
   "priority",
   "status",
   "due_date",
@@ -60,12 +62,12 @@ const EXPORT_HEADERS = [
   "notes",
 ];
 
-function exportTasksCSV(tasks: TaskItem[]) {
+function exportTasksCSV(tasks: TaskItem[], campaignById: Map<string, Campaign>) {
   const rows = tasks.map((t) => [
     t.title,
     t.category,
     t.task_type,
-    t.campaign_id,
+    (t.campaign_id ? campaignById.get(t.campaign_id)?.name : null) ?? t.campaign_label,
     PRIORITY_HU[t.priority],
     t.status,
     t.due_date,
@@ -117,6 +119,12 @@ export default function TasksPage() {
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  // The "+ Új kampány" quick-add reachable from the main "Új feladat"
+  // form's "Melyik kampányhoz tartozik?" select — no season prefill (that
+  // only exists on the Marketing oldal's season cards). TaskDetailModal
+  // has its own equivalent, entirely local to that component.
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
@@ -152,6 +160,20 @@ export default function TasksPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (supabase) void loadTasks();
   }, [supabase, loadTasks]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const { data } = await supabase.from("campaigns").select("*").order("created_at", { ascending: false });
+      setCampaigns(data ?? []);
+    })();
+  }, [supabase]);
+
+  const campaignById = useMemo(() => {
+    const map = new Map<string, Campaign>();
+    for (const c of campaigns) map.set(c.id, c);
+    return map;
+  }, [campaigns]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -195,7 +217,7 @@ export default function TasksPage() {
         assignee: form.assignee.trim() || null,
         status: "Teendő",
         task_type: form.task_type,
-        campaign_id: form.task_type === "Kampány" ? form.campaign_id.trim() || null : null,
+        campaign_id: form.task_type === "Kampány" ? form.campaign_id || null : null,
       })
       .select()
       .single();
@@ -302,7 +324,7 @@ export default function TasksPage() {
         action={
           <div className="flex flex-wrap gap-2">
             {tasks.length > 0 && (
-              <button className="btn btn-ghost" onClick={() => exportTasksCSV(tasks)}>
+              <button className="btn btn-ghost" onClick={() => exportTasksCSV(tasks, campaignById)}>
                 <Download size={16} /> Exportálás CSV-be
               </button>
             )}
@@ -456,13 +478,26 @@ export default function TasksPage() {
           </div>
           {form.task_type === "Kampány" && (
             <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1 block text-xs font-medium text-muted">Kampány neve</label>
-              <input
-                className="input"
+              <label className="mb-1 block text-xs font-medium text-muted">Melyik kampányhoz tartozik?</label>
+              <select
+                className="select"
                 value={form.campaign_id}
-                onChange={(e) => setForm((f) => ({ ...f, campaign_id: e.target.value }))}
-                placeholder="pl. Ősz — CONNECT"
-              />
+                onChange={(e) => {
+                  if (e.target.value === "__new__") {
+                    setShowCampaignForm(true);
+                    return;
+                  }
+                  setForm((f) => ({ ...f, campaign_id: e.target.value }));
+                }}
+              >
+                <option value="">Nincs kiválasztva</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="__new__">+ Új kampány</option>
+              </select>
             </div>
           )}
           <div className="flex gap-2 sm:col-span-2 lg:col-span-6">
@@ -535,6 +570,7 @@ export default function TasksPage() {
                   <TaskCard
                     key={task.id}
                     task={task}
+                    campaignById={campaignById}
                     onDragStart={(id) => {
                       draggedId.current = id;
                     }}
@@ -558,6 +594,8 @@ export default function TasksPage() {
       {openTask && (
         <TaskDetailModal
           task={openTask}
+          campaigns={campaigns}
+          onCampaignCreated={(c) => setCampaigns((prev) => [c, ...prev])}
           onClose={() => setOpenTaskId(null)}
           onSave={(patch) => updateTask(openTask.id, patch)}
           onDelete={() => deleteTask(openTask.id)}
@@ -567,8 +605,20 @@ export default function TasksPage() {
       {showTemplatePicker && (
         <TemplatePickerModal
           templates={templates}
+          campaigns={campaigns}
           onClose={() => setShowTemplatePicker(false)}
           onAdded={(newTasks) => setTasks((prev) => [...newTasks, ...prev])}
+        />
+      )}
+
+      {showCampaignForm && (
+        <CampaignFormModal
+          onClose={() => setShowCampaignForm(false)}
+          onCreated={(c) => {
+            setCampaigns((prev) => [c, ...prev]);
+            setForm((f) => ({ ...f, campaign_id: c.id }));
+            setShowCampaignForm(false);
+          }}
         />
       )}
 
@@ -594,6 +644,7 @@ export default function TasksPage() {
 
 function TaskCard({
   task,
+  campaignById,
   onDragStart,
   onOpen,
   onDelete,
@@ -601,6 +652,7 @@ function TaskCard({
   onStatusChange,
 }: {
   task: TaskItem;
+  campaignById: Map<string, Campaign>;
   onDragStart: (id: string) => void;
   onOpen: () => void;
   onDelete: () => void;
@@ -658,7 +710,16 @@ function TaskCard({
           {task.task_type}
         </span>
         {task.task_type === "Kampány" && task.campaign_id && (
-          <span className="badge bg-ivory-dim text-walnut">{task.campaign_id}</span>
+          <Link
+            href={`/marketing?campaign=${task.campaign_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="badge bg-ivory-dim text-walnut hover:underline"
+          >
+            {campaignById.get(task.campaign_id)?.name ?? "Kampány"}
+          </Link>
+        )}
+        {task.task_type === "Kampány" && !task.campaign_id && task.campaign_label && (
+          <span className="badge bg-ivory-dim text-walnut">{task.campaign_label}</span>
         )}
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
         {overdue && <span className="badge bg-red-100 text-red-700">Lejárt</span>}
