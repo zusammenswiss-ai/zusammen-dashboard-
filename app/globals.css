@@ -220,3 +220,91 @@ h1, h2, h3, h4, .font-serif {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Printable Journey keepsake ("Emlékeink nyomtatása" on the Személyes
+   Journey section) — hidden on screen, shown only via window.print(),
+   same convention as the /landing print-letter keepsake in landing.css. */
+.print-journey {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-journey,
+  .print-journey * {
+    visibility: visible;
+  }
+  .print-journey {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: var(--ivory);
+    padding: 56px 48px;
+  }
+  .print-journey-inner {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .print-journey-wordmark {
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.08em;
+    text-align: center;
+    color: var(--walnut);
+  }
+  .print-journey-title {
+    margin-top: 4px;
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-style: italic;
+    font-size: 16px;
+    text-align: center;
+    color: var(--forest);
+  }
+  .print-journey-divider {
+    width: 64px;
+    height: 1px;
+    margin: 20px auto 28px;
+    background: var(--walnut);
+    opacity: 0.4;
+  }
+  .print-journey-empty {
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .print-journey-entry {
+    break-inside: avoid;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .print-journey-entry:last-child {
+    border-bottom: none;
+  }
+  .print-journey-meta {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--walnut);
+  }
+  .print-journey-experience {
+    margin-top: 4px;
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-size: 17px;
+    color: var(--forest);
+  }
+  .print-journey-note {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .print-journey-photo {
+    margin-top: 10px;
+    max-width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+}
