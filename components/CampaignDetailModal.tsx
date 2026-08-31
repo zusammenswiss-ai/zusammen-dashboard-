@@ -6,6 +6,8 @@ import { X, Lock, Unlock, Check, ArrowRight, ImageIcon } from "lucide-react";
 import type { Campaign, CampaignStatus, MarketingAsset, MarketingContent, TaskStatus } from "@/lib/supabase/types";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_STYLES, SEASON_HU } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
+import Lightbox from "@/components/Lightbox";
+import BackButton from "@/components/BackButton";
 
 const TASK_STATUS_COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
 
@@ -44,6 +46,7 @@ export default function CampaignDetailModal({
     description: campaign.description ?? "",
   });
   const [saved, setSaved] = useState(false);
+  const [lightboxAsset, setLightboxAsset] = useState<MarketingAsset | null>(null);
 
   function unlock() {
     setDraft({
@@ -94,6 +97,7 @@ export default function CampaignDetailModal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-border p-5">
           <div>
+            <BackButton onClick={onClose} label="Vissza a Marketinghez" />
             <h2 className="font-serif text-xl text-forest">{campaign.name}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className={`badge ${CAMPAIGN_STATUS_STYLES[campaign.status]}`}>{campaign.status}</span>
@@ -262,13 +266,13 @@ export default function CampaignDetailModal({
               <h3 className="mb-2 font-serif text-base text-forest">Marketing anyagok</h3>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {assets.map((asset) => (
-                  <a
+                  <button
                     key={asset.id}
-                    href={asset.image_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    type="button"
+                    onClick={() => asset.image_url && setLightboxAsset(asset)}
                     className="block aspect-square overflow-hidden rounded-md bg-ivory-dim"
                     title={asset.title}
+                    aria-label={`${asset.title} megnyitása nagyban`}
                   >
                     {asset.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -278,13 +282,17 @@ export default function CampaignDetailModal({
                         <ImageIcon size={18} />
                       </div>
                     )}
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {lightboxAsset?.image_url && (
+        <Lightbox src={lightboxAsset.image_url} alt={lightboxAsset.title} onClose={() => setLightboxAsset(null)} />
+      )}
     </div>
   );
 }

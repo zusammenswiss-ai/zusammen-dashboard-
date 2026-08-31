@@ -7,8 +7,11 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardAsset, PriceQuote } from "@/lib/supabase/types";
 import { PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
+import { openFileLabel } from "@/lib/file-open";
 import PriceQuoteForm from "@/components/PriceQuoteForm";
 import PriceQuoteList from "@/components/PriceQuoteList";
+import Lightbox from "@/components/Lightbox";
+import BackButton from "@/components/BackButton";
 
 /** Full detail view for one card-asset version — opened from a Kártya-fájlok
  * list row. Shows the full (untruncated) notes, an expandable "Árajánlatok"
@@ -45,6 +48,7 @@ export default function CardAssetDetailModal({
   const [showQuotes, setShowQuotes] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -90,6 +94,7 @@ export default function CardAssetDetailModal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-border p-5">
           <div>
+            <BackButton onClick={onClose} label="Vissza a listához" />
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-serif text-xl text-forest">
                 {asset.language} — {asset.version}
@@ -115,14 +120,21 @@ export default function CardAssetDetailModal({
               const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
               return (
                 <div key={slot.key} className="flex flex-col items-center gap-1">
-                  <div className="flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-forest/5">
-                    {url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+                  {url ? (
+                    <button
+                      type="button"
+                      onClick={() => setLightboxSlot({ url, label: slot.label })}
+                      className="flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-forest/5"
+                      aria-label={`${slot.label} megnyitása nagyban`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={url} alt={slot.label} className="h-full w-full object-cover" />
-                    ) : (
+                    </button>
+                  ) : (
+                    <div className="flex h-20 w-full items-center justify-center overflow-hidden rounded-md bg-forest/5">
                       <ImageOff size={16} className="text-muted/40" />
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <span className="text-[10px] text-muted">{slot.label}</span>
                 </div>
               );
@@ -243,11 +255,16 @@ export default function CardAssetDetailModal({
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             className="btn btn-primary"
+            title={openFileLabel(asset.file_url)}
           >
-            <Download size={15} /> Letöltés
+            <Download size={15} /> {openFileLabel(asset.file_url)}
           </a>
         </div>
       </div>
+
+      {lightboxSlot && (
+        <Lightbox src={lightboxSlot.url} alt={lightboxSlot.label} onClose={() => setLightboxSlot(null)} />
+      )}
     </div>
   );
 }

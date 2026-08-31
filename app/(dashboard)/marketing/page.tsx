@@ -49,6 +49,7 @@ import NewsletterSubscribersSection from "@/components/NewsletterSubscribersSect
 import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
 import CampaignFormModal from "@/components/CampaignFormModal";
 import CampaignDetailModal from "@/components/CampaignDetailModal";
+import Lightbox from "@/components/Lightbox";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { SEASON_HU, CAMPAIGN_STATUS_STYLES } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
@@ -1112,18 +1113,19 @@ function ContentCard({
   onCreateTask: () => void;
   onOpenCampaign: (id: string) => void;
 }) {
+  const [showLightbox, setShowLightbox] = useState(false);
   return (
     <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
       {resolvedImageUrl ? (
-        <a
-          href={resolvedImageUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => setShowLightbox(true)}
           className="block h-20 w-20 shrink-0 overflow-hidden rounded-md bg-ivory-dim"
+          aria-label="Kép megnyitása nagyban"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={resolvedImageUrl} alt={item.title} className="h-full w-full object-cover" />
-        </a>
+        </button>
       ) : (
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-ivory-dim text-muted/40">
           <ImageIcon size={20} />
@@ -1184,6 +1186,10 @@ function ContentCard({
           <Trash2 size={13} /> Törlés
         </button>
       </div>
+
+      {showLightbox && resolvedImageUrl && (
+        <Lightbox src={resolvedImageUrl} alt={item.title} onClose={() => setShowLightbox(false)} />
+      )}
     </div>
   );
 }
@@ -1421,13 +1427,14 @@ function AssetCard({
   onDelete: () => void;
   onCreateContent: () => void;
 }) {
+  const [showLightbox, setShowLightbox] = useState(false);
   return (
     <div className="card overflow-hidden">
-      <a
-        href={asset.image_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="relative block aspect-square bg-ivory-dim"
+      <button
+        type="button"
+        onClick={() => setShowLightbox(true)}
+        className="relative block aspect-square w-full bg-ivory-dim"
+        aria-label="Kép megnyitása nagyban"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={asset.image_url} alt={asset.title} className="h-full w-full object-cover" />
@@ -1439,7 +1446,8 @@ function AssetCard({
         >
           {asset.asset_type}
         </span>
-      </a>
+      </button>
+      {showLightbox && <Lightbox src={asset.image_url} alt={asset.title} onClose={() => setShowLightbox(false)} />}
       <div className="p-2.5">
         <p className="truncate text-xs font-medium text-forest" title={asset.title}>
           {asset.title}

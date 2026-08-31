@@ -10,8 +10,10 @@ import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CardAssetDetailModal from "@/components/CardAssetDetailModal";
+import Lightbox from "@/components/Lightbox";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
+import { openFileLabel } from "@/lib/file-open";
 import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 
 const STORAGE_BUCKET = "card-assets";
@@ -83,6 +85,7 @@ export default function CardAssetsPage() {
   const [saving, setSaving] = useState(false);
   const [openAssetId, setOpenAssetId] = useState<string | null>(null);
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
+  const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -526,21 +529,31 @@ export default function CardAssetsPage() {
                     <div className="grid shrink-0 grid-cols-2 gap-1">
                       {CARD_ASSET_THUMB_SLOTS.map((slot) => {
                         const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
-                        return (
+                        return url ? (
+                          <button
+                            key={slot.key}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLightboxSlot({ url, label: slot.label });
+                            }}
+                            className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-forest/5"
+                            title={slot.label}
+                            aria-label={`${slot.label} megnyitása nagyban`}
+                          >
+                            {/* Plain <img>, not next/image — these are
+                                external Supabase Storage URLs and this is
+                                just a tiny fixed-size preview grid. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt={slot.label} className="h-full w-full object-cover" />
+                          </button>
+                        ) : (
                           <div
                             key={slot.key}
                             className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-forest/5"
                             title={slot.label}
                           >
-                            {url ? (
-                              // Plain <img>, not next/image — these are
-                              // external Supabase Storage URLs and this is
-                              // just a tiny fixed-size preview grid.
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={url} alt={slot.label} className="h-full w-full object-cover" />
-                            ) : (
-                              <ImageOff size={14} className="text-muted/40" />
-                            )}
+                            <ImageOff size={14} className="text-muted/40" />
                           </div>
                         );
                       })}
@@ -572,7 +585,8 @@ export default function CardAssetsPage() {
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="btn btn-ghost !px-2"
-                        aria-label="Letöltés"
+                        aria-label={openFileLabel(asset.file_url)}
+                        title={openFileLabel(asset.file_url)}
                       >
                         <Download size={15} />
                       </a>
@@ -597,6 +611,10 @@ export default function CardAssetsPage() {
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
       {pendingUndoQuote && <UndoToast message={pendingUndoQuote.message} onUndo={undoNowQuote} />}
+
+      {lightboxSlot && (
+        <Lightbox src={lightboxSlot.url} alt={lightboxSlot.label} onClose={() => setLightboxSlot(null)} />
+      )}
 
       {openAsset && (
         <CardAssetDetailModal

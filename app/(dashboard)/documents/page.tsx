@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, FolderOpen, Download, Paperclip, FileText, Mail, Search } from "lucide-react";
+import { Plus, Trash2, FolderOpen, Download, ExternalLink, Paperclip, FileText, Image as ImageIcon, Mail, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Document } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -9,8 +9,10 @@ import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
+import Lightbox from "@/components/Lightbox";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
+import { isImageFile, isPreviewableInBrowser, openFileLabel } from "@/lib/file-open";
 
 function byDocumentRecency(a: Document, b: Document) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -31,6 +33,7 @@ export default function DocumentsPage() {
   const [saving, setSaving] = useState(false);
   const [composeFor, setComposeFor] = useState<Document | null>(null);
   const [query, setQuery] = useState("");
+  const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
@@ -253,10 +256,11 @@ export default function DocumentsPage() {
         <div className="flex flex-col gap-3">
           {filteredDocuments.map((doc) => {
             const url = fileUrl(doc);
+            const isImage = isImageFile(doc.file_name ?? url);
             return (
               <div key={doc.id} className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forest/5 text-bronze">
-                  <FileText size={18} />
+                  {isImage ? <ImageIcon size={18} /> : <FileText size={18} />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -285,15 +289,30 @@ export default function DocumentsPage() {
                       </option>
                     ))}
                   </select>
-                  {url && (
+                  {url && isImage && (
+                    <button
+                      onClick={() => setLightboxDoc(doc)}
+                      className="btn btn-ghost !px-2"
+                      aria-label="Kép megnyitása nagyban"
+                      title="Kép megnyitása nagyban"
+                    >
+                      <ImageIcon size={15} />
+                    </button>
+                  )}
+                  {url && !isImage && (
                     <a
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn btn-ghost !px-2"
-                      aria-label="Letöltés"
+                      aria-label={openFileLabel(doc.file_name ?? url)}
+                      title={openFileLabel(doc.file_name ?? url)}
                     >
-                      <Download size={15} />
+                      {isPreviewableInBrowser(doc.file_name ?? url) ? (
+                        <ExternalLink size={15} />
+                      ) : (
+                        <Download size={15} />
+                      )}
                     </a>
                   )}
                   <button
@@ -318,6 +337,10 @@ export default function DocumentsPage() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {lightboxDoc && fileUrl(lightboxDoc) && (
+        <Lightbox src={fileUrl(lightboxDoc) as string} alt={lightboxDoc.title} onClose={() => setLightboxDoc(null)} />
+      )}
 
       {composeFor && (
         <EmailComposeModal

@@ -8,6 +8,7 @@ import { ErrorBanner } from "@/components/Feedback";
 import PriceQuoteForm from "@/components/PriceQuoteForm";
 import PriceQuoteList from "@/components/PriceQuoteList";
 import ContactCorrespondence from "@/components/ContactCorrespondence";
+import BackButton from "@/components/BackButton";
 
 const CONTRACT_STATUSES: ContractStatus[] = ["None", "Signed", "Failed", "Expired"];
 
@@ -130,8 +131,11 @@ export default function SupplierProfileModal({
         className="animate-fade-in card flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border p-5">
-          <h2 className="font-serif text-lg text-forest">{isNew ? "Új beszállító" : supplier.name}</h2>
+        <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+          <div>
+            <BackButton onClick={onClose} label="Vissza a listához" />
+            <h2 className="font-serif text-lg text-forest">{isNew ? "Új beszállító" : supplier.name}</h2>
+          </div>
           <button onClick={onClose} className="shrink-0 rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest" aria-label="Bezárás">
             <X size={18} />
           </button>
