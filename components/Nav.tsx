@@ -40,79 +40,89 @@ export default function Nav() {
         </div>
       </div>
 
-      {/* Sidebar (desktop) / drawer (mobile) */}
+      {/* Sidebar (desktop) / drawer (mobile). Mobile open/close animates via
+          a grid-rows 0fr↔1fr transition (measures its own content height,
+          no guessed max-height) with a synced opacity fade, instead of the
+          old instant block/hidden toggle — lg: forces it permanently open
+          on desktop regardless of `open`. */}
       <aside
-        className={`${
-          open ? "block" : "hidden"
-        } w-full shrink-0 bg-forest lg:block lg:w-64`}
+        className={`grid w-full shrink-0 bg-forest transition-[grid-template-rows] duration-300 ease-in-out lg:!grid-rows-[1fr] lg:w-64 ${
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
       >
-        <div className="hidden items-center justify-between px-6 py-7 lg:flex">
-          <Brand />
-          <NotificationBell />
-        </div>
-
-        <div className="px-3 pb-2 lg:px-4">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
-            className="flex w-full items-center gap-2.5 rounded-lg border border-ivory/10 bg-forest-light/40 px-3 py-2 text-left text-sm text-ivory/50 transition-colors hover:border-ivory/20 hover:text-ivory/80"
-          >
-            <Search size={15} />
-            <span className="flex-1">Gyorskeresés…</span>
-            <kbd className="rounded border border-ivory/15 px-1.5 py-0.5 font-mono text-[10px] text-ivory/40">⌘K</kbd>
-          </button>
-        </div>
-
-        <nav className="flex flex-col gap-1 px-3 pb-3 lg:px-4">
-          <NavLink item={NAV_TOP_ITEM} active={isActive(NAV_TOP_ITEM)} onNavigate={() => setOpen(false)} />
-
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="mt-3">
-              <p className="mb-1 px-3 font-mono text-[10px] font-medium tracking-[0.16em] text-ivory/35">
-                {group.label}
-              </p>
-              <div className="flex flex-col gap-1">
-                {group.items.map((item) => (
-                  <NavLink key={item.href} item={item} active={isActive(item)} onNavigate={() => setOpen(false)} />
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {/* Személyes rituálé — visually set apart from the business
-              groups above: a warm background + gold left border even
-              while inactive, not just on the active state everything
-              else gets. */}
-          <div className="mt-3 border-t border-ivory/10 pt-3">
-            <NavLink
-              item={NAV_RITUAL_ITEM}
-              active={isActive(NAV_RITUAL_ITEM)}
-              onNavigate={() => setOpen(false)}
-              ritual
-            />
+        <div
+          className={`min-h-0 overflow-hidden transition-opacity duration-200 lg:!opacity-100 ${
+            open ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="hidden items-center justify-between px-6 py-7 lg:flex">
+            <Brand />
+            <NotificationBell />
           </div>
 
-          <div className="mt-1 border-t border-ivory/10 pt-3">
-            <NavLink item={NAV_SETTINGS_ITEM} active={isActive(NAV_SETTINGS_ITEM)} onNavigate={() => setOpen(false)} />
-          </div>
-        </nav>
-
-        <div className="px-3 pb-6 lg:px-4">
-          <div className="border-t border-ivory/10 pt-3">
-            <Link
-              href={NAV_LANDING_ITEM.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-bronze-light transition-colors hover:bg-forest-light hover:text-ivory"
+          <div className="px-3 pb-2 lg:px-4">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
+              className="flex w-full items-center gap-2.5 rounded-lg border border-ivory/10 bg-forest-light/40 px-3 py-2 text-left text-sm text-ivory/50 transition-colors hover:border-ivory/20 hover:text-ivory/80"
             >
-              <NAV_LANDING_ITEM.icon size={17} strokeWidth={2} />
-              {NAV_LANDING_ITEM.label}
-            </Link>
+              <Search size={15} />
+              <span className="flex-1">Gyorskeresés…</span>
+              <kbd className="rounded border border-ivory/15 px-1.5 py-0.5 font-mono text-[10px] text-ivory/40">⌘K</kbd>
+            </button>
           </div>
-        </div>
-        <div className="hidden px-6 pb-6 text-xs leading-relaxed text-ivory/40 lg:block">
-          Zusammen — prémium svájci beszélgetőkártyák. Alapítói dashboard, v1.
+
+          <nav className="flex flex-col gap-1.5 px-3 pb-3 lg:px-4">
+            <NavLink item={NAV_TOP_ITEM} active={isActive(NAV_TOP_ITEM)} onNavigate={() => setOpen(false)} />
+
+            {NAV_GROUPS.map((group) => (
+              <div key={group.label} className="mt-4">
+                <p className="mb-1.5 px-3 font-mono text-[10px] font-medium lowercase tracking-[0.18em] text-ivory/40">
+                  {group.label}
+                </p>
+                <div className="flex flex-col gap-1">
+                  {group.items.map((item) => (
+                    <NavLink key={item.href} item={item} active={isActive(item)} onNavigate={() => setOpen(false)} />
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Személyes rituálé — visually set apart from the business
+                groups above: a warm background + gold left border even
+                while inactive, not just on the active state everything
+                else gets. */}
+            <div className="mt-4 border-t border-ivory/10 pt-3">
+              <NavLink
+                item={NAV_RITUAL_ITEM}
+                active={isActive(NAV_RITUAL_ITEM)}
+                onNavigate={() => setOpen(false)}
+                ritual
+              />
+            </div>
+
+            <div className="mt-1 border-t border-ivory/10 pt-3">
+              <NavLink item={NAV_SETTINGS_ITEM} active={isActive(NAV_SETTINGS_ITEM)} onNavigate={() => setOpen(false)} />
+            </div>
+          </nav>
+
+          <div className="px-3 pb-6 lg:px-4">
+            <div className="border-t border-ivory/10 pt-3">
+              <Link
+                href={NAV_LANDING_ITEM.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-bronze-light transition-colors hover:bg-forest-light/70 hover:text-ivory"
+              >
+                <NAV_LANDING_ITEM.icon size={17} strokeWidth={2} />
+                {NAV_LANDING_ITEM.label}
+              </Link>
+            </div>
+          </div>
+          <div className="hidden px-6 pb-6 text-xs leading-relaxed text-ivory/40 lg:block">
+            Zusammen — prémium svájci beszélgetőkártyák. Alapítói dashboard, v1.
+          </div>
         </div>
       </aside>
 
@@ -134,12 +144,15 @@ function NavLink({
   ritual?: boolean;
 }) {
   const Icon = item.icon;
-  const baseClasses = "flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5 text-sm font-medium transition-colors";
+  // Active indicator (solid bronze fill + matching left border) is the
+  // one constant across every group, ritual included — see stateClasses
+  // below, where `active` is always checked first regardless of `ritual`.
+  const baseClasses = "flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5 text-sm font-medium transition-colors duration-150";
   const stateClasses = active
     ? "border-bronze bg-bronze text-white"
     : ritual
       ? "border-bronze/40 bg-bronze/10 text-ivory/90 hover:border-bronze/60 hover:bg-bronze/15"
-      : "border-transparent text-ivory/80 hover:bg-forest-light hover:text-ivory";
+      : "border-transparent text-ivory/75 hover:bg-white/[0.06] hover:text-ivory";
 
   return (
     <Link href={item.href} onClick={onNavigate} className={`${baseClasses} ${stateClasses}`}>

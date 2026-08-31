@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Star, Trash2, ImageIcon } from "lucide-react";
 import type { PriceQuote } from "@/lib/supabase/types";
 import { formatDate } from "@/lib/format";
+import Lightbox from "@/components/Lightbox";
 
 function formatMoney(amount: number, currency: string | null) {
   return `${amount.toFixed(2)} ${currency ?? ""}`.trim();
@@ -31,6 +33,8 @@ export default function PriceQuoteList({
   onToggleSelected: (quote: PriceQuote) => void;
   onDelete: (quote: PriceQuote) => void;
 }) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
   if (quotes.length === 0) {
     return <p className="text-sm text-muted">Még nincs rögzített árajánlat.</p>;
   }
@@ -50,15 +54,15 @@ export default function PriceQuoteList({
             }`}
           >
             {q.screenshot_url && (
-              <a
-                href={q.screenshot_url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(q.screenshot_url)}
                 className="block h-14 w-14 shrink-0 overflow-hidden rounded-md bg-ivory-dim"
+                aria-label="Árajánlat kép megnyitása nagyban"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={q.screenshot_url} alt="Árajánlat kép" className="h-full w-full object-cover" />
-              </a>
+              </button>
             )}
             {!q.screenshot_url && (
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-ivory-dim text-muted/40">
@@ -105,6 +109,8 @@ export default function PriceQuoteList({
           </div>
         );
       })}
+
+      {lightboxUrl && <Lightbox src={lightboxUrl} alt="Árajánlat kép" onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 }

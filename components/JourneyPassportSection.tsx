@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { JourneyMemory, WildCardCompletion, WildCardName } from "@/lib/supabase/types";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
+import Lightbox from "@/components/Lightbox";
 import { formatDate } from "@/lib/format";
 
 const STORAGE_BUCKET = "journey-memories";
@@ -82,6 +83,7 @@ export default function JourneyPassportSection({
   // into view, so the jump actually reads as landing somewhere specific.
   const [highlightedMemoryId, setHighlightedMemoryId] = useState<string | null>(null);
   const [seasonClosingDismissed, setSeasonClosingDismissed] = useState(false);
+  const [lightboxMemory, setLightboxMemory] = useState<JourneyMemory | null>(null);
 
   const supabase = getSupabaseClient();
 
@@ -410,12 +412,19 @@ export default function JourneyPassportSection({
                 <p className="mt-0.5 text-sm font-medium text-forest">{memory.experience}</p>
                 {memory.note && <p className="mt-0.5 text-sm text-muted">{memory.note}</p>}
                 {memory.photo_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={memory.photo_url}
-                    alt={memory.experience}
-                    className="mt-2 h-28 w-full max-w-xs rounded-lg object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setLightboxMemory(memory)}
+                    className="mt-2 block h-28 w-full max-w-xs overflow-hidden rounded-lg"
+                    aria-label="Fotó megnyitása nagyban"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={memory.photo_url}
+                      alt={memory.experience}
+                      className="h-full w-full object-cover transition-transform hover:scale-[1.03]"
+                    />
+                  </button>
                 )}
               </li>
             ))}
@@ -452,6 +461,14 @@ export default function JourneyPassportSection({
           )}
         </div>
       </div>
+
+      {lightboxMemory && lightboxMemory.photo_url && (
+        <Lightbox
+          src={lightboxMemory.photo_url}
+          alt={lightboxMemory.experience}
+          onClose={() => setLightboxMemory(null)}
+        />
+      )}
     </section>
   );
 }

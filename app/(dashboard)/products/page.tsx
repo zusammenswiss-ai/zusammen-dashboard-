@@ -22,6 +22,8 @@ import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import Lightbox from "@/components/Lightbox";
+import BackButton from "@/components/BackButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { PRODUCT_STATUSES, PRODUCT_STATUS_STYLES } from "@/lib/labels";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
@@ -495,6 +497,7 @@ function ProductCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const [showLightbox, setShowLightbox] = useState(false);
   const hasProductionNote = Boolean(product.production_note);
   const hasMargin = product.sale_price != null && product.cogs != null;
   const cogsCurrency = (product.cogs_currency as CurrencyCode | null) ?? "CHF";
@@ -509,14 +512,24 @@ function ProductCard({
   return (
     <div className="card overflow-hidden">
       <div onClick={onToggle} className="flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-start sm:p-5">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-forest/5">
-          {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
+        {product.image_url ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLightbox(true);
+            }}
+            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-forest/5"
+            aria-label="Kép megnyitása nagyban"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
-          ) : (
+          </button>
+        ) : (
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-forest/5">
             <ImageOff size={16} className="text-muted/40" />
-          )}
-        </div>
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium text-forest">{product.name}</p>
@@ -557,6 +570,7 @@ function ProductCard({
 
       {expanded && (
         <div className="animate-fade-in border-t border-border bg-ivory-dim/40 p-4 sm:p-5">
+          <BackButton onClick={onToggle} label="Vissza a listához" />
           {hasProductionNote && (
             <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2.5 text-sm text-yellow-900">
               <TriangleAlert size={15} className="mt-0.5 shrink-0" />
@@ -617,6 +631,10 @@ function ProductCard({
             </div>
           </div>
         </div>
+      )}
+
+      {showLightbox && product.image_url && (
+        <Lightbox src={product.image_url} alt={product.name} onClose={() => setShowLightbox(false)} />
       )}
     </div>
   );

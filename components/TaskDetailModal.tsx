@@ -7,6 +7,7 @@ import type { Campaign, TaskItem, TaskPriority, TaskStatus, TaskType } from "@/l
 import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_ICON } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 import CampaignFormModal from "@/components/CampaignFormModal";
+import BackButton from "@/components/BackButton";
 
 const STATUSES: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
@@ -86,17 +87,20 @@ export default function TaskDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-border p-5">
-          {locked ? (
-            <h2 className="font-serif text-xl text-forest">{draft.title}</h2>
-          ) : (
-            <input
-              className="w-full border-none bg-transparent font-serif text-xl text-forest outline-none"
-              value={draft.title}
-              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-              aria-label="Feladat címe"
-              autoFocus
-            />
-          )}
+          <div className="min-w-0 flex-1">
+            <BackButton onClick={onClose} label="Vissza a táblához" />
+            {locked ? (
+              <h2 className="font-serif text-xl text-forest">{draft.title}</h2>
+            ) : (
+              <input
+                className="w-full border-none bg-transparent font-serif text-xl text-forest outline-none"
+                value={draft.title}
+                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                aria-label="Feladat címe"
+                autoFocus
+              />
+            )}
+          </div>
           <button
             onClick={onClose}
             className="shrink-0 rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest"

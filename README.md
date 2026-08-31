@@ -105,6 +105,29 @@ straight to the relevant page. No setup needed — it just reads whatever
 Supabase already has and, if Gmail is connected, the unread count;
 either piece missing just means less shows up, not an error.
 
+**Képek és dokumentumok megnyitása**: every uploaded photo across the app
+(Dokumentumok, Kártya-fájlok — both the list thumbnails and the version
+detail's preview grid, Marketing anyagok and Tartalom-naptár képek, a
+kampány részletes nézet levezetett anyagai, árajánlat-képek, Journey
+emlékek, Termékek képei) opens in a full-size **Lightbox** on click
+(`components/Lightbox.tsx`) — a darkened overlay, closable via the X
+button, clicking the backdrop, or Escape — instead of just downloading
+the raw file. A non-image file (a Kártya-fájlok ZIP/Word/ODF bundle, a
+non-image Dokumentum) still opens via the browser: a PDF opens straight
+into its own in-tab viewer, labeled **"Megnyitás"**; anything else is
+labeled **"Megnyitás (letöltés szükséges)"** so it's clear upfront that a
+download — not a preview — is what's about to happen
+(`lib/file-open.ts`). The one deliberate exception is the Gold Card
+Letters envelope photo, which stays exactly as blurred/sealed as before —
+it's never meant to be viewable full-size from the dashboard, lightbox
+included.
+
+**"← Vissza"**: every detail/expanded sub-view (egy kampány részletes
+nézete, egy feladat/kártya-fájl/beszállító részletes nézete, egy kibontott
+termékkártya) shows a labeled `components/BackButton.tsx` at the top —
+never just a small arrow icon — alongside whatever close/collapse control
+it already had, so it reads clearly and stays easy to tap on mobile.
+
 ## `/landing` — public customer-facing page
 
 A separate, standalone page (no dashboard chrome, no Basic Auth lock even
