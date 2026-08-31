@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, MapPin, Coffee, Moon, Camera, Mountain, Heart, Check } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, MapPin, Coffee, Moon, Camera, Mountain, Heart, Check, History, PartyPopper, Printer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { JourneyMemory, WildCardCompletion, WildCardName } from "@/lib/supabase/types";
@@ -24,6 +24,45 @@ function todayISO() {
 
 const EMPTY_FORM = { date: todayISO(), place: "", experience: "", note: "" };
 
+// One-time dismissal of the "Évszak-zárás" card lives per-browser, same
+// convention as the Naptár legend's category toggles — the 5 Wild Cards
+// can't currently be un-completed, so there's no "next round" to reset it
+// for; once acknowledged it just stays gone on that device.
+const SEASON_CLOSING_DISMISS_KEY = "zusammen-wildcard-season-closing-dismissed";
+
+/** Local-date (YYYY-MM-DD, no time component) parsed as UTC midnight so
+ * month/year arithmetic below never drifts a day from a timezone or DST
+ * transition — mirrors todayISO()'s own UTC-based "today". */
+function isoDateToUTC(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function daysBetweenUTC(a: Date, b: Date): number {
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+}
+
+/** "Ezen a napon" visszatekintés — the first memory (memories arrives
+ * newest-first) landing within ±1 nap of exactly egy hónapja or egy éve.
+ * Checked in list order so a more recent month-anniversary naturally wins
+ * over an older year-anniversary when both happen to match. */
+function findOnThisDayMemory(
+  memories: JourneyMemory[]
+): { memory: JourneyMemory; unit: "hónapja" | "éve" } | null {
+  const today = isoDateToUTC(todayISO());
+  const oneMonthAgo = new Date(today);
+  oneMonthAgo.setUTCMonth(oneMonthAgo.getUTCMonth() - 1);
+  const oneYearAgo = new Date(today);
+  oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);
+
+  for (const memory of memories) {
+    const memoryDate = isoDateToUTC(memory.date);
+    if (Math.abs(daysBetweenUTC(memoryDate, oneMonthAgo)) <= 1) return { memory, unit: "hónapja" };
+    if (Math.abs(daysBetweenUTC(memoryDate, oneYearAgo)) <= 1) return { memory, unit: "éve" };
+  }
+  return null;
+}
+
 export default function JourneyPassportSection({
   addedBy,
 }: {
@@ -39,8 +78,25 @@ export default function JourneyPassportSection({
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [completingCard, setCompletingCard] = useState<WildCardName | null>(null);
+  // Briefly highlighted after "Ezen a napon" scrolls its target entry
+  // into view, so the jump actually reads as landing somewhere specific.
+  const [highlightedMemoryId, setHighlightedMemoryId] = useState<string | null>(null);
+  const [seasonClosingDismissed, setSeasonClosingDismissed] = useState(false);
 
   const supabase = getSupabaseClient();
+
+  // Read after mount only (never during the initial render) so this
+  // never disagrees with the server-rendered markup — same reasoning as
+  // every other per-browser localStorage read in this app.
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSeasonClosingDismissed(localStorage.getItem(SEASON_CLOSING_DISMISS_KEY) === "1");
+    } catch {
+      // Private browsing or a blocked localStorage — the card just won't
+      // remember being dismissed across reloads on this device.
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -125,7 +181,30 @@ export default function JourneyPassportSection({
     if (data) setWildCards((prev) => [...prev, data]);
   }
 
+  function dismissSeasonClosing() {
+    setSeasonClosingDismissed(true);
+    try {
+      localStorage.setItem(SEASON_CLOSING_DISMISS_KEY, "1");
+    } catch {
+      // Nothing to persist to — it'll just show again on this device's
+      // next visit, same fallback as the read above.
+    }
+  }
+
+  function scrollToMemory(id: string) {
+    document.getElementById(`journey-memory-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedMemoryId(id);
+    setTimeout(() => setHighlightedMemoryId((current) => (current === id ? null : current)), 2200);
+  }
+
   const completedCount = wildCards.length;
+  const onThisDay = useMemo(() => findOnThisDayMemory(memories), [memories]);
+  // Nyomtatáshoz régiről az újra, mint egy elmesélhető történet — a
+  // képernyőn látott lista (legújabb elöl) ehhez visszafelé menne.
+  const printMemories = useMemo(
+    () => [...memories].sort((a, b) => a.date.localeCompare(b.date)),
+    [memories]
+  );
 
   return (
     <section className="card p-5 sm:p-6">
@@ -134,9 +213,19 @@ export default function JourneyPassportSection({
           <h2 className="font-serif text-lg text-forest">Személyes Journey (Passport)</h2>
           <p className="mt-1 text-sm text-muted">Emlékek és Wild Card kihívások — a közös úttok naplója.</p>
         </div>
-        <button className="btn btn-bronze shrink-0" onClick={() => setShowForm((v) => !v)}>
-          <Plus size={16} /> Emlék hozzáadása
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            className="btn btn-ghost"
+            onClick={() => window.print()}
+            disabled={memories.length === 0}
+            title={memories.length === 0 ? "Még nincs rögzített emlék" : "Emlékeink nyomtatása PDF-be"}
+          >
+            <Printer size={16} /> Emlékeink nyomtatása
+          </button>
+          <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
+            <Plus size={16} /> Emlék hozzáadása
+          </button>
+        </div>
       </div>
 
       {/* Progress bar */}
@@ -152,6 +241,24 @@ export default function JourneyPassportSection({
           />
         </div>
       </div>
+
+      {/* Évszak-zárás pillanat — shown once, the moment all 5 Wild Cards
+          are complete; stays up until manually dismissed (no auto-hide,
+          see SEASON_CLOSING_DISMISS_KEY above). */}
+      {completedCount === 5 && !seasonClosingDismissed && (
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-bronze/40 bg-gradient-to-br from-amber-100 to-bronze-light/30 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
+          <div className="flex items-start gap-2.5">
+            <PartyPopper size={18} className="mt-0.5 shrink-0 text-walnut" />
+            <p className="text-sm text-walnut">
+              Végigcsináltátok mind az 5 Wild Cardot ebben a körben — üljetek le pár percre, és
+              beszéljétek meg: melyik volt a legváratlanabb élmény?
+            </p>
+          </div>
+          <button className="btn btn-ghost shrink-0 self-end sm:self-auto" onClick={dismissSeasonClosing}>
+            Elolvastam
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mt-4">
@@ -265,6 +372,22 @@ export default function JourneyPassportSection({
       {/* Memory timeline */}
       <div className="mt-6">
         <h3 className="text-sm font-semibold text-forest">Emlék-napló</h3>
+
+        {/* "Ezen a napon" visszatekintés — a Journey lista tetején, csak
+            ha van pontosan 1 hónapja/éve (±1 nap) történt emlék. */}
+        {onThisDay && (
+          <button
+            type="button"
+            onClick={() => scrollToMemory(onThisDay.memory.id)}
+            className="mt-3 flex w-full items-center gap-2 rounded-lg border border-bronze/25 bg-bronze/10 px-3.5 py-2.5 text-left text-sm text-walnut transition-colors hover:bg-bronze/15"
+          >
+            <History size={15} className="shrink-0" />
+            <span>
+              Egy {onThisDay.unit} ezen a napon: <span className="font-medium">{onThisDay.memory.experience}</span>
+            </span>
+          </button>
+        )}
+
         {loading ? (
           <Spinner />
         ) : memories.length === 0 ? (
@@ -272,7 +395,13 @@ export default function JourneyPassportSection({
         ) : (
           <ul className="mt-3 flex flex-col gap-3 border-l border-border pl-4">
             {memories.map((memory) => (
-              <li key={memory.id} className="relative">
+              <li
+                key={memory.id}
+                id={`journey-memory-${memory.id}`}
+                className={`relative -mx-2 rounded-md px-2 transition-colors duration-500 ${
+                  highlightedMemoryId === memory.id ? "bg-bronze/10 ring-1 ring-bronze/30" : ""
+                }`}
+              >
                 <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-bronze" />
                 <div className="flex items-center gap-1.5 text-xs text-muted">
                   <MapPin size={12} /> {memory.place} · {formatDate(memory.date)}
@@ -292,6 +421,36 @@ export default function JourneyPassportSection({
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Printable "Emlékeink" keepsake — hidden on screen, shown only via
+          window.print() (see .print-journey / @media print in
+          globals.css). Kept in normal DOM flow so it always reflects the
+          current memories, same convention as the /landing print-letter
+          keepsake ("Emlékeink nyomtatása" button above triggers it). */}
+      <div className="print-journey" aria-hidden="true">
+        <div className="print-journey-inner">
+          <p className="print-journey-wordmark">ZUSAMMEN</p>
+          <p className="print-journey-title">Közös Journey — Emlékeink</p>
+          <div className="print-journey-divider" />
+          {printMemories.length === 0 ? (
+            <p className="print-journey-empty">Még nincs rögzített emlék.</p>
+          ) : (
+            printMemories.map((memory) => (
+              <div key={memory.id} className="print-journey-entry">
+                <p className="print-journey-meta">
+                  {formatDate(memory.date)} · {memory.place}
+                </p>
+                <p className="print-journey-experience">{memory.experience}</p>
+                {memory.note && <p className="print-journey-note">{memory.note}</p>}
+                {memory.photo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={memory.photo_url} alt={memory.experience} className="print-journey-photo" />
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </section>
   );
