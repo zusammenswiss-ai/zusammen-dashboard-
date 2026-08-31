@@ -11,7 +11,10 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CardAssetDetailModal from "@/components/CardAssetDetailModal";
 import Lightbox from "@/components/Lightbox";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { openFileLabel } from "@/lib/file-open";
 import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
@@ -517,94 +520,15 @@ export default function CardAssetsPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ language, versions }) => (
-            <div key={language}>
-              <h2 className="mb-3 font-serif text-lg text-forest">{language}</h2>
-              <div className="flex flex-col gap-3">
-                {versions.map((asset, i) => (
-                  <div
-                    key={asset.id}
-                    onClick={() => setOpenAssetId(asset.id)}
-                    className="card flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-start"
-                  >
-                    <div className="grid shrink-0 grid-cols-2 gap-1">
-                      {CARD_ASSET_THUMB_SLOTS.map((slot) => {
-                        const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
-                        return url ? (
-                          <button
-                            key={slot.key}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLightboxSlot({ url, label: slot.label });
-                            }}
-                            className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-forest/5"
-                            title={slot.label}
-                            aria-label={`${slot.label} megnyitása nagyban`}
-                          >
-                            {/* Plain <img>, not next/image — these are
-                                external Supabase Storage URLs and this is
-                                just a tiny fixed-size preview grid. */}
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={url} alt={slot.label} className="h-full w-full object-cover" />
-                          </button>
-                        ) : (
-                          <div
-                            key={slot.key}
-                            className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-forest/5"
-                            title={slot.label}
-                          >
-                            <ImageOff size={14} className="text-muted/40" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-forest">{asset.version}</p>
-                        {i === 0 && <span className="badge bg-forest text-ivory">Legújabb</span>}
-                        <span className={`badge ${PRINT_STATUS_STYLES[asset.print_status]}`}>
-                          {asset.print_status}
-                        </span>
-                      </div>
-                      {asset.supplier_id && supplierNameById.get(asset.supplier_id) && (
-                        <p className="mt-1 text-xs text-muted">
-                          Beszállító: {supplierNameById.get(asset.supplier_id)}
-                        </p>
-                      )}
-                      {asset.notes && <p className="mt-1 line-clamp-2 text-xs text-muted">{asset.notes}</p>}
-                      <p className="mt-1 text-xs text-muted">
-                        {formatDate(asset.created_at)} · {fileNameFromUrl(asset.file_url)}
-                        {asset.quantity != null && ` · ${asset.quantity} db`}
-                        {asset.order_date && ` · rendelve: ${formatDate(asset.order_date)}`}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <a
-                        href={asset.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="btn btn-ghost !px-2"
-                        aria-label={openFileLabel(asset.file_url)}
-                        title={openFileLabel(asset.file_url)}
-                      >
-                        <Download size={15} />
-                      </a>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteAsset(asset);
-                        }}
-                        className="btn btn-danger !px-2"
-                        aria-label="Törlés"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <CardAssetLanguageGroup
+              key={language}
+              language={language}
+              versions={versions}
+              supplierNameById={supplierNameById}
+              onOpen={setOpenAssetId}
+              onDelete={deleteAsset}
+              onLightbox={setLightboxSlot}
+            />
           ))}
         </div>
       )}
@@ -631,5 +555,118 @@ export default function CardAssetsPage() {
         />
       )}
     </>
+  );
+}
+
+function CardAssetLanguageGroup({
+  language,
+  versions,
+  supplierNameById,
+  onOpen,
+  onDelete,
+  onLightbox,
+}: {
+  language: string;
+  versions: CardAsset[];
+  supplierNameById: Map<string, string>;
+  onOpen: (id: string) => void;
+  onDelete: (asset: CardAsset) => void;
+  onLightbox: (slot: { url: string; label: string }) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(versions, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg text-forest">{language}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{versions.length}</span>}
+        storageKey={`zusammen-collapsed-card-assets-lang-${language}`}
+        headerClassName="mb-3"
+      >
+        <div className="flex flex-col gap-3">
+          {visible.map((asset, i) => (
+            <div
+              key={asset.id}
+              onClick={() => onOpen(asset.id)}
+              className="card flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-start"
+            >
+              <div className="grid shrink-0 grid-cols-2 gap-1">
+                {CARD_ASSET_THUMB_SLOTS.map((slot) => {
+                  const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
+                  return url ? (
+                    <button
+                      key={slot.key}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLightbox({ url, label: slot.label });
+                      }}
+                      className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-forest/5"
+                      title={slot.label}
+                      aria-label={`${slot.label} megnyitása nagyban`}
+                    >
+                      {/* Plain <img>, not next/image — these are
+                          external Supabase Storage URLs and this is
+                          just a tiny fixed-size preview grid. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={slot.label} className="h-full w-full object-cover" />
+                    </button>
+                  ) : (
+                    <div
+                      key={slot.key}
+                      className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-forest/5"
+                      title={slot.label}
+                    >
+                      <ImageOff size={14} className="text-muted/40" />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-forest">{asset.version}</p>
+                  {i === 0 && <span className="badge bg-forest text-ivory">Legújabb</span>}
+                  <span className={`badge ${PRINT_STATUS_STYLES[asset.print_status]}`}>{asset.print_status}</span>
+                </div>
+                {asset.supplier_id && supplierNameById.get(asset.supplier_id) && (
+                  <p className="mt-1 text-xs text-muted">Beszállító: {supplierNameById.get(asset.supplier_id)}</p>
+                )}
+                {asset.notes && <p className="mt-1 line-clamp-2 text-xs text-muted">{asset.notes}</p>}
+                <p className="mt-1 text-xs text-muted">
+                  {formatDate(asset.created_at)} · {fileNameFromUrl(asset.file_url)}
+                  {asset.quantity != null && ` · ${asset.quantity} db`}
+                  {asset.order_date && ` · rendelve: ${formatDate(asset.order_date)}`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <a
+                  href={asset.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="btn btn-ghost !px-2"
+                  aria-label={openFileLabel(asset.file_url)}
+                  title={openFileLabel(asset.file_url)}
+                >
+                  <Download size={15} />
+                </a>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(asset);
+                  }}
+                  className="btn btn-danger !px-2"
+                  aria-label="Törlés"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {versions.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
+    </div>
   );
 }

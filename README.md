@@ -128,6 +128,22 @@ termékkártya) shows a labeled `components/BackButton.tsx` at the top —
 never just a small arrow icon — alongside whatever close/collapse control
 it already had, so it reads clearly and stays easy to tap on mobile.
 
+**Összecsukható listák (accordion)**: every longer list or preview in the
+Dashboard shares one `components/CollapsibleSection.tsx` — same ▸/▾
+chevron, same ~200ms animated open/close (a grid-rows transition that
+measures the content's own height, same technique the mobile nav drawer
+uses). It's behind the sidebar nav's **Üzlet/Tartalom/Munkafolyamat/Kapcsolat**
+group headers (click to collapse/expand, remembered per-browser — a group
+holding the current page always shows itself regardless of what was
+remembered), the **Email-sablonok** "szem" ikon (starts collapsed, only
+that template's preview animates open), **Hírlevél feliratkozók**,
+**Beszállítók** and **Dokumentumok** each grouped by kategória, **Termékek**
+grouped by státusz, **Kártya-fájlok** and **Marketing anyagok** grouped by
+nyelv, and a season's **Kampányok** list on Marketing. Wherever a group can
+run long (more than 8 items), `lib/useShowMore.ts` + `components/ShowMoreButton.tsx`
+show only the first 8 with a "+N továbbiak megjelenítése" link — click again
+to collapse back down.
+
 ## `/landing` — public customer-facing page
 
 A separate, standalone page (no dashboard chrome, no Basic Auth lock even

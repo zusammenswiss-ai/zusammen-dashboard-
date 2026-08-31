@@ -10,7 +10,10 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import SupplierProfileModal, { type SupplierDraft } from "@/components/SupplierProfileModal";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { CONTRACT_STATUS_HU } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
 
@@ -432,26 +435,17 @@ export default function SuppliersPage() {
           description="Add hozzá a gyártókat és nyomdákat, akiket a Zusammen indulásához megkeresel, vagy importálj egy CSV listát."
         />
       ) : (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
           {grouped.map(([category, items]) => (
-            <div key={category}>
-              <div className="mb-3 flex items-center gap-2">
-                <h2 className="font-serif text-lg text-forest">{category}</h2>
-                <span className="badge bg-ivory-dim text-walnut">{items.length}</span>
-              </div>
-              <div className="flex flex-col gap-3">
-                {items.map((supplier) => (
-                  <SupplierRow
-                    key={supplier.id}
-                    supplier={supplier}
-                    onOpen={() => setProfileFor(supplier)}
-                    onUpdate={(patch) => updateSupplier(supplier.id, patch)}
-                    onDelete={() => deleteSupplier(supplier.id)}
-                    onEmail={() => setComposeFor(supplier)}
-                  />
-                ))}
-              </div>
-            </div>
+            <SupplierCategoryGroup
+              key={category}
+              category={category}
+              items={items}
+              onOpen={setProfileFor}
+              onUpdate={updateSupplier}
+              onDelete={deleteSupplier}
+              onEmail={setComposeFor}
+            />
           ))}
         </div>
       )}
@@ -501,6 +495,50 @@ export default function SuppliersPage() {
         />
       )}
     </>
+  );
+}
+
+function SupplierCategoryGroup({
+  category,
+  items,
+  onOpen,
+  onUpdate,
+  onDelete,
+  onEmail,
+}: {
+  category: string;
+  items: Supplier[];
+  onOpen: (supplier: Supplier) => void;
+  onUpdate: (id: string, patch: Partial<Supplier>) => void;
+  onDelete: (id: string) => void;
+  onEmail: (supplier: Supplier) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg text-forest">{category}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
+        storageKey={`zusammen-collapsed-suppliers-category-${category}`}
+        headerClassName="mb-3"
+      >
+        <div className="flex flex-col gap-3">
+          {visible.map((supplier) => (
+            <SupplierRow
+              key={supplier.id}
+              supplier={supplier}
+              onOpen={() => onOpen(supplier)}
+              onUpdate={(patch) => onUpdate(supplier.id, patch)}
+              onDelete={() => onDelete(supplier.id)}
+              onEmail={() => onEmail(supplier)}
+            />
+          ))}
+        </div>
+        {items.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
+    </div>
   );
 }
 
