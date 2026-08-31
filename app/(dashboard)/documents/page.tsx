@@ -10,7 +10,10 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import Lightbox from "@/components/Lightbox";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { isImageFile, isPreviewableInBrowser, openFileLabel } from "@/lib/file-open";
 
@@ -140,6 +143,20 @@ export default function DocumentsPage() {
     );
   }, [documents, query]);
 
+  // Kategóriánként csoportosítva, ugyanaz a "szabad szöveg kategória →
+  // 'Egyéb' fallback, ábécésorrend" minta, mint a Beszállítóknál — a
+  // keresés a szűrt listát csoportosítja, nem a teljeset.
+  const groupedDocuments = useMemo(() => {
+    const map = new Map<string, Document[]>();
+    for (const d of filteredDocuments) {
+      const key = d.category?.trim() || "Egyéb";
+      const list = map.get(key);
+      if (list) list.push(d);
+      else map.set(key, [d]);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], "hu"));
+  }, [filteredDocuments]);
+
   if (!isSupabaseConfigured) {
     return (
       <>
@@ -253,8 +270,72 @@ export default function DocumentsPage() {
       ) : filteredDocuments.length === 0 ? (
         <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
+        <div className="flex flex-col gap-6">
+          {groupedDocuments.map(([category, items]) => (
+            <DocumentCategoryGroup
+              key={category}
+              category={category}
+              items={items}
+              fileUrl={fileUrl}
+              onUpdateStatus={updateStatus}
+              onOpenLightbox={setLightboxDoc}
+              onCompose={setComposeFor}
+              onDelete={deleteDocument}
+            />
+          ))}
+        </div>
+      )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+
+      {lightboxDoc && fileUrl(lightboxDoc) && (
+        <Lightbox src={fileUrl(lightboxDoc) as string} alt={lightboxDoc.title} onClose={() => setLightboxDoc(null)} />
+      )}
+
+      {composeFor && (
+        <EmailComposeModal
+          title={`Email küldése — ${composeFor.title}`}
+          defaultSubject={composeFor.title}
+          defaultBody={
+            fileUrl(composeFor)
+              ? `Szia!\n\nMegosztom veled a következő dokumentumot: ${composeFor.title}\n\n${fileUrl(composeFor)}\n\n`
+              : `Szia!\n\nA "${composeFor.title}" dokumentummal kapcsolatban írok.\n\n`
+          }
+          onClose={() => setComposeFor(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function DocumentCategoryGroup({
+  category,
+  items,
+  fileUrl,
+  onUpdateStatus,
+  onOpenLightbox,
+  onCompose,
+  onDelete,
+}: {
+  category: string;
+  items: Document[];
+  fileUrl: (doc: Document) => string | null;
+  onUpdateStatus: (id: string, status: string) => void;
+  onOpenLightbox: (doc: Document) => void;
+  onCompose: (doc: Document) => void;
+  onDelete: (doc: Document) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg text-forest">{category}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
+        storageKey={`zusammen-collapsed-documents-category-${category}`}
+        headerClassName="mb-3"
+      >
         <div className="flex flex-col gap-3">
-          {filteredDocuments.map((doc) => {
+          {visible.map((doc) => {
             const url = fileUrl(doc);
             const isImage = isImageFile(doc.file_name ?? url);
             return (
@@ -281,7 +362,7 @@ export default function DocumentsPage() {
                   <select
                     className="select w-auto text-xs"
                     value={doc.status ?? "Piszkozat"}
-                    onChange={(e) => updateStatus(doc.id, e.target.value)}
+                    onChange={(e) => onUpdateStatus(doc.id, e.target.value)}
                   >
                     {STATUSES.map((s) => (
                       <option key={s} value={s}>
@@ -291,7 +372,7 @@ export default function DocumentsPage() {
                   </select>
                   {url && isImage && (
                     <button
-                      onClick={() => setLightboxDoc(doc)}
+                      onClick={() => onOpenLightbox(doc)}
                       className="btn btn-ghost !px-2"
                       aria-label="Kép megnyitása nagyban"
                       title="Kép megnyitása nagyban"
@@ -315,15 +396,11 @@ export default function DocumentsPage() {
                       )}
                     </a>
                   )}
-                  <button
-                    onClick={() => setComposeFor(doc)}
-                    className="btn btn-ghost !px-2"
-                    aria-label="Email küldése"
-                  >
+                  <button onClick={() => onCompose(doc)} className="btn btn-ghost !px-2" aria-label="Email küldése">
                     <Mail size={15} />
                   </button>
                   <button
-                    onClick={() => deleteDocument(doc)}
+                    onClick={() => onDelete(doc)}
                     className="btn btn-danger !px-2"
                     aria-label="Dokumentum törlése"
                   >
@@ -334,26 +411,10 @@ export default function DocumentsPage() {
             );
           })}
         </div>
-      )}
-
-      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
-
-      {lightboxDoc && fileUrl(lightboxDoc) && (
-        <Lightbox src={fileUrl(lightboxDoc) as string} alt={lightboxDoc.title} onClose={() => setLightboxDoc(null)} />
-      )}
-
-      {composeFor && (
-        <EmailComposeModal
-          title={`Email küldése — ${composeFor.title}`}
-          defaultSubject={composeFor.title}
-          defaultBody={
-            fileUrl(composeFor)
-              ? `Szia!\n\nMegosztom veled a következő dokumentumot: ${composeFor.title}\n\n${fileUrl(composeFor)}\n\n`
-              : `Szia!\n\nA "${composeFor.title}" dokumentummal kapcsolatban írok.\n\n`
-          }
-          onClose={() => setComposeFor(null)}
-        />
-      )}
-    </>
+        {items.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
+    </div>
   );
 }

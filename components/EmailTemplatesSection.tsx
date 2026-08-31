@@ -5,6 +5,7 @@ import { FileCode, Plus, Trash2, Eye, EyeOff, Image as ImageIcon, Pencil, Send }
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { EmailTemplate, EmailTemplateUpdate } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import { formatDate } from "@/lib/format";
 
 const STORAGE_BUCKET = "email-assets";
@@ -130,7 +131,11 @@ function TemplateRow({
           </button>
         </div>
       </div>
-      {expanded && (
+      {/* Headerless — the Eye/EyeOff button above is the trigger, this
+          just supplies the shared animated collapse/expand. Always
+          starts closed (no storageKey): a compact row by default, full
+          előnézet only while explicitly toggled open. */}
+      <CollapsibleSection open={expanded} onOpenChange={setExpanded}>
         <div className="border-t border-border bg-ivory-dim/50 p-4">
           {/* Framed to roughly an email client's reading width, not the
            * full card width — a raw unbounded iframe made the HTML hard
@@ -145,7 +150,7 @@ function TemplateRow({
             <iframe title={`${template.name} előnézet`} srcDoc={template.html_content} className="h-96 w-full" sandbox="" />
           </div>
         </div>
-      )}
+      </CollapsibleSection>
     </div>
   );
 }

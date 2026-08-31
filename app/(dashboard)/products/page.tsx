@@ -24,7 +24,10 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import Lightbox from "@/components/Lightbox";
 import BackButton from "@/components/BackButton";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { PRODUCT_STATUSES, PRODUCT_STATUS_STYLES } from "@/lib/labels";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { DEFAULT_CURRENCY } from "@/lib/company-settings";
@@ -445,34 +448,81 @@ export default function ProductsPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ status, items }) => (
-            <div key={status}>
-              <h2 className="mb-3 flex items-center gap-2 font-serif text-lg text-forest">
-                {status}
-                <span className="badge bg-ivory-dim text-walnut">{items.length}</span>
-              </h2>
-              <div className="flex flex-col gap-3">
-                {items.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    currency={currency}
-                    rates={rates}
-                    cardAsset={product.card_asset_id ? cardAssetById.get(product.card_asset_id) : undefined}
-                    supplier={product.supplier_id ? supplierById.get(product.supplier_id) : undefined}
-                    expanded={expandedId === product.id}
-                    onToggle={() => setExpandedId((id) => (id === product.id ? null : product.id))}
-                    onEdit={() => startEdit(product)}
-                    onDelete={() => deleteProduct(product)}
-                  />
-                ))}
-              </div>
-            </div>
+            <ProductStatusGroup
+              key={status}
+              status={status}
+              items={items}
+              currency={currency}
+              rates={rates}
+              cardAssetById={cardAssetById}
+              supplierById={supplierById}
+              expandedId={expandedId}
+              onToggle={setExpandedId}
+              onEdit={startEdit}
+              onDelete={deleteProduct}
+            />
           ))}
         </div>
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </>
+  );
+}
+
+function ProductStatusGroup({
+  status,
+  items,
+  currency,
+  rates,
+  cardAssetById,
+  supplierById,
+  expandedId,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  status: ProductStatus;
+  items: Product[];
+  currency: CurrencyCode;
+  rates: ExchangeRates | null;
+  cardAssetById: Map<string, Pick<CardAsset, "id" | "language" | "version">>;
+  supplierById: Map<string, Pick<Supplier, "id" | "name">>;
+  expandedId: string | null;
+  onToggle: React.Dispatch<React.SetStateAction<string | null>>;
+  onEdit: (product: Product) => void;
+  onDelete: (product: Product) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg text-forest">{status}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
+        storageKey={`zusammen-collapsed-products-status-${status}`}
+        headerClassName="mb-3"
+      >
+        <div className="flex flex-col gap-3">
+          {visible.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              currency={currency}
+              rates={rates}
+              cardAsset={product.card_asset_id ? cardAssetById.get(product.card_asset_id) : undefined}
+              supplier={product.supplier_id ? supplierById.get(product.supplier_id) : undefined}
+              expanded={expandedId === product.id}
+              onToggle={() => onToggle((id) => (id === product.id ? null : product.id))}
+              onEdit={() => onEdit(product)}
+              onDelete={() => onDelete(product)}
+            />
+          ))}
+        </div>
+        {items.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
+    </div>
   );
 }
 

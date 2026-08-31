@@ -50,7 +50,10 @@ import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
 import CampaignFormModal from "@/components/CampaignFormModal";
 import CampaignDetailModal from "@/components/CampaignDetailModal";
 import Lightbox from "@/components/Lightbox";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { SEASON_HU, CAMPAIGN_STATUS_STYLES } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 
@@ -545,6 +548,7 @@ function CampaignCard({
   const [productFocus, setProductFocus] = useState(campaign.product_focus ?? "");
   const [saved, setSaved] = useState(false);
   const { icon: Icon, accent } = SEASON_META[campaign.season];
+  const { visible: visibleCampaigns, hiddenCount, showAll, setShowAll } = useShowMore(relatedCampaigns, 6);
 
   function unlock() {
     setTheme(campaign.theme ?? "");
@@ -652,20 +656,29 @@ function CampaignCard({
       )}
 
       <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-medium text-muted">Kampányok</h3>
-          <button
-            onClick={onAddCampaign}
-            className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
-          >
-            <Plus size={12} /> Új kampány hozzáadása
-          </button>
-        </div>
+        <CollapsibleSection
+          title={<h3 className="text-xs font-medium text-muted">Kampányok</h3>}
+          right={
+            relatedCampaigns.length > 0 && (
+              <span className="badge bg-ivory-dim text-walnut">{relatedCampaigns.length}</span>
+            )
+          }
+          actions={
+            <button
+              onClick={onAddCampaign}
+              className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
+            >
+              <Plus size={12} /> Új kampány hozzáadása
+            </button>
+          }
+          storageKey={`zusammen-collapsed-marketing-campaigns-${campaign.season}`}
+          headerClassName="mb-2"
+        >
         {relatedCampaigns.length === 0 ? (
           <p className="text-xs text-muted">Még nincs kampány ehhez az évszakhoz.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {relatedCampaigns.map((k) => (
+            {visibleCampaigns.map((k) => (
               <button
                 key={k.id}
                 onClick={() => onOpenCampaign(k.id)}
@@ -682,8 +695,12 @@ function CampaignCard({
                 </span>
               </button>
             ))}
+            {relatedCampaigns.length > 6 && (
+              <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+            )}
           </div>
         )}
+        </CollapsibleSection>
       </div>
     </div>
   );
@@ -1247,22 +1264,48 @@ function AssetLibrarySection({
       ) : (
         <div className="flex flex-col gap-6">
           {grouped.map(({ lang, items }) => (
-            <div key={lang}>
-              <h2 className="mb-2 font-serif text-lg text-forest">{lang}</h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {items.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    onDelete={() => onDelete(asset.id)}
-                    onCreateContent={() => onCreateContent(asset)}
-                  />
-                ))}
-              </div>
-            </div>
+            <AssetLanguageGroup key={lang} lang={lang} items={items} onDelete={onDelete} onCreateContent={onCreateContent} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AssetLanguageGroup({
+  lang,
+  items,
+  onDelete,
+  onCreateContent,
+}: {
+  lang: string;
+  items: MarketingAsset[];
+  onDelete: (id: string) => void;
+  onCreateContent: (asset: MarketingAsset) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg text-forest">{lang}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
+        storageKey={`zusammen-collapsed-marketing-assets-lang-${lang}`}
+        headerClassName="mb-2"
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {visible.map((asset) => (
+            <AssetCard
+              key={asset.id}
+              asset={asset}
+              onDelete={() => onDelete(asset.id)}
+              onCreateContent={() => onCreateContent(asset)}
+            />
+          ))}
+        </div>
+        {items.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
     </div>
   );
 }

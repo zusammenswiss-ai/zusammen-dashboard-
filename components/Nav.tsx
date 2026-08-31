@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import CommandPalette from "@/components/CommandPalette";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import {
   NAV_TOP_ITEM,
   NAV_GROUPS,
@@ -15,9 +16,42 @@ import {
   type NavItem,
 } from "@/lib/nav-items";
 
+const NAV_GROUP_STORAGE_PREFIX = "zusammen-nav-group-collapsed-";
+
 export default function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // Which groups the founder has explicitly collapsed (persisted below) —
+  // a group not in this set renders open, same as before this feature.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const next = new Set<string>();
+      for (const group of NAV_GROUPS) {
+        if (localStorage.getItem(NAV_GROUP_STORAGE_PREFIX + group.label) === "1") next.add(group.label);
+      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollapsedGroups(next);
+    } catch {
+      // Private browsing or a blocked localStorage — every group just
+      // starts open every time on this device.
+    }
+  }, []);
+
+  function setGroupCollapsed(label: string, collapsed: boolean) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (collapsed) next.add(label);
+      else next.delete(label);
+      return next;
+    });
+    try {
+      localStorage.setItem(NAV_GROUP_STORAGE_PREFIX + label, collapsed ? "1" : "0");
+    } catch {
+      // Nothing to persist to — won't be remembered next visit.
+    }
+  }
 
   function isActive(item: NavItem) {
     return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -75,18 +109,33 @@ export default function Nav() {
           <nav className="flex flex-col gap-1.5 px-3 pb-3 lg:px-4">
             <NavLink item={NAV_TOP_ITEM} active={isActive(NAV_TOP_ITEM)} onNavigate={() => setOpen(false)} />
 
-            {NAV_GROUPS.map((group) => (
-              <div key={group.label} className="mt-4">
-                <p className="mb-1.5 px-3 font-mono text-[10px] font-medium lowercase tracking-[0.18em] text-ivory/40">
-                  {group.label}
-                </p>
-                <div className="flex flex-col gap-1">
-                  {group.items.map((item) => (
-                    <NavLink key={item.href} item={item} active={isActive(item)} onNavigate={() => setOpen(false)} />
-                  ))}
+            {NAV_GROUPS.map((group) => {
+              const containsActive = group.items.some(isActive);
+              // A group the active page lives in always shows itself,
+              // regardless of what was remembered — never hide where you
+              // currently are behind a collapsed group.
+              const groupOpen = containsActive || !collapsedGroups.has(group.label);
+              return (
+                <div key={group.label} className="mt-4">
+                  <CollapsibleSection
+                    title={
+                      <span className="font-mono text-[10px] font-medium lowercase tracking-[0.18em] text-ivory/40">
+                        {group.label}
+                      </span>
+                    }
+                    open={groupOpen}
+                    onOpenChange={(next) => setGroupCollapsed(group.label, !next)}
+                    headerClassName="mb-1.5 rounded px-3 py-1 hover:bg-white/[0.04]"
+                    bodyClassName="flex flex-col gap-1"
+                    chevronClassName="text-ivory/40"
+                  >
+                    {group.items.map((item) => (
+                      <NavLink key={item.href} item={item} active={isActive(item)} onNavigate={() => setOpen(false)} />
+                    ))}
+                  </CollapsibleSection>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Személyes rituálé — visually set apart from the business
                 groups above: a warm background + gold left border even
