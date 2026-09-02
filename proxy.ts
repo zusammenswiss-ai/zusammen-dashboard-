@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 // Optional single-user protection: if DASHBOARD_USER and DASHBOARD_PASSWORD
 // are both set as environment variables, every founder-dashboard page
 // requires a browser Basic Auth prompt with those credentials. If either is
-// unset, the dashboard stays open (useful for local dev).
+// unset, this extra network-level layer is skipped (useful for local dev) —
+// the Supabase Auth login below is the mandatory gate either way.
 //
 // /landing is the public, customer-facing page and is always excluded — see
 // the matcher below — so it (and the fonts/images it loads) stays reachable
@@ -35,12 +37,12 @@ import { NextResponse, type NextRequest } from "next/server";
 // leiratkozás link at the bottom of every campaign email (see
 // lib/email-campaign.ts), clicked by an external recipient's browser
 // with no Basic Auth credentials to offer.
-export function proxy(request: NextRequest) {
+function checkBasicAuth(request: NextRequest): NextResponse | null {
   const user = process.env.DASHBOARD_USER;
   const password = process.env.DASHBOARD_PASSWORD;
 
   if (!user || !password) {
-    return NextResponse.next();
+    return null;
   }
 
   const authHeader = request.headers.get("authorization");
@@ -53,7 +55,7 @@ export function proxy(request: NextRequest) {
       const suppliedUser = decoded.slice(0, separatorIndex);
       const suppliedPassword = decoded.slice(separatorIndex + 1);
       if (suppliedUser === user && suppliedPassword === password) {
-        return NextResponse.next();
+        return null;
       }
     }
   }
@@ -62,6 +64,82 @@ export function proxy(request: NextRequest) {
     status: 401,
     headers: { "WWW-Authenticate": 'Basic realm="Zusammen Dashboard"' },
   });
+}
+
+// Routes that never require a founder login, even though they're not
+// excluded from this proxy entirely (Basic Auth above still applies to
+// them if DASHBOARD_USER/PASSWORD are set): /login itself (obviously —
+// nobody can log in from behind a login wall), and /together, the
+// partner-shared page gated by its own access code (Beállítások →
+// "Közös tér linkje"), never by a Supabase Auth account.
+function isPublicRoute(pathname: string): boolean {
+  return pathname === "/login" || pathname.startsWith("/together");
+}
+
+// Real, mandatory login gate — every other dashboard page needs an
+// authenticated Supabase Auth session (see app/login/page.tsx). Uses
+// @supabase/ssr's createServerClient so the session cookie set by the
+// browser client (lib/supabase/client.ts, also switched to @supabase/ssr)
+// is readable here; setAll below both keeps the request's own cookies
+// current for any Server Component reading them further down the chain,
+// and refreshes the response's cookies so a near-expiry session gets
+// silently renewed rather than bouncing the founder to /login mid-session.
+async function checkSupabaseAuth(request: NextRequest): Promise<NextResponse> {
+  let response = NextResponse.next({ request });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Supabase not configured yet (fresh checkout, no env vars) — every page
+  // already renders its own "csatlakoztasd a Supabase-t" empty state in
+  // that case, so there's nothing to gate here either.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
+        response = NextResponse.next({ request });
+        for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options);
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const pathname = request.nextUrl.pathname;
+
+  if (pathname === "/login") {
+    // Already logged in — no reason to show the login form again.
+    if (user) return NextResponse.redirect(new URL("/", request.url));
+    return response;
+  }
+
+  if (isPublicRoute(pathname)) {
+    return response;
+  }
+
+  if (!user) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname + request.nextUrl.search);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return response;
+}
+
+export async function proxy(request: NextRequest) {
+  const basicAuthResponse = checkBasicAuth(request);
+  if (basicAuthResponse) return basicAuthResponse;
+
+  return checkSupabaseAuth(request);
 }
 
 export const config = {

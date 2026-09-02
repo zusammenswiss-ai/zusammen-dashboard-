@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Mail, CheckCircle2, Unplug, HeartHandshake, Copy, Check, RefreshCw } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Mail, CheckCircle2, Unplug, HeartHandshake, Copy, Check, RefreshCw, UserRound, LogOut } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { Spinner } from "@/components/Feedback";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -28,10 +28,49 @@ export default function SettingsPage() {
             <CompanySettingsSection />
             <DataExportSection />
             <DangerZoneSection />
+            <AccountCard />
           </>
         )}
       </div>
     </>
+  );
+}
+
+/** Bejelentkezett fiók + Kijelentkezés — deliberately last on the page,
+ * separate from Veszélyes zóna above it (that's about the founder's data,
+ * this is about her own session). router.push (not a hard reload) is
+ * enough since the sign-out already clears the session cookie
+ * synchronously — proxy.ts re-runs for the /login navigation and sees it
+ * gone. */
+function AccountCard() {
+  const supabase = getSupabaseClient();
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+  }, [supabase]);
+
+  async function signOut() {
+    if (!supabase) return;
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  return (
+    <div className="card max-w-xl p-5 sm:p-6">
+      <div className="flex items-center gap-2">
+        <UserRound size={18} className="text-bronze" />
+        <h2 className="font-serif text-lg text-forest">Fiók</h2>
+      </div>
+      {email && <p className="mt-1.5 text-sm text-muted">Bejelentkezve mint {email}</p>}
+      <button onClick={signOut} disabled={signingOut} className="btn btn-ghost mt-4 w-fit">
+        <LogOut size={15} /> {signingOut ? "Kijelentkezés…" : "Kijelentkezés"}
+      </button>
+    </div>
   );
 }
 
