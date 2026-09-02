@@ -27,7 +27,7 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Személyes rituálé** (Personal Ritual) | Three private rituals for the founders themselves, not the business. **Gold Card Letters**: a hero countdown ("X nap a következő levélig", first round 2026.09.01 then every 3 months) with 4 seal icons that fill up as letters are sealed, an always-visible rituálé-útmutató panel with the 3 fixed prompt questions, and an upload form (ki tölti fel, dátum, fotó) — every sealed letter's photo shows blurred and darkened with a seal icon and "Lepecsételve" overlay, never the actual contents. **Személyes Journey (Passport)**: a free-form emlék-napló (hely, élmény, jegyzet, optional fotó) as a timeline, a fixed 5-card Wild Card grid (Coffee Break / Silence / Memory / Adventure / Gratitude) each checkable off with a date, and a progress bar ("X/5 Wild Card teljesítve" + memory count). At the top of the emlék-napló, an **"Ezen a napon" visszatekintés** card quietly surfaces whenever a memory landed exactly egy hónapja or egy éve (±1 nap) — click it to scroll straight to (and briefly highlight) that entry. The moment all 5 Wild Cards are complete, a warm gold **Évszak-zárás** card appears once ("üljetek le pár percre, és beszéljétek meg…") and stays up until dismissed with "Elolvastam" (remembered per-browser, same as the Naptár legend toggles — there's no "next round" to reset it for since completions can't currently be undone). An **"Emlékeink nyomtatása"** button turns every emlék-napló entry (dátum, hely, szöveg, fotó) into a Fraunces-titled, meleg elefántcsont-hátterű keepsake via the browser's print dialog (save as PDF) — same `window.print()` + hidden `.print-*` convention as the `/landing` letter keepsake. **Meglepetés kérdés**: "Húzz egy lapot" shuffles through a 58-question Hungarian pool for ~1.5s before landing on one, framed by a random intro/outro (every outro explicitly mentions putting the phone down) and a fixed reminder that the phone is only for sending the message — "Másolás küldéshez" copies the full text ready to send. Every letter, memory, Wild Card completion, and question draw shows up in the Áttekintés activity feed |
 | **Postaláda** (Inbox) | Read-only view of the connected Gmail account's inbox (needs the `gmail.readonly` scope — see the reconnect note below) — sender, subject, snippet, and relative time per row, a Gmail-syntax search box (e.g. `from:supplier@example.com`), "Továbbiak betöltése" pagination, and clicking a row opens the full message body. No mark-as-read/archive/delete actions by design, just viewing |
 | **Megosztások** (Shares) | **Megosztható link és QR kód**: the live `/landing` URL (DE/EN toggle) with a "Link másolása" button, a self-generated QR code (`/api/qr`, no third-party service) with a "QR kód letöltése" PNG download, and — where the browser supports it — a native "Megosztás" share-sheet button. Shows even before Supabase is configured, since it needs neither. **Kapcsolatok**: a sajtó/influencer/ismerős contact list (name, email, kategória, jegyzet), each with its own **Email küldése** — a successful send auto-fills "Kiküldött email" and ticks "Megkeresve", same as Beszállítók — and a **Levelezés** toggle per card previews the Gmail thread with that contact and auto-ticks "Megkeresve" the moment they reply, same mechanism as Beszállítók. **Demand-test link megosztásai**: a log of every time the `/landing` igényfelmérés link was emailed out — "+ Új megosztás" picks an existing kapcsolat or a one-off name/email, opens the compose window pre-filled with the link, and a successful send adds a row to the log |
-| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below. **Közös tér linkje** — generates/regenerates the access code for the partner-shared `/together` page and shows the full link to send. See [`/together`](#together--shareable-partner-page) below. **Márka-adatok** — company name/address/phone/email + a logo upload. **Email-aláírás** — free text automatically appended to every email sent through an "Email küldése" button (default: "Zusammen — Where conversations become memories."). **Naptár-integráció** — shows whether the negyedéves Gold Card Letters due-date reminder is active on Naptár/Áttekintés, with Szüneteltetés/Aktiválás and a Újra beállítás button (sealed letters already on record always keep showing). **Pénznem preferencia** — CHF/USD/EUR, changes how prices are *displayed* on Pénzügyek (there's no exchange-rate source, so it relabels the stored number rather than converting it). **Naptár feliratkozás** — generates a `.ics` subscription link (own token, not the dashboard's Basic Auth — see below) so every Naptár event shows up with native reminders in Google Calendar/Apple Naptár/your phone. **Adatexport** — one button downloads every Supabase table as a CSV, zipped. **Veszélyes zóna** — "Minden adat törlése" wipes all founder-entered business/content data (type TÖRLÉS to confirm) but keeps the Gmail connection, the Közös tér code, and Márka-adatok intact |
+| **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below. **Közös tér linkje** — generates/regenerates the access code for the partner-shared `/together` page and shows the full link to send. See [`/together`](#together--shareable-partner-page) below. **Márka-adatok** — company name/address/phone/email + a logo upload. **Email-aláírás** — free text automatically appended to every email sent through an "Email küldése" button (default: "Zusammen — Where conversations become memories."). **Naptár-integráció** — shows whether the negyedéves Gold Card Letters due-date reminder is active on Naptár/Áttekintés, with Szüneteltetés/Aktiválás and a Újra beállítás button (sealed letters already on record always keep showing). **Pénznem preferencia** — CHF/USD/EUR, changes how prices are *displayed* on Pénzügyek (there's no exchange-rate source, so it relabels the stored number rather than converting it). **Naptár feliratkozás** — generates a `.ics` subscription link (own token, not the dashboard's Basic Auth — see below) so every Naptár event shows up with native reminders in Google Calendar/Apple Naptár/your phone. **Adatexport** — one button downloads every Supabase table as a CSV, zipped. **Veszélyes zóna** — "Minden adat törlése" wipes all founder-entered business/content data (type TÖRLÉS to confirm) but keeps the Gmail connection, the Közös tér code, and Márka-adatok intact. **Fiók** — shows the logged-in Supabase Auth email and a **Kijelentkezés** button — see [Set up your login](#set-up-your-login-supabase-auth) below |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 **Navigáció**: the sidebar (`components/Nav.tsx`) groups everything but
@@ -305,19 +305,42 @@ That's it — the database, tables, and file storage are ready.
 > **Note on security:** this app talks to Supabase with the public
 > "anon" key directly from the browser, which is normal for a
 > single-user tool like this. Row Level Security is enabled with
-> permissive policies so the anon key can read/write your tables — real
-> protection comes from keeping your dashboard URL private, or turning
-> on the optional password lock below.
+> permissive policies so the anon key can read/write your tables. The
+> real protection is the login below — every dashboard page requires an
+> authenticated Supabase Auth session, redirecting to `/login`
+> otherwise — plus, optionally, the network-level Basic Auth lock
+> further down.
 
-### Optional (but recommended): password-protect the whole dashboard
+### Set up your login (Supabase Auth)
 
-The dashboard talks to Supabase with the public anon key and permissive
-RLS policies (see the note above) — anyone with the link can read and
-write every table. The app ships with a simple Basic Auth check
-(`proxy.ts`) to close that gap: set **both** `DASHBOARD_USER` and
-`DASHBOARD_PASSWORD` as environment variables and every dashboard page
-will ask for a username/password in the browser before loading. Leave
-them unset to keep the dashboard open to anyone with the link.
+`/login` (email + jelszó, Supabase Auth) is the dashboard's real login
+gate — `proxy.ts` redirects every other dashboard page here unless the
+browser has a valid Supabase Auth session, and back to `/` if you're
+already logged in and open `/login` directly. There's no self-service
+sign-up screen — accounts are created by hand in the Supabase dashboard:
+
+1. In your Supabase project, open **Authentication → Users → Add user**
+   (top-right).
+2. Enter the email you want to log in with, set a password, and toggle
+   **Auto Confirm User** on (otherwise Supabase waits for an email
+   confirmation link that this app never sends).
+3. That's it — that email/password now logs in at `/login`. Repeat for
+   any other founder/team member who needs access; there's no limit and
+   no extra setup per account.
+
+Forgot a password? Same screen — open the user, **Reset password**, or
+delete and re-add them. **Beállítások → Fiók** shows who's currently
+logged in and has the **Kijelentkezés** button.
+
+### Optional: also lock the whole dashboard at the network level
+
+On top of the Supabase Auth login above, the app ships with a simple
+Basic Auth check (`proxy.ts`) for an extra layer before any of it is
+even reachable: set **both** `DASHBOARD_USER` and `DASHBOARD_PASSWORD`
+as environment variables and every dashboard page will ask for a
+username/password in the browser before loading — including `/login`
+itself. Leave them unset to skip this extra layer (the Supabase Auth
+login still applies either way).
 
 - **Locally**: add both to `.env.local`.
 - **On Vercel**: Project → Settings → Environment Variables (same place
