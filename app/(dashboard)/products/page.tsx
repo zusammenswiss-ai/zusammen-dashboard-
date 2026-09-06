@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -15,6 +15,7 @@ import {
   Layers,
   Truck,
   ArrowRight,
+  Search,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CardAsset, Product, ProductStatus, Supplier } from "@/lib/supabase/types";
@@ -68,6 +69,7 @@ export default function ProductsPage() {
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   // Live árfolyamok az Árrés kártyánkénti, valós számolásához — see
   // lib/exchange-rates.ts (same approach as Pénzügyek).
   const [rates, setRates] = useState<ExchangeRates | null>(null);
@@ -226,6 +228,26 @@ export default function ProductsPage() {
 
   const cardAssetById = new Map(cardAssets.map((c) => [c.id, c]));
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
+
+  // Név, edition, leírás, gyártási megjegyzés, összekapcsolt beszállító és
+  // kártya-verzió szerint keres.
+  const filteredProducts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => {
+      const cardAsset = p.card_asset_id ? cardAssetById.get(p.card_asset_id) : undefined;
+      const supplier = p.supplier_id ? supplierById.get(p.supplier_id) : undefined;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.edition ?? "").toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q) ||
+        (p.production_note ?? "").toLowerCase().includes(q) ||
+        (supplier?.name ?? "").toLowerCase().includes(q) ||
+        (cardAsset ? `${cardAsset.language} ${cardAsset.version}`.toLowerCase().includes(q) : false)
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cardAssetById/supplierById are plain Maps rebuilt every render from cardAssets/suppliers, which are already tracked below
+  }, [products, query, cardAssets, suppliers]);
 
   const formFields = (
     <>
@@ -411,7 +433,7 @@ export default function ProductsPage() {
 
   const groups = PRODUCT_STATUSES.map((status) => ({
     status,
-    items: products.filter((p) => p.status === status),
+    items: filteredProducts.filter((p) => p.status === status),
   })).filter((g) => g.items.length > 0);
 
   return (
@@ -441,10 +463,24 @@ export default function ProductsPage() {
 
       {!showForm && !editingId && error && <ErrorBanner message={error} />}
 
+      {!showForm && !editingId && !loading && products.length > 0 && (
+        <div className="relative mb-4 w-full max-w-xs">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="input pl-9"
+            placeholder="Termékek keresése…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <Spinner />
       ) : products.length === 0 ? (
         <EmptyState icon={Tag} title="Még nincs termék" description="Add hozzá az első terméket a katalógushoz." />
+      ) : filteredProducts.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ status, items }) => (

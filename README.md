@@ -328,9 +328,23 @@ sign-up screen — accounts are created by hand in the Supabase dashboard:
    any other founder/team member who needs access; there's no limit and
    no extra setup per account.
 
-Forgot a password? Same screen — open the user, **Reset password**, or
-delete and re-add them. **Beállítások → Fiók** shows who's currently
-logged in and has the **Kijelentkezés** button.
+Forgot a password? `/login` → **"Elfelejtett jelszó?"** sends a real
+reset email via Supabase's own mailer — click the link, set a new
+password on the page it opens (`/reset-password`), done. That link only
+works once **its destination is on Supabase's allow-list**, though:
+
+4. In your Supabase project, open **Authentication → URL Configuration**
+   → **Redirect URLs** → add `http://localhost:3000/reset-password` for
+   local dev and `https://YOUR-PRODUCTION-DOMAIN/reset-password` for the
+   live site (same domain reasoning as the Gmail OAuth redirect URI
+   below — use whatever `SITE_URL`/your Vercel URL actually is). Without
+   this, clicking the emailed link fails with a vague "requested path is
+   invalid" error instead of landing on the reset form.
+
+(Still always possible the old way too, with no email involved: open the
+user in **Authentication → Users**, **Reset password**, or delete and
+re-add them.) **Beállítások → Fiók** shows who's currently logged in and
+has the **Kijelentkezés** button.
 
 ### Optional: also lock the whole dashboard at the network level
 

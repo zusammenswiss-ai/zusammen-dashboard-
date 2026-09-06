@@ -15,10 +15,12 @@ import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
  * itself. */
 export default function LoginPage() {
   const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -46,6 +48,31 @@ export default function LoginPage() {
     router.push(next && next.startsWith("/") ? next : "/");
   }
 
+  // "Elfelejtett jelszó?" — sends Supabase's own reset email, pointing back
+  // at /reset-password (a separate public page, see app/reset-password —
+  // it does the actual "set a new password" step once the link is
+  // clicked). The confirmation message is deliberately the same whether or
+  // not the address has an account, so this can't be used to check which
+  // emails are registered.
+  async function submitForgot(e: FormEvent) {
+    e.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setSaving(true);
+    setError(null);
+    await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setSaving(false);
+    setResetSent(true);
+  }
+
+  function switchMode(next: "signin" | "forgot") {
+    setMode(next);
+    setError(null);
+    setResetSent(false);
+  }
+
   if (!isSupabaseConfigured) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-ivory px-4">
@@ -67,45 +94,100 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <form onSubmit={submit} className="card flex flex-col gap-4 p-6">
-          <div className="flex items-center gap-2 text-forest">
-            <LockKeyhole size={16} className="text-bronze" />
-            <h1 className="font-serif text-lg">Bejelentkezés</h1>
-          </div>
+        {mode === "signin" ? (
+          <form onSubmit={submit} className="card flex flex-col gap-4 p-6">
+            <div className="flex items-center gap-2 text-forest">
+              <LockKeyhole size={16} className="text-bronze" />
+              <h1 className="font-serif text-lg">Bejelentkezés</h1>
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Email cím</label>
-            <input
-              type="email"
-              required
-              autoFocus
-              autoComplete="username"
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="zusammen.swiss@gmail.com"
-            />
-          </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Email cím</label>
+              <input
+                type="email"
+                required
+                autoFocus
+                autoComplete="username"
+                className="input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="zusammen.swiss@gmail.com"
+              />
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Jelszó</label>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-xs font-medium text-muted">Jelszó</label>
+                <button
+                  type="button"
+                  onClick={() => switchMode("forgot")}
+                  className="text-xs text-muted underline hover:text-forest"
+                >
+                  Elfelejtett jelszó?
+                </button>
+              </div>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                className="input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-red-600">{error}</p>}
 
-          <button type="submit" disabled={saving} className="btn btn-primary justify-center">
-            {saving ? "Bejelentkezés…" : "Bejelentkezés"}
-          </button>
-        </form>
+            <button type="submit" disabled={saving} className="btn btn-primary justify-center">
+              {saving ? "Bejelentkezés…" : "Bejelentkezés"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={submitForgot} className="card flex flex-col gap-4 p-6">
+            <div className="flex items-center gap-2 text-forest">
+              <LockKeyhole size={16} className="text-bronze" />
+              <h1 className="font-serif text-lg">Jelszó visszaállítása</h1>
+            </div>
+
+            {resetSent ? (
+              <p className="text-sm text-muted">
+                Ha létezik fiók ezzel az email címmel, elküldtük rá a jelszó-visszaállító linket — nézd meg a
+                postaládát (és a spam mappát is).
+              </p>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Email cím</label>
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    autoComplete="username"
+                    className="input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="zusammen.swiss@gmail.com"
+                  />
+                </div>
+
+                {error && <p className="text-xs text-red-600">{error}</p>}
+
+                <button type="submit" disabled={saving} className="btn btn-primary justify-center">
+                  {saving ? "Küldés…" : "Visszaállító link küldése"}
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => switchMode("signin")}
+              className="text-center text-xs text-muted underline hover:text-forest"
+            >
+              Vissza a bejelentkezéshez
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );

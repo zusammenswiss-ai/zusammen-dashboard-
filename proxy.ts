@@ -69,11 +69,14 @@ function checkBasicAuth(request: NextRequest): NextResponse | null {
 // Routes that never require a founder login, even though they're not
 // excluded from this proxy entirely (Basic Auth above still applies to
 // them if DASHBOARD_USER/PASSWORD are set): /login itself (obviously —
-// nobody can log in from behind a login wall), and /together, the
-// partner-shared page gated by its own access code (Beállítások →
-// "Közös tér linkje"), never by a Supabase Auth account.
+// nobody can log in from behind a login wall), /reset-password (the
+// "set a new password" step a Supabase recovery email links to — its
+// first request has no session cookie yet, only the client-side code
+// exchange it runs itself creates one, see app/reset-password/page.tsx),
+// and /together, the partner-shared page gated by its own access code
+// (Beállítások → "Közös tér linkje"), never by a Supabase Auth account.
 function isPublicRoute(pathname: string): boolean {
-  return pathname === "/login" || pathname.startsWith("/together");
+  return pathname === "/login" || pathname === "/reset-password" || pathname.startsWith("/together");
 }
 
 // Real, mandatory login gate — every other dashboard page needs an

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
-import { Plus, Trash2, Archive, Download, FolderUp, ImageOff } from "lucide-react";
+import { Plus, Trash2, Archive, Download, FolderUp, ImageOff, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CardAsset, PriceQuote, PrintStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -89,6 +89,7 @@ export default function CardAssetsPage() {
   const [openAssetId, setOpenAssetId] = useState<string | null>(null);
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
   const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
+  const [query, setQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -292,12 +293,28 @@ export default function CardAssetsPage() {
   const supplierNameById = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers]);
   const openAsset = openAssetId ? assets.find((a) => a.id === openAssetId) ?? null : null;
 
+  // Version, megjegyzés, nyelv és beszállító neve szerint keres — a
+  // találatok utána ugyanúgy nyelvenként csoportosítva jelennek meg lent.
+  const filteredAssets = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return assets;
+    return assets.filter((a) => {
+      const supplierName = a.supplier_id ? supplierNameById.get(a.supplier_id) ?? "" : "";
+      return (
+        a.version.toLowerCase().includes(q) ||
+        a.language.toLowerCase().includes(q) ||
+        (a.notes ?? "").toLowerCase().includes(q) ||
+        supplierName.toLowerCase().includes(q)
+      );
+    });
+  }, [assets, query, supplierNameById]);
+
   // Grouped by language — fixed languages first in their usual order, then
   // any others (e.g. from old data) alphabetically — newest version on top
   // within each group, with the top one flagged as the current one.
   const groups = useMemo(() => {
     const byLang = new Map<string, CardAsset[]>();
-    for (const asset of assets) {
+    for (const asset of filteredAssets) {
       const list = byLang.get(asset.language) ?? [];
       list.push(asset);
       byLang.set(asset.language, list);
@@ -314,7 +331,7 @@ export default function CardAssetsPage() {
       language,
       versions: [...byLang.get(language)!].sort(byRecency),
     }));
-  }, [assets]);
+  }, [filteredAssets]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -509,6 +526,18 @@ export default function CardAssetsPage() {
         </form>
       )}
 
+      {!loading && assets.length > 0 && (
+        <div className="relative mb-4 w-full max-w-xs">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="input pl-9"
+            placeholder="Kártya-fájlok keresése…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <Spinner />
       ) : assets.length === 0 ? (
@@ -517,6 +546,8 @@ export default function CardAssetsPage() {
           title="Még nincs feltöltött kártya-fájl"
           description="Töltsd fel az első nyomdakész fájlt nyelvenként (ZIP, Word, ODF vagy CSV) — a legújabb verzió mindig kiemelve jelenik meg."
         />
+      ) : filteredAssets.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ language, versions }) => (
