@@ -67,6 +67,22 @@ export default function LandingClient({ initialLang }: { initialLang: LandingLan
     };
   }, [lang]);
 
+  // Minimal, privacy-friendly visit counter — one row per page load (not
+  // per lang/screen change, hence the empty deps array and the ref guard
+  // against React's dev-mode double-invoke), no IP or visitor id stored.
+  // Read back on the Igényfelmérés dashboard page as a rough "hányan
+  // jutottak el a landingig" number. Fire-and-forget: a failed insert
+  // (e.g. Supabase not configured) should never affect the funnel itself.
+  const pageViewLogged = useRef(false);
+  useEffect(() => {
+    if (pageViewLogged.current) return;
+    pageViewLogged.current = true;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    void supabase.from("landing_page_views").insert({ lang: initialLang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately once per mount, not once per `lang` toggle
+  }, []);
+
   const screenIndex = LANDING_SCREENS.indexOf(screen);
   const progressPct = Math.round(((screenIndex + 1) / LANDING_SCREENS.length) * 100);
 

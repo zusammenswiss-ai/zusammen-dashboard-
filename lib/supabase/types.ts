@@ -414,6 +414,13 @@ export interface LandingResponse {
 }
 export type LandingResponseInsert = Partial<Omit<LandingResponse, "id" | "created_at">>;
 
+export interface LandingPageView {
+  id: string;
+  lang: LandingLang;
+  created_at: string;
+}
+export type LandingPageViewInsert = Partial<Omit<LandingPageView, "id" | "created_at">>;
+
 export interface GoldCardLetter {
   id: string;
   seq_number: number;
@@ -676,6 +683,12 @@ export interface Database {
         Update: Partial<LandingResponse>;
         Relationships: [];
       };
+      landing_page_views: {
+        Row: LandingPageView;
+        Insert: LandingPageViewInsert;
+        Update: Partial<LandingPageView>;
+        Relationships: [];
+      };
       gold_card_letters: {
         Row: GoldCardLetter;
         Insert: GoldCardLetterInsert;
@@ -794,6 +807,7 @@ export const ANON_TABLE_NAMES = [
   "price_quotes",
   "landing_letters",
   "landing_responses",
+  "landing_page_views",
   "gold_card_letters",
   "journey_memories",
   "wild_card_completions",
