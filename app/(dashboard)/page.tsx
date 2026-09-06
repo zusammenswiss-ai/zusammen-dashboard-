@@ -33,7 +33,12 @@ import { PLAN_STATUS_HU, ORDER_STATUS_HU } from "@/lib/labels";
 import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
 import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
 import { convertAmount, fetchExchangeRates, type ExchangeRates } from "@/lib/exchange-rates";
+import { fetchAllCalendarEvents, type CalendarEventItem } from "@/lib/calendar-events";
+import { CategoryIcon } from "@/components/CalendarCategoryBadge";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import type { CurrencyCode, PlanStatus, OrderStatus } from "@/lib/supabase/types";
+
+const UPCOMING_EVENTS_LIMIT = 5;
 
 // Two separate activity kinds, deliberately not merged into one feed —
 // "the business" and "the personal ritual" are different concerns for a
@@ -92,6 +97,12 @@ export default function OverviewPage() {
   // Beállítások → Naptár-integráció; defaults to shown until the row
   // loads (or if it never existed) — matches the column's own db default.
   const [goldCardReminderEnabled, setGoldCardReminderEnabled] = useState(true);
+  // "Közelgő események" widget — the same shared query as the Naptár
+  // page and the .ics feed (lib/calendar-events.ts), so this can never
+  // show something the full calendar wouldn't. Its own effect/state
+  // (not folded into the big Promise.all above) since it's an
+  // independent, larger fetch that shouldn't block the rest of the page.
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventItem[]>([]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -294,6 +305,27 @@ export default function OverviewPage() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    (async () => {
+      try {
+        const events = await fetchAllCalendarEvents(supabase);
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = events
+          .filter((ev) => ev.date >= today)
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .slice(0, UPCOMING_EVENTS_LIMIT);
+        setUpcomingEvents(upcoming);
+      } catch {
+        // Silent, same reasoning as the unread-mail fetch above — a
+        // failed calendar fetch just leaves the widget empty rather than
+        // breaking the rest of Áttekintés.
+      }
+    })();
+  }, []);
+
   // Converted into `currency` (Beállítások → Pénznem) rather than just
   // summed raw — same fix as Pénzügyek's totals, see lib/exchange-rates.ts.
   const { revenue, margin } = useMemo(() => {
@@ -401,6 +433,37 @@ export default function OverviewPage() {
               </ul>
             )}
           </div>
+
+          {/* 1b. Közelgő események — same shared source as the Naptár
+              page itself (lib/calendar-events.ts), just the next 5. */}
+          {upcomingEvents.length > 0 && (
+            <div className="card mt-6 p-5">
+              <CollapsibleSection
+                title={<h2 className="font-serif text-lg text-forest">Közelgő események</h2>}
+                storageKey="attekintes-kozelgo-esemenyek-open"
+                actions={
+                  <Link href="/calendar" className="btn btn-ghost !px-3 text-xs">
+                    Teljes naptár megnyitása
+                  </Link>
+                }
+              >
+                <ul className="mt-3 flex flex-col divide-y divide-border">
+                  {upcomingEvents.map((ev) => (
+                    <li key={ev.id}>
+                      <Link
+                        href={ev.href}
+                        className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ivory-dim/60"
+                      >
+                        <CategoryIcon category={ev.category} />
+                        <span className="min-w-0 flex-1 truncate text-sm text-forest">{ev.title}</span>
+                        <span className="shrink-0 text-xs text-muted">{formatDate(ev.date)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleSection>
+            </div>
+          )}
 
           {/* 2. Business snapshot */}
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

@@ -199,6 +199,10 @@ export const CALENDAR_CATEGORIES = {
   contract: { label: "Szerződés lejárat", color: "rose" },
   recurring: { label: "Ismétlődő sablon", color: "indigo" },
   event: { label: "Egyedi esemény", color: "emerald" },
+  // Named marketing pushes (campaigns table, e.g. "ZUSAMMEN FIRST 20") —
+  // distinct from the `marketing` category above, which is the 4 fixed
+  // Évszakos stratégia rows mapped onto their season's start month.
+  campaign: { label: "Kampányok", color: "amber" },
 } as const;
 
 export type CalendarCategory = keyof typeof CALENDAR_CATEGORIES;

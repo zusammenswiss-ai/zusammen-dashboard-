@@ -38,6 +38,7 @@ export async function fetchAllCalendarEvents(supabase: SupabaseClient<Database>)
     plansRes,
     ordersRes,
     campaignsRes,
+    namedCampaignsRes,
     contentRes,
     goldCardLettersRes,
     journeyMemoriesRes,
@@ -52,6 +53,7 @@ export async function fetchAllCalendarEvents(supabase: SupabaseClient<Database>)
     supabase.from("future_plans").select("id, title, created_at"),
     supabase.from("orders").select("id, customer_name, delivery_date").not("delivery_date", "is", null),
     supabase.from("marketing_campaigns").select("id, season, theme"),
+    supabase.from("campaigns").select("id, name, start_date, end_date"),
     supabase.from("marketing_content").select("id, title, content_type, scheduled_date"),
     supabase.from("gold_card_letters").select("id, seq_number, sealed_date"),
     supabase.from("journey_memories").select("id, place, date"),
@@ -139,6 +141,30 @@ export async function fetchAllCalendarEvents(supabase: SupabaseClient<Database>)
         title: `${SEASON_HU[c.season]} kampány${c.theme ? ` — ${c.theme}` : ""}`,
         category: "marketing",
         href: "/marketing",
+      });
+    }
+  }
+
+  // Named marketing pushes (campaigns table, e.g. "ZUSAMMEN FIRST 20") —
+  // real dates unlike the season-only marketing_campaigns above, so both
+  // start and end (when set and different) get their own event.
+  for (const c of namedCampaignsRes.data ?? []) {
+    if (c.start_date) {
+      events.push({
+        id: `campaign-start-${c.id}`,
+        date: c.start_date,
+        title: `${c.name} — kampány kezdete`,
+        category: "campaign",
+        href: `/marketing?campaign=${c.id}`,
+      });
+    }
+    if (c.end_date && c.end_date !== c.start_date) {
+      events.push({
+        id: `campaign-end-${c.id}`,
+        date: c.end_date,
+        title: `${c.name} — kampány vége`,
+        category: "campaign",
+        href: `/marketing?campaign=${c.id}`,
       });
     }
   }
