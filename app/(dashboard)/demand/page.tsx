@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, Mail, ScrollText } from "lucide-react";
+import { ClipboardList, Mail, ScrollText, Eye } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { landingT } from "@/lib/landing-i18n";
 import PageHeader from "@/components/PageHeader";
@@ -41,20 +41,34 @@ type Stats = {
   emails: string[];
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export default function DemandPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  // Separate from Stats above (and allowed to stay null on a fetch error
+  // there) since a landing_page_views failure — e.g. running this feature
+  // against a database that hasn't had `supabase/schema.sql` re-run yet —
+  // shouldn't block the rest of the (older, already-relied-upon) page.
+  const [pageViews, setPageViews] = useState<{ total: number; last7Days: number } | null>(null);
 
   const load = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [responsesRes, lettersRes] = await Promise.all([
+    const [responsesRes, lettersRes, pageViewsRes] = await Promise.all([
       supabase.from("landing_responses").select("*"),
       supabase.from("landing_letters").select("id"),
+      supabase.from("landing_page_views").select("created_at"),
     ]);
+    if (!pageViewsRes.error) {
+      const rows = pageViewsRes.data ?? [];
+      const cutoff = Date.now() - 7 * DAY_MS;
+      const last7Days = rows.filter((r) => new Date(r.created_at).getTime() >= cutoff).length;
+      setPageViews({ total: rows.length, last7Days });
+    }
     if (responsesRes.error) {
       setError(responsesRes.error.message);
       setLoading(false);
@@ -129,62 +143,77 @@ export default function DemandPage() {
 
       {loading ? (
         <Spinner />
-      ) : !stats || !hasData ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Még nincs visszajelzés"
-          description="Amint valaki kitölti a /landing oldal kérdőívét vagy megír egy Gold Card levelet, itt fog megjelenni."
-        />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard icon={ClipboardList} label="Kitöltött kérdőívek" value={stats.totalResponses} />
-            <StatCard icon={Mail} label="Megadott emailek" value={stats.emails.length} />
-            <StatCard icon={ScrollText} label="Megírt Gold Card levelek" value={stats.letterCount} />
-          </div>
-
-          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <BarSection title="Megvennéd?" counts={stats.buyCounts} order={BUY_HU} />
-            <BarSection title="Árérzékenység" counts={stats.priceCounts} order={PRICE_HU} />
-          </div>
-
-          {Object.keys(stats.boxCounts).length > 0 && (
-            <div className="mt-6">
-              <BarSection title="Mit szeretnének látni a csomagban" counts={stats.boxCounts} />
+          {pageViews && pageViews.total > 0 && (
+            <div className="mb-6 max-w-xs">
+              <StatCard
+                icon={Eye}
+                label="Landing oldal megtekintések"
+                value={pageViews.total}
+                hint={`Utolsó 7 napban: ${pageViews.last7Days}`}
+              />
             </div>
           )}
 
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="card p-5">
-              <h2 className="font-serif text-lg text-forest">Ötletek, amiket írtak</h2>
-              {stats.ideas.length === 0 ? (
-                <p className="mt-3 text-sm text-muted">Még senki nem írt szabad szöveges ötletet.</p>
-              ) : (
-                <ul className="mt-3 flex flex-col divide-y divide-border">
-                  {stats.ideas.map((idea, i) => (
-                    <li key={i} className="py-2.5 text-sm text-forest">
-                      {idea}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          {!stats || !hasData ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="Még nincs visszajelzés"
+              description="Amint valaki kitölti a /landing oldal kérdőívét vagy megír egy Gold Card levelet, itt fog megjelenni."
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <StatCard icon={ClipboardList} label="Kitöltött kérdőívek" value={stats.totalResponses} />
+                <StatCard icon={Mail} label="Megadott emailek" value={stats.emails.length} />
+                <StatCard icon={ScrollText} label="Megírt Gold Card levelek" value={stats.letterCount} />
+              </div>
 
-            <div className="card p-5">
-              <h2 className="font-serif text-lg text-forest">Megadott emailek</h2>
-              {stats.emails.length === 0 ? (
-                <p className="mt-3 text-sm text-muted">Még senki nem adott meg emailt.</p>
-              ) : (
-                <ul className="mt-3 flex flex-col divide-y divide-border">
-                  {stats.emails.map((email, i) => (
-                    <li key={i} className="py-2.5 text-sm text-forest">
-                      {email}
-                    </li>
-                  ))}
-                </ul>
+              <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <BarSection title="Megvennéd?" counts={stats.buyCounts} order={BUY_HU} />
+                <BarSection title="Árérzékenység" counts={stats.priceCounts} order={PRICE_HU} />
+              </div>
+
+              {Object.keys(stats.boxCounts).length > 0 && (
+                <div className="mt-6">
+                  <BarSection title="Mit szeretnének látni a csomagban" counts={stats.boxCounts} />
+                </div>
               )}
-            </div>
-          </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="card p-5">
+                  <h2 className="font-serif text-lg text-forest">Ötletek, amiket írtak</h2>
+                  {stats.ideas.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted">Még senki nem írt szabad szöveges ötletet.</p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col divide-y divide-border">
+                      {stats.ideas.map((idea, i) => (
+                        <li key={i} className="py-2.5 text-sm text-forest">
+                          {idea}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="card p-5">
+                  <h2 className="font-serif text-lg text-forest">Megadott emailek</h2>
+                  {stats.emails.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted">Még senki nem adott meg emailt.</p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col divide-y divide-border">
+                      {stats.emails.map((email, i) => (
+                        <li key={i} className="py-2.5 text-sm text-forest">
+                          {email}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </>

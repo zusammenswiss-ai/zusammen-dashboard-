@@ -655,6 +655,25 @@ create policy "anon full access" on public.landing_letters for all using (true) 
 drop policy if exists "anon full access" on public.landing_responses;
 create policy "anon full access" on public.landing_responses for all using (true) with check (true);
 
+-- ---------------------------------------------------------------------
+-- Landing oldal látogatottság — egy sor minden /landing betöltésnél
+-- (LandingClient.tsx, egyszer mountkor, nem minden nyelv/képernyő-
+-- váltásnál). Szándékosan minimális: se IP, se egyedi látogató-azonosító
+-- nem kerül tárolásra, csak egy időbélyeg és a nyelv — elég egy durva
+-- "hányan jutottak el idáig" számhoz (Igényfelmérés oldal), anélkül,
+-- hogy bármilyen személyes/követési adatot gyűjtenénk.
+-- ---------------------------------------------------------------------
+create table if not exists public.landing_page_views (
+  id uuid primary key default gen_random_uuid(),
+  lang text not null default 'en' check (lang in ('de', 'en')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.landing_page_views enable row level security;
+
+drop policy if exists "anon full access" on public.landing_page_views;
+create policy "anon full access" on public.landing_page_views for all using (true) with check (true);
+
 -- =====================================================================
 -- Személyes rituálé — Gold Card Letters, Personal Journey (Passport) and
 -- the Surprise Question drawer.
