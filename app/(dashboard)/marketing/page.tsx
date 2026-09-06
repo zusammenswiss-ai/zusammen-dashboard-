@@ -22,6 +22,7 @@ import {
   Upload,
   LibraryBig,
   Send,
+  Search,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
@@ -754,6 +755,7 @@ function ContentCalendarSection({
   onCreateTask: (item: MarketingContent) => void;
   onOpenCampaign: (id: string) => void;
 }) {
+  const [query, setQuery] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | MarketingContentType>("");
   const [statusFilter, setStatusFilter] = useState<"" | MarketingContentStatus>("");
@@ -762,13 +764,30 @@ function ContentCalendarSection({
     if (monthFilter && !c.scheduled_date.startsWith(monthFilter)) return false;
     if (typeFilter && c.content_type !== typeFilter) return false;
     if (statusFilter && c.status !== statusFilter) return false;
-    return true;
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const campaignName = c.campaign_id ? campaignById.get(c.campaign_id)?.name ?? "" : "";
+    return (
+      c.title.toLowerCase().includes(q) ||
+      (c.copy_text ?? "").toLowerCase().includes(q) ||
+      (c.notes ?? "").toLowerCase().includes(q) ||
+      campaignName.toLowerCase().includes(q)
+    );
   });
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
+          <div className="relative w-full max-w-xs">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              className="input pl-9"
+              placeholder="Tartalom keresése…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Hónap</label>
             <input
@@ -1233,13 +1252,43 @@ function AssetLibrarySection({
   onCreateContent: (asset: MarketingAsset) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
-  const grouped = LANGUAGES.map((lang) => ({ lang, items: assets.filter((a) => a.language === lang) })).filter(
-    (g) => g.items.length > 0
-  );
+  const [query, setQuery] = useState("");
+
+  // Cím, megjegyzés, platform és típus szerint keres, a találatok utána
+  // ugyanúgy nyelvenként csoportosítva jelennek meg.
+  const filteredAssets = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return assets;
+    return assets.filter(
+      (a) =>
+        a.title.toLowerCase().includes(q) ||
+        (a.notes ?? "").toLowerCase().includes(q) ||
+        (a.platform ?? "").toLowerCase().includes(q) ||
+        a.asset_type.toLowerCase().includes(q)
+    );
+  }, [assets, query]);
+
+  const grouped = LANGUAGES.map((lang) => ({
+    lang,
+    items: filteredAssets.filter((a) => a.language === lang),
+  })).filter((g) => g.items.length > 0);
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        {assets.length > 0 ? (
+          <div className="relative w-full max-w-xs">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              className="input pl-9"
+              placeholder="Marketing anyagok keresése…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+        ) : (
+          <div />
+        )}
         <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
           <Plus size={16} /> Új anyag hozzáadása
         </button>
@@ -1261,6 +1310,8 @@ function AssetLibrarySection({
           title="Még nincs feltöltött marketing anyag"
           description="Tölts fel egy képet — nyelvenként csoportosítva jelenik meg itt."
         />
+      ) : filteredAssets.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-6">
           {grouped.map(({ lang, items }) => (
