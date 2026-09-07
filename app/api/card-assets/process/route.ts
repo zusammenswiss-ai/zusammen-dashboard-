@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import JSZip from "jszip";
 import sharp from "sharp";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 
 // Runs after the browser has already uploaded a card-asset ZIP straight to
 // Supabase Storage (see the Kártya-fájlok page) — this route only receives
@@ -22,12 +21,6 @@ const THUMB_LABELS = ["front", "back", "wild", "goldcard"] as const;
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
 
 export async function POST(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.json({ ok: false, error: "Supabase nincs konfigurálva." }, { status: 500 });
-  }
-
   let path: string;
   try {
     const body = await request.json();
@@ -37,7 +30,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Hiányzó vagy hibás 'path' mező." }, { status: 400 });
   }
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  // Service-role client, not the anon key: this route is only ever
+  // reached right after an authenticated upload on Kártya-fájlok (behind
+  // proxy.ts's login redirect), but the request itself doesn't carry the
+  // browser's session JWT through to Postgres/Storage the way the
+  // browser's own client does — and card_assets/the card-assets bucket
+  // now both require auth.uid(), which this server-to-server call could
+  // never satisfy through the old anon-key client.
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return NextResponse.json({ ok: false, error: "Supabase nincs konfigurálva." }, { status: 500 });
+  }
 
   const { data: fileBlob, error: downloadError } = await supabase.storage.from(STORAGE_BUCKET).download(path);
   if (downloadError || !fileBlob) {

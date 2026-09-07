@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 
 // GET /api/newsletter/unsubscribe?email=... — a manual/admin-facing
 // unsubscribe route, independent of what actually goes out in a
@@ -14,23 +13,24 @@ import type { Database } from "@/lib/supabase/types";
 // pre-send filter checked by every campaign, see the comment on that
 // table in supabase/schema.sql) and newsletter_subscribers.unsubscribed.
 //
-// Deliberately unauthenticated — works even without a dashboard session.
-// Builds its own anon client inline — same pattern as /api/calendar/ics
-// and /api/send-email.
+// Deliberately unauthenticated — works even without a dashboard session,
+// clicked straight from an inbox. Since email_unsubscribes and
+// newsletter_subscribers now both require auth.uid() (see
+// supabase/schema.sql), this uses the service-role client instead of
+// the anon key — safe here because the route's own scope is already
+// narrow (it only ever touches the one row matching the ?email=
+// address the caller supplies, never a broader read/write).
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email")?.trim().toLowerCase();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
     return new NextResponse("A Supabase nincs beállítva.", { status: 503 });
   }
   if (!email) {
     return new NextResponse("Hiányzó email cím.", { status: 400 });
   }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
   await supabase.from("email_unsubscribes").upsert({ email });
   await supabase.from("newsletter_subscribers").update({ unsubscribed: true }).eq("email", email);

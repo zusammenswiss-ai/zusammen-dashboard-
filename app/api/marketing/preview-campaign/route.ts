@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import {
   firstNameFor,
   personalizeSubject,
@@ -28,12 +27,11 @@ type PreviewBody = {
 const SAMPLE_RECIPIENT: CampaignRecipient = { email: "minta@zusammen.ch", name: "Éva" };
 
 export async function POST(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
+  // Service-role client — same reasoning as /api/marketing/send-campaign.
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
     return NextResponse.json({ ok: false, error: "Supabase nincs konfigurálva." }, { status: 500 });
   }
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
   const body = (await request.json().catch(() => null)) as PreviewBody | null;
   const templateId = body?.templateId?.trim();

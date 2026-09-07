@@ -137,7 +137,9 @@ end $$;
 alter table public.task_templates enable row level security;
 
 drop policy if exists "anon full access" on public.task_templates;
-create policy "anon full access" on public.task_templates for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.task_templates;
+create policy "authenticated full access" on public.task_templates for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Seed the starter template set — on conflict do nothing so re-running
 -- this file never duplicates them, and any edits made in the app (via
@@ -337,13 +339,40 @@ create trigger set_updated_at before update on public.orders
 -- =====================================================================
 -- Row Level Security
 -- ---------------------------------------------------------------------
--- This app is a single-user personal dashboard with no login screen —
--- it talks to Supabase using the public "anon" key directly from the
--- browser. We enable RLS (best practice) and add permissive policies so
--- the anon key can read/write every table. Real protection comes from
--- keeping the dashboard URL private, or turning on the optional Basic
--- Auth in middleware.ts (see README). If you ever add multiple users,
--- replace these policies with ones scoped to auth.uid().
+-- The dashboard talks to Supabase using the public "anon" key directly
+-- from the browser — that key is embedded in the JS bundle and can't be
+-- kept secret, so real protection has to come from RLS itself, not from
+-- keeping the key hidden. Every founder-only table below uses
+-- `auth.uid() is not null` — readable/writable only by a signed-in
+-- Supabase Auth session (see app/login/page.tsx and proxy.ts), not by
+-- the anon key alone. This is enforced by Postgres itself: even someone
+-- who extracts the anon key from the deployed JS bundle can't read or
+-- write these tables without also having valid founder (or teammate)
+-- login credentials.
+--
+-- Three narrow exceptions, each intentional:
+-- 1. `landing_letters`/`landing_responses`/`landing_page_views` allow
+--    anon INSERT (real, logged-out /landing visitors submit these) but
+--    restrict SELECT/UPDATE/DELETE to authenticated — so anyone can
+--    write a survey response, but only the founder can read the list
+--    back (previously anyone with the anon key could read every
+--    visitor's email address).
+-- 2. `gold_card_letters`/`journey_memories`/`wild_card_completions`/
+--    `surprise_question_log`/`together_settings` stay on the permissive
+--    anon policy — see the Közös tér (/together) comment further down
+--    for why: that page's access code is a deliberate soft UX gate, not
+--    a security boundary, and its visitor never holds a Supabase Auth
+--    session to satisfy auth.uid() with.
+-- 3. `gmail_connection` (see below) has no anon or authenticated policy
+--    at all — it's reachable only through the service-role client.
+--
+-- Note this only locks down the *database* — Supabase Storage bucket
+-- objects (documents, card-fájlok, marketing anyagok, stb.) still live
+-- in `public: true` buckets for the existing getPublicUrl() links to
+-- keep working, so a file's URL itself isn't login-gated, only whether
+-- someone can discover that URL by querying the table that references
+-- it. Turning buckets private + serving signed URLs instead is a
+-- separate, larger follow-up if that gap ever needs closing too.
 -- =====================================================================
 alter table public.suppliers enable row level security;
 alter table public.tasks enable row level security;
@@ -354,25 +383,39 @@ alter table public.future_plans enable row level security;
 alter table public.orders enable row level security;
 
 drop policy if exists "anon full access" on public.suppliers;
-create policy "anon full access" on public.suppliers for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.suppliers;
+create policy "authenticated full access" on public.suppliers for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop policy if exists "anon full access" on public.tasks;
-create policy "anon full access" on public.tasks for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.tasks;
+create policy "authenticated full access" on public.tasks for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop policy if exists "anon full access" on public.finance_products;
-create policy "anon full access" on public.finance_products for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.finance_products;
+create policy "authenticated full access" on public.finance_products for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop policy if exists "anon full access" on public.marketing_campaigns;
-create policy "anon full access" on public.marketing_campaigns for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.marketing_campaigns;
+create policy "authenticated full access" on public.marketing_campaigns for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop policy if exists "anon full access" on public.documents;
-create policy "anon full access" on public.documents for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.documents;
+create policy "authenticated full access" on public.documents for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop policy if exists "anon full access" on public.future_plans;
-create policy "anon full access" on public.future_plans for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.future_plans;
+create policy "authenticated full access" on public.future_plans for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop policy if exists "anon full access" on public.orders;
-create policy "anon full access" on public.orders for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.orders;
+create policy "authenticated full access" on public.orders for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- =====================================================================
 -- Storage — bucket for uploaded documents
@@ -382,24 +425,28 @@ values ('documents', 'documents', true)
 on conflict (id) do nothing;
 
 drop policy if exists "documents bucket anon read" on storage.objects;
-create policy "documents bucket anon read"
+drop policy if exists "documents bucket authenticated read" on storage.objects;
+create policy "documents bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'documents');
+  using (bucket_id = 'documents' and auth.uid() is not null);
 
 drop policy if exists "documents bucket anon write" on storage.objects;
-create policy "documents bucket anon write"
+drop policy if exists "documents bucket authenticated write" on storage.objects;
+create policy "documents bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'documents');
+  with check (bucket_id = 'documents' and auth.uid() is not null);
 
 drop policy if exists "documents bucket anon update" on storage.objects;
-create policy "documents bucket anon update"
+drop policy if exists "documents bucket authenticated update" on storage.objects;
+create policy "documents bucket authenticated update"
   on storage.objects for update
-  using (bucket_id = 'documents');
+  using (bucket_id = 'documents' and auth.uid() is not null);
 
 drop policy if exists "documents bucket anon delete" on storage.objects;
-create policy "documents bucket anon delete"
+drop policy if exists "documents bucket authenticated delete" on storage.objects;
+create policy "documents bucket authenticated delete"
   on storage.objects for delete
-  using (bucket_id = 'documents');
+  using (bucket_id = 'documents' and auth.uid() is not null);
 
 -- ---------------------------------------------------------------------
 -- Card assets — versioned print-ready card ZIP files, per language
@@ -427,7 +474,9 @@ alter table public.card_assets add column if not exists thumbnails jsonb not nul
 alter table public.card_assets enable row level security;
 
 drop policy if exists "anon full access" on public.card_assets;
-create policy "anon full access" on public.card_assets for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.card_assets;
+create policy "authenticated full access" on public.card_assets for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Storage — bucket for the uploaded card-asset ZIP files
 insert into storage.buckets (id, name, public)
@@ -435,24 +484,28 @@ values ('card-assets', 'card-assets', true)
 on conflict (id) do nothing;
 
 drop policy if exists "card-assets bucket anon read" on storage.objects;
-create policy "card-assets bucket anon read"
+drop policy if exists "card-assets bucket authenticated read" on storage.objects;
+create policy "card-assets bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'card-assets');
+  using (bucket_id = 'card-assets' and auth.uid() is not null);
 
 drop policy if exists "card-assets bucket anon write" on storage.objects;
-create policy "card-assets bucket anon write"
+drop policy if exists "card-assets bucket authenticated write" on storage.objects;
+create policy "card-assets bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'card-assets');
+  with check (bucket_id = 'card-assets' and auth.uid() is not null);
 
 drop policy if exists "card-assets bucket anon update" on storage.objects;
-create policy "card-assets bucket anon update"
+drop policy if exists "card-assets bucket authenticated update" on storage.objects;
+create policy "card-assets bucket authenticated update"
   on storage.objects for update
-  using (bucket_id = 'card-assets');
+  using (bucket_id = 'card-assets' and auth.uid() is not null);
 
 drop policy if exists "card-assets bucket anon delete" on storage.objects;
-create policy "card-assets bucket anon delete"
+drop policy if exists "card-assets bucket authenticated delete" on storage.objects;
+create policy "card-assets bucket authenticated delete"
   on storage.objects for delete
-  using (bucket_id = 'card-assets');
+  using (bucket_id = 'card-assets' and auth.uid() is not null);
 
 -- ---------------------------------------------------------------------
 -- Price quotes — supplier offers received for a given card-asset version
@@ -475,7 +528,9 @@ create table if not exists public.price_quotes (
 alter table public.price_quotes enable row level security;
 
 drop policy if exists "anon full access" on public.price_quotes;
-create policy "anon full access" on public.price_quotes for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.price_quotes;
+create policy "authenticated full access" on public.price_quotes for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Storage — bucket for uploaded price-quote screenshots
 insert into storage.buckets (id, name, public)
@@ -483,24 +538,28 @@ values ('price-quotes', 'price-quotes', true)
 on conflict (id) do nothing;
 
 drop policy if exists "price-quotes bucket anon read" on storage.objects;
-create policy "price-quotes bucket anon read"
+drop policy if exists "price-quotes bucket authenticated read" on storage.objects;
+create policy "price-quotes bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'price-quotes');
+  using (bucket_id = 'price-quotes' and auth.uid() is not null);
 
 drop policy if exists "price-quotes bucket anon write" on storage.objects;
-create policy "price-quotes bucket anon write"
+drop policy if exists "price-quotes bucket authenticated write" on storage.objects;
+create policy "price-quotes bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'price-quotes');
+  with check (bucket_id = 'price-quotes' and auth.uid() is not null);
 
 drop policy if exists "price-quotes bucket anon update" on storage.objects;
-create policy "price-quotes bucket anon update"
+drop policy if exists "price-quotes bucket authenticated update" on storage.objects;
+create policy "price-quotes bucket authenticated update"
   on storage.objects for update
-  using (bucket_id = 'price-quotes');
+  using (bucket_id = 'price-quotes' and auth.uid() is not null);
 
 drop policy if exists "price-quotes bucket anon delete" on storage.objects;
-create policy "price-quotes bucket anon delete"
+drop policy if exists "price-quotes bucket authenticated delete" on storage.objects;
+create policy "price-quotes bucket authenticated delete"
   on storage.objects for delete
-  using (bucket_id = 'price-quotes');
+  using (bucket_id = 'price-quotes' and auth.uid() is not null);
 
 -- ---------------------------------------------------------------------
 -- Marketing content calendar — individual posts/stories/emails/campaigns
@@ -529,7 +588,9 @@ create table if not exists public.marketing_content (
 alter table public.marketing_content enable row level security;
 
 drop policy if exists "anon full access" on public.marketing_content;
-create policy "anon full access" on public.marketing_content for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.marketing_content;
+create policy "authenticated full access" on public.marketing_content for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.marketing_content;
 create trigger set_updated_at before update on public.marketing_content
@@ -559,7 +620,9 @@ alter table public.marketing_assets
 alter table public.marketing_assets enable row level security;
 
 drop policy if exists "anon full access" on public.marketing_assets;
-create policy "anon full access" on public.marketing_assets for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.marketing_assets;
+create policy "authenticated full access" on public.marketing_assets for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Lets a content-calendar item point at a saved asset instead of
 -- uploading its own copy of the same image — set null (not cascaded) if
@@ -574,24 +637,28 @@ values ('marketing', 'marketing', true)
 on conflict (id) do nothing;
 
 drop policy if exists "marketing bucket anon read" on storage.objects;
-create policy "marketing bucket anon read"
+drop policy if exists "marketing bucket authenticated read" on storage.objects;
+create policy "marketing bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'marketing');
+  using (bucket_id = 'marketing' and auth.uid() is not null);
 
 drop policy if exists "marketing bucket anon write" on storage.objects;
-create policy "marketing bucket anon write"
+drop policy if exists "marketing bucket authenticated write" on storage.objects;
+create policy "marketing bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'marketing');
+  with check (bucket_id = 'marketing' and auth.uid() is not null);
 
 drop policy if exists "marketing bucket anon update" on storage.objects;
-create policy "marketing bucket anon update"
+drop policy if exists "marketing bucket authenticated update" on storage.objects;
+create policy "marketing bucket authenticated update"
   on storage.objects for update
-  using (bucket_id = 'marketing');
+  using (bucket_id = 'marketing' and auth.uid() is not null);
 
 drop policy if exists "marketing bucket anon delete" on storage.objects;
-create policy "marketing bucket anon delete"
+drop policy if exists "marketing bucket authenticated delete" on storage.objects;
+create policy "marketing bucket authenticated delete"
   on storage.objects for delete
-  using (bucket_id = 'marketing');
+  using (bucket_id = 'marketing' and auth.uid() is not null);
 
 -- "→ Feladat létrehozása" link — a task spun off a content-calendar item
 -- (see app/(dashboard)/marketing/page.tsx) keeps a reference back to it,
@@ -624,9 +691,15 @@ create trigger mark_content_sent_on_task_done after update on public.tasks
 -- =====================================================================
 -- Landing page (/landing) — public customer-facing funnel
 -- ---------------------------------------------------------------------
--- Unlike the rest of this schema, these two tables are written to by
--- anonymous site visitors (not just the founder), and the "founder view"
--- on /landing reads aggregate stats back out using the same anon key.
+-- Unlike most of this schema, these tables are written to by anonymous
+-- site visitors, not just the founder — hence the split RLS policy
+-- (public insert, authenticated-only read/update/delete) instead of the
+-- plain "authenticated full access" used elsewhere. The old in-page
+-- "founder view" on /landing itself, gated only by a client-side
+-- password prompt, has been removed for exactly this reason — it read
+-- these tables with the anon key, which the split policy now blocks;
+-- the founder's real, Supabase-Auth-protected replacement is the
+-- Igényfelmérés dashboard page.
 -- =====================================================================
 create table if not exists public.landing_letters (
   id uuid primary key default gen_random_uuid(),
@@ -650,10 +723,14 @@ alter table public.landing_letters enable row level security;
 alter table public.landing_responses enable row level security;
 
 drop policy if exists "anon full access" on public.landing_letters;
-create policy "anon full access" on public.landing_letters for all using (true) with check (true);
+drop policy if exists "public insert, authenticated manage" on public.landing_letters;
+create policy "public insert, authenticated manage" on public.landing_letters for all
+  using (auth.uid() is not null) with check (true);
 
 drop policy if exists "anon full access" on public.landing_responses;
-create policy "anon full access" on public.landing_responses for all using (true) with check (true);
+drop policy if exists "public insert, authenticated manage" on public.landing_responses;
+create policy "public insert, authenticated manage" on public.landing_responses for all
+  using (auth.uid() is not null) with check (true);
 
 -- ---------------------------------------------------------------------
 -- Landing oldal látogatottság — egy sor minden /landing betöltésnél
@@ -672,7 +749,9 @@ create table if not exists public.landing_page_views (
 alter table public.landing_page_views enable row level security;
 
 drop policy if exists "anon full access" on public.landing_page_views;
-create policy "anon full access" on public.landing_page_views for all using (true) with check (true);
+drop policy if exists "public insert, authenticated manage" on public.landing_page_views;
+create policy "public insert, authenticated manage" on public.landing_page_views for all
+  using (auth.uid() is not null) with check (true);
 
 -- =====================================================================
 -- Személyes rituálé — Gold Card Letters, Personal Journey (Passport) and
@@ -822,7 +901,9 @@ create table if not exists public.share_contacts (
 alter table public.share_contacts enable row level security;
 
 drop policy if exists "anon full access" on public.share_contacts;
-create policy "anon full access" on public.share_contacts for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.share_contacts;
+create policy "authenticated full access" on public.share_contacts for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.share_contacts;
 create trigger set_updated_at before update on public.share_contacts
@@ -840,7 +921,9 @@ create table if not exists public.demand_link_shares (
 alter table public.demand_link_shares enable row level security;
 
 drop policy if exists "anon full access" on public.demand_link_shares;
-create policy "anon full access" on public.demand_link_shares for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.demand_link_shares;
+create policy "authenticated full access" on public.demand_link_shares for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- =====================================================================
 -- Gmail connection — stores the OAuth refresh token used to send email
@@ -941,7 +1024,9 @@ create table if not exists public.company_settings (
 alter table public.company_settings enable row level security;
 
 drop policy if exists "anon full access" on public.company_settings;
-create policy "anon full access" on public.company_settings for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.company_settings;
+create policy "authenticated full access" on public.company_settings for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.company_settings;
 create trigger set_updated_at before update on public.company_settings
@@ -953,20 +1038,22 @@ values ('company-logo', 'company-logo', true)
 on conflict (id) do nothing;
 
 drop policy if exists "company-logo bucket anon read" on storage.objects;
-create policy "company-logo bucket anon read"
+drop policy if exists "company-logo bucket authenticated read" on storage.objects;
+create policy "company-logo bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'company-logo');
+  using (bucket_id = 'company-logo' and auth.uid() is not null);
 
 drop policy if exists "company-logo bucket anon write" on storage.objects;
-create policy "company-logo bucket anon write"
+drop policy if exists "company-logo bucket authenticated write" on storage.objects;
+create policy "company-logo bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'company-logo');
+  with check (bucket_id = 'company-logo' and auth.uid() is not null);
 
 -- =====================================================================
 -- Naptár — kézzel felvett egyedi események (a többi Naptár-esemény más
 -- táblákból van aggregálva, ezek viszont önálló bejegyzések, semmilyen
--- más rekordhoz nem kötődnek). Ugyanaz az "anon full access" minta,
--- mint mindenhol máshol.
+-- más rekordhoz nem kötődnek). Ugyanaz az "authenticated full access"
+-- minta, mint a legtöbb más táblánál.
 -- =====================================================================
 create table if not exists public.calendar_events (
   id uuid primary key default gen_random_uuid(),
@@ -984,7 +1071,9 @@ create table if not exists public.calendar_events (
 alter table public.calendar_events enable row level security;
 
 drop policy if exists "anon full access" on public.calendar_events;
-create policy "anon full access" on public.calendar_events for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.calendar_events;
+create policy "authenticated full access" on public.calendar_events for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.calendar_events;
 create trigger set_updated_at before update on public.calendar_events
@@ -992,11 +1081,13 @@ create trigger set_updated_at before update on public.calendar_events
 
 -- iCal (.ics) feed subscription token — lives on company_settings
 -- alongside everything else in Beállítások. See app/api/calendar/ics/
--- route.ts and the "Naptár feliratkozás" card on Beállítások. Same soft-
--- gate reasoning as together_settings.access_code: this isn't a real
--- secret (the anon key already exposes the same data to anyone who has
--- it), it just keeps the .ics URL from being casually guessable if it
--- ever leaks out of a calendar app's own settings screen.
+-- route.ts and the "Naptár feliratkozás" card on Beállítások. That route
+-- reads it through the service-role client (company_settings itself now
+-- requires auth.uid(), which a calendar app polling the URL could never
+-- supply), then does its own equality check against the ?token= in the
+-- request — a soft gate against the .ics URL being casually guessable
+-- if it ever leaks out of a calendar app's own settings screen, not a
+-- cryptographic secret.
 alter table public.company_settings add column if not exists ics_token text;
 
 -- =====================================================================
@@ -1053,7 +1144,9 @@ end $$;
 alter table public.products enable row level security;
 
 drop policy if exists "anon full access" on public.products;
-create policy "anon full access" on public.products for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.products;
+create policy "authenticated full access" on public.products for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.products;
 create trigger set_updated_at before update on public.products
@@ -1071,14 +1164,16 @@ values ('product-images', 'product-images', true)
 on conflict (id) do nothing;
 
 drop policy if exists "product-images bucket anon read" on storage.objects;
-create policy "product-images bucket anon read"
+drop policy if exists "product-images bucket authenticated read" on storage.objects;
+create policy "product-images bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'product-images');
+  using (bucket_id = 'product-images' and auth.uid() is not null);
 
 drop policy if exists "product-images bucket anon write" on storage.objects;
-create policy "product-images bucket anon write"
+drop policy if exists "product-images bucket authenticated write" on storage.objects;
+create policy "product-images bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'product-images');
+  with check (bucket_id = 'product-images' and auth.uid() is not null);
 
 -- Seed the starter catalog — on conflict do nothing so re-running this
 -- file never duplicates them or overwrites any edits made in the app.
@@ -1118,7 +1213,9 @@ create table if not exists public.email_templates (
 alter table public.email_templates enable row level security;
 
 drop policy if exists "anon full access" on public.email_templates;
-create policy "anon full access" on public.email_templates for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.email_templates;
+create policy "authenticated full access" on public.email_templates for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Jövőbeli, közvetlen feliratkozások (nem az Igényfelmérés/landing_responses
 -- egyszeri email mezője — az a demand-test lista, ez itt egy önálló
@@ -1134,7 +1231,9 @@ create table if not exists public.newsletter_subscribers (
 alter table public.newsletter_subscribers enable row level security;
 
 drop policy if exists "anon full access" on public.newsletter_subscribers;
-create policy "anon full access" on public.newsletter_subscribers for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.newsletter_subscribers;
+create policy "authenticated full access" on public.newsletter_subscribers for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Globális leiratkozás-napló — a demand-test feliratkozóknak (landing_
 -- responses) nincs saját "unsubscribed" mezőjük (egyszeri felmérés-
@@ -1150,7 +1249,9 @@ create table if not exists public.email_unsubscribes (
 alter table public.email_unsubscribes enable row level security;
 
 drop policy if exists "anon full access" on public.email_unsubscribes;
-create policy "anon full access" on public.email_unsubscribes for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.email_unsubscribes;
+create policy "authenticated full access" on public.email_unsubscribes for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Storage — bucket a sablon-feltöltéskor csatolt logóhoz (a mentés a
 -- feltöltött kép URL-jével cseréli le a sablon HTML-jében szereplő
@@ -1160,14 +1261,16 @@ values ('email-assets', 'email-assets', true)
 on conflict (id) do nothing;
 
 drop policy if exists "email-assets bucket anon read" on storage.objects;
-create policy "email-assets bucket anon read"
+drop policy if exists "email-assets bucket authenticated read" on storage.objects;
+create policy "email-assets bucket authenticated read"
   on storage.objects for select
-  using (bucket_id = 'email-assets');
+  using (bucket_id = 'email-assets' and auth.uid() is not null);
 
 drop policy if exists "email-assets bucket anon write" on storage.objects;
-create policy "email-assets bucket anon write"
+drop policy if exists "email-assets bucket authenticated write" on storage.objects;
+create policy "email-assets bucket authenticated write"
   on storage.objects for insert
-  with check (bucket_id = 'email-assets');
+  with check (bucket_id = 'email-assets' and auth.uid() is not null);
 
 -- =====================================================================
 -- Kiadások (Pénzügyek) — operating costs (hosting/tools, Treuhand,
@@ -1195,7 +1298,9 @@ create table if not exists public.expenses (
 alter table public.expenses enable row level security;
 
 drop policy if exists "anon full access" on public.expenses;
-create policy "anon full access" on public.expenses for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.expenses;
+create policy "authenticated full access" on public.expenses for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.expenses;
 create trigger set_updated_at before update on public.expenses
@@ -1228,7 +1333,9 @@ create table if not exists public.campaigns (
 alter table public.campaigns enable row level security;
 
 drop policy if exists "anon full access" on public.campaigns;
-create policy "anon full access" on public.campaigns for all using (true) with check (true);
+drop policy if exists "authenticated full access" on public.campaigns;
+create policy "authenticated full access" on public.campaigns for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
 
 drop trigger if exists set_updated_at on public.campaigns;
 create trigger set_updated_at before update on public.campaigns

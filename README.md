@@ -150,12 +150,12 @@ A separate, standalone page (no dashboard chrome, no Basic Auth lock even
 if you enable one — see below) at `/landing`, linked from the dashboard
 sidebar. It's an interactive funnel — founder story, a sample card demo,
 a "gold card" letter prompt, a package builder, a short survey — with a
-DE/EN language toggle in the top corner. Survey responses and letters are
-saved to Supabase (`landing_responses`, `landing_letters`); a small
-password-gated "founder view" (bottom-right link) shows aggregate stats
-pulled from those tables — the password defaults to `zusammen2026`, set
-`NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD` (see `.env.example`) to change it
-without putting the real value in git.
+DE/EN language toggle in the top corner. Survey responses, letters, and
+page-view counts are saved to Supabase (`landing_responses`,
+`landing_letters`, `landing_page_views`) — anonymous visitors can only
+ever insert into these (see [Note on security](#note-on-security)), the
+aggregate stats themselves are the **Igényfelmérés** dashboard page,
+behind the real Supabase Auth login.
 
 **Navigation**: a back/home/forward pill (top-left, mirroring the DE/EN
 switch on the top-right) lets visitors move both directions through the
@@ -223,8 +223,6 @@ and the preview card match.
    `// TODO before launch` comment above the `story` block in both the
    `de` and `en` sections; it reads fine as-is, but swap in your own
    real story if you have one.
-2. **Set a real founder-view password** — `NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD`
-   env var, see above.
 3. **Fill in the legal pages** — open `/landing/impressum` and
    `/landing/datenschutz` (or their source under `app/landing/`) and
    replace every "BITTE AUSFÜLLEN" placeholder with your real details.
@@ -244,8 +242,10 @@ generálása" any time after — regenerating invalidates the old link for
 anyone still using it).
 
 **Access model**: the code is a soft UX gate, not a hard security
-boundary — same as everything else in this app except `gmail_connection`
-(see the comment on `together_settings` in `supabase/schema.sql`). Anyone
+boundary — a deliberate exception to the rest of the app's RLS (see
+[Note on security](#note-on-security) below and the comment on
+`together_settings` in `supabase/schema.sql`), since `/together`'s
+visitor never holds a Supabase Auth session to gate on. Anyone
 opening the link (`…/together?code=XXXXXX`) is verified against
 `together_settings.access_code`; on success the code is remembered in
 that browser's `localStorage` so it isn't asked again. First time in,
@@ -302,14 +302,38 @@ That's it — the database, tables, and file storage are ready.
 > somewhere without outbound internet access), those pages fall back to
 > the old unconverted-with-a-⚠-warning behavior rather than breaking.
 
-> **Note on security:** this app talks to Supabase with the public
-> "anon" key directly from the browser, which is normal for a
-> single-user tool like this. Row Level Security is enabled with
-> permissive policies so the anon key can read/write your tables. The
-> real protection is the login below — every dashboard page requires an
-> authenticated Supabase Auth session, redirecting to `/login`
-> otherwise — plus, optionally, the network-level Basic Auth lock
-> further down.
+### Note on security
+
+This app talks to Supabase with the public "anon" key directly from the
+browser — normal for a Supabase app, but that key is embedded in the JS
+bundle and can't be kept secret, so the real protection has to be Row
+Level Security (RLS) itself, not the key's obscurity. Every founder-only
+table in `supabase/schema.sql` requires `auth.uid() is not null` —
+readable/writable only by a signed-in Supabase Auth session (see
+[Set up your login](#set-up-your-login-supabase-auth) below), enforced
+by Postgres itself regardless of who holds the anon key.
+
+Three deliberate exceptions:
+
+- **`/landing`'s survey/letter/pageview tables** allow anonymous
+  INSERT (real logged-out visitors submit these) but restrict
+  reading them back to an authenticated session — see **Igényfelmérés**
+  in the Pages table above.
+- **`/together`'s tables** (Gold Card Letters, Journey/Passport, Wild
+  Cards, Meglepetés kérdés, and the access code itself) stay on a
+  permissive anon policy — the partner using that page never holds a
+  Supabase Auth session, so its access code is a soft UX gate rather
+  than a hard boundary. See [`/together`](#together--shareable-partner-page)
+  above.
+- **File storage** (Documents/Kártya-fájlok/Marketing anyagok/etc.)
+  isn't part of RLS the same way — the buckets stay `public: true` so
+  existing file links keep working, meaning a file's direct URL isn't
+  login-gated even though the database row that references it now is.
+  Making buckets private and serving signed URLs instead would close
+  that gap too, but is a separate, larger change.
+
+Optionally, on top of all this, the network-level Basic Auth lock
+further down adds one more layer in front of the whole dashboard.
 
 ### Set up your login (Supabase Auth)
 
@@ -440,10 +464,17 @@ OAuth client — that part happens in Google Cloud Console, one time:
    - `SUPABASE_SERVICE_ROLE_KEY` — from your Supabase project's
      **Project Settings → API → service_role** (a different, more
      powerful key than the anon one used everywhere else in this app —
-     never expose it as a `NEXT_PUBLIC_` variable). Needed so the server
-     can read/write the `gmail_connection` table, which deliberately has
-     no anon-key policy (see `supabase/schema.sql`) since it holds an
-     encrypted token that grants send-as and inbox-read access.
+     never expose it as a `NEXT_PUBLIC_` variable). Originally needed
+     just for `gmail_connection` (no anon-key policy at all, see
+     `supabase/schema.sql`), it's now required more broadly: every
+     server route that touches a table locked to `auth.uid()` — the
+     daily reminder email, the `.ics` feed, campaign send/preview, the
+     newsletter unsubscribe link, the card-asset thumbnail processor —
+     uses it too, since those requests don't carry a browser's Supabase
+     Auth session through to Postgres the way the dashboard's own pages
+     do. Set it on **every** environment (Production **and** Preview) —
+     Preview-only-scoped env vars will leave PR preview deployments
+     showing "Supabase nincs konfigurálva" on these routes.
    - **Redeploy** after saving these on Vercel — it only picks up new
      env vars on the next deployment.
 5. Open the dashboard → **Beállítások** → **Gmail összekapcsolása** →
