@@ -573,9 +573,17 @@ export type GmailConnectionInsert = Partial<Omit<GmailConnection, "id" | "connec
 };
 export type GmailConnectionUpdate = Partial<Omit<GmailConnection, "id" | "connected_at">>;
 
+// Everything Database below has, PLUS gmail_connection — the service-role
+// client (lib/supabase/serverClient.ts) bypasses RLS entirely, so it's
+// the right client for any trusted server-only code path (a route
+// that's either its own-secret-gated — CRON_SECRET, the .ics ?token= —
+// or already sits behind proxy.ts's Supabase Auth redirect) that needs
+// to touch a table now locked to `auth.uid() is not null`, since that
+// server code never carries the browser's session JWT through to
+// Postgres the way the browser's own anon-key client does.
 export interface ServerDatabase {
   public: {
-    Tables: {
+    Tables: Database["public"]["Tables"] & {
       gmail_connection: {
         Row: GmailConnection;
         Insert: GmailConnectionInsert;

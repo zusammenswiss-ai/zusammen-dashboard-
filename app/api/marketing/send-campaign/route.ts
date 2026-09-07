@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { isBrevoConfigured, sendBrevoEmail } from "@/lib/brevo";
 import {
   firstNameFor,
@@ -20,8 +19,12 @@ import {
 // "Kiküldve" so it shows up on the Tartalom-naptár like any other piece
 // of marketing content.
 //
-// Builds its own anon client inline — same pattern as /api/send-email,
-// /api/reminder-email, and /api/calendar/ics.
+// Builds its own service-role client inline — same pattern as
+// /api/send-email, /api/reminder-email, and /api/calendar/ics. Reached
+// only from an authenticated Marketing page (behind proxy.ts's login
+// redirect), but that doesn't carry the browser's session JWT through
+// to Postgres, and email_templates/marketing_content/newsletter_
+// subscribers/landing_responses now all require auth.uid().
 type SendCampaignBody = {
   templateId?: string;
   subject?: string;
@@ -40,12 +43,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
     return NextResponse.json({ ok: false, error: "Supabase nincs konfigurálva." }, { status: 500 });
   }
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
   const body = (await request.json().catch(() => null)) as SendCampaignBody | null;
   const templateId = body?.templateId?.trim();

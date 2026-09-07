@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
 import {
@@ -221,7 +221,6 @@ export default function LandingClient({ initialLang }: { initialLang: LandingLan
         {screen === "thanks" && <ThanksScreen t={t} />}
       </div>
 
-      <FounderLink t={t} />
       <LegalFooter />
     </div>
   );
@@ -972,153 +971,5 @@ function ThanksScreen({ t }: { t: T }) {
         )}
       </div>
     </div>
-  );
-}
-
-type FounderStats = {
-  totalResponses: number;
-  letterCount: number;
-  emails: number;
-  buyCounts: Record<string, number>;
-  priceCounts: Record<string, number>;
-  boxCounts: Record<string, number>;
-  ideas: string[];
-};
-
-function FounderLink({ t }: { t: T }) {
-  const [open, setOpen] = useState(false);
-  const [stats, setStats] = useState<FounderStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const passwordEntered = useRef(false);
-
-  const load = useCallback(async () => {
-    setStats(null);
-    setError(null);
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      setError(t.founder.loadError);
-      return;
-    }
-    const [responsesRes, lettersRes] = await Promise.all([
-      supabase.from("landing_responses").select("*"),
-      supabase.from("landing_letters").select("id"),
-    ]);
-    if (responsesRes.error) {
-      setError(t.founder.loadError);
-      return;
-    }
-    const records = responsesRes.data ?? [];
-    const letterCount = lettersRes.data?.length ?? 0;
-    const buyCounts: Record<string, number> = {};
-    const priceCounts: Record<string, number> = {};
-    const boxCounts: Record<string, number> = {};
-    let emails = 0;
-    const ideas: string[] = [];
-    records.forEach((r) => {
-      if (r.would_buy) buyCounts[r.would_buy] = (buyCounts[r.would_buy] ?? 0) + 1;
-      if (r.price_range) priceCounts[r.price_range] = (priceCounts[r.price_range] ?? 0) + 1;
-      if (r.email) emails++;
-      if (r.idea) ideas.push(r.idea);
-      (r.box_items ?? []).forEach((b: string) => {
-        boxCounts[b] = (boxCounts[b] ?? 0) + 1;
-      });
-    });
-    setStats({ totalResponses: records.length, letterCount, emails, buyCounts, priceCounts, boxCounts, ideas });
-  }, [t.founder.loadError]);
-
-  function handleClick() {
-    if (!passwordEntered.current) {
-      const pw = prompt(t.founder.passwordPrompt);
-      // Configurable via NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD (see
-      // .env.example) so the real password never has to live in git —
-      // falls back to the original default if it's unset.
-      const expected = process.env.NEXT_PUBLIC_LANDING_FOUNDER_PASSWORD || "zusammen2026";
-      if (pw !== expected) {
-        if (pw !== null) alert(t.founder.wrongPassword);
-        return;
-      }
-      passwordEntered.current = true;
-    }
-    setOpen(true);
-    void load();
-  }
-
-  return (
-    <>
-      <button className="founderlink" onClick={handleClick}>
-        {t.founder.link}
-      </button>
-      {open && (
-        <div className="foundermodal" onClick={() => setOpen(false)}>
-          <div className="panel" onClick={(e) => e.stopPropagation()}>
-            <h3>{t.founder.modalTitle}</h3>
-            {error ? (
-              <p>{error}</p>
-            ) : !stats ? (
-              <p>{t.founder.loading}</p>
-            ) : stats.totalResponses === 0 && stats.letterCount === 0 ? (
-              <p>{t.founder.noResponses}</p>
-            ) : (
-              <div>
-                <div className="statrow">
-                  <strong>{t.founder.totalResponses}</strong>
-                  <span>{stats.totalResponses}</span>
-                </div>
-                <div className="statrow">
-                  <strong>{t.founder.lettersWritten}</strong>
-                  <span>{stats.letterCount}</span>
-                </div>
-                <div className="statrow">
-                  <strong>{t.founder.emailsProvided}</strong>
-                  <span>{stats.emails}</span>
-                </div>
-                <p style={{ marginTop: 14, fontWeight: 600 }}>{t.founder.wouldBuy}</p>
-                {Object.entries(stats.buyCounts).map(([k, v]) => (
-                  <div className="statrow" key={k}>
-                    <span>{k}</span>
-                    <span>{v}</span>
-                  </div>
-                ))}
-                <p style={{ marginTop: 14, fontWeight: 600 }}>{t.founder.priceSensitivity}</p>
-                {Object.entries(stats.priceCounts).map(([k, v]) => (
-                  <div className="statrow" key={k}>
-                    <span>{k}</span>
-                    <span>{v}</span>
-                  </div>
-                ))}
-                {Object.keys(stats.boxCounts).length > 0 && (
-                  <>
-                    <p style={{ marginTop: 14, fontWeight: 600 }}>{t.founder.boxWishes}</p>
-                    {Object.entries(stats.boxCounts).map(([k, v]) => (
-                      <div className="statrow" key={k}>
-                        <span>{k}</span>
-                        <span>{v}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
-                {stats.ideas.length > 0 && (
-                  <>
-                    <p style={{ marginTop: 14, fontWeight: 600 }}>{t.founder.ideasWritten}</p>
-                    {stats.ideas.map((idea, i) => (
-                      <div className="ideatext" key={i}>
-                        {idea}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-            <button
-              className="landing-btn outline"
-              style={{ marginTop: 18, width: "100%" }}
-              onClick={() => setOpen(false)}
-            >
-              {t.founder.close}
-            </button>
-          </div>
-        </div>
-      )}
-    </>
   );
 }

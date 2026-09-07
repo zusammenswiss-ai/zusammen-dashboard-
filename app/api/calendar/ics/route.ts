@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { fetchAllCalendarEvents } from "@/lib/calendar-events";
 import { buildICS } from "@/lib/ics";
 
@@ -13,16 +12,17 @@ import { buildICS } from "@/lib/ics";
 // comment on proxy.ts's matcher for why: calendar apps polling this URL
 // generally can't supply Basic Auth credentials.
 //
-// Builds its own anon client inline (not lib/supabase/client.ts, which
-// is a "use client" module) — same pattern as /api/send-email and the
-// reminder-email cron route.
+// Builds its own service-role client inline (not lib/supabase/client.ts,
+// which is a "use client" module) — same pattern as /api/send-email and
+// the reminder-email cron route. Needed now that company_settings (and
+// most of the tables fetchAllCalendarEvents reads) require auth.uid(),
+// which an external calendar app polling this URL could never satisfy;
+// the ?token= check right below is this route's own gate instead.
 export async function GET(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
     return new NextResponse("A Supabase nincs beállítva.", { status: 503 });
   }
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");

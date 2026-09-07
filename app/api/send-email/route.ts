@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getEmailSender } from "@/lib/email";
 import { getCompanySettings, DEFAULT_EMAIL_SIGNATURE } from "@/lib/company-settings";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 
 // Sends an email via whichever provider is active (see lib/email/index.ts
 // — Gmail by default, Resend if EMAIL_PROVIDER=resend). Runs server-side
@@ -16,11 +15,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Beállítások → Email-aláírás text — no need to touch every caller of
 // EmailComposeModal individually.
 async function resolveSignature(): Promise<string> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return DEFAULT_EMAIL_SIGNATURE;
+  // Service-role client — company_settings now requires auth.uid(),
+  // which this server-to-server call (reached behind proxy.ts's login
+  // redirect, but without the browser's session JWT) could never
+  // satisfy through the old anon-key client.
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return DEFAULT_EMAIL_SIGNATURE;
   try {
-    const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
     const settings = await getCompanySettings(supabase);
     return settings?.email_signature?.trim() || DEFAULT_EMAIL_SIGNATURE;
   } catch {

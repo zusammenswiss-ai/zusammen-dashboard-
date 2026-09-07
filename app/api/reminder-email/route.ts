@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import type { Database } from "@/lib/supabase/types";
+import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { getUnreadInboxCount } from "@/lib/email/gmail-inbox";
 import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
 
@@ -34,17 +33,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const resendKey = process.env.RESEND_API_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.json({ ok: false, error: "Supabase nincs konfigurálva." }, { status: 500 });
-  }
   if (!resendKey) {
     return NextResponse.json({ ok: false, error: "RESEND_API_KEY nincs beállítva." }, { status: 500 });
   }
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  // Service-role client, not the anon key: this route is trusted (gated
+  // by CRON_SECRET above, called only by Vercel Cron, never by a signed-
+  // in browser), and every table it reads now requires auth.uid() —
+  // which an unattended cron job, having no Supabase Auth session, could
+  // never satisfy through the anon-key client this used before.
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return NextResponse.json({ ok: false, error: "Supabase nincs konfigurálva." }, { status: 500 });
+  }
   const todayStr = isoDate(new Date());
 
   let notifications: NotificationItem[];
