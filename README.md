@@ -339,9 +339,12 @@ further down adds one more layer in front of the whole dashboard.
 
 `/login` (email + jelszó, Supabase Auth) is the dashboard's real login
 gate — `proxy.ts` redirects every other dashboard page here unless the
-browser has a valid Supabase Auth session, and back to `/` if you're
-already logged in and open `/login` directly. There's no self-service
-sign-up screen — accounts are created by hand in the Supabase dashboard:
+browser has a valid Supabase Auth session. `/login` itself always shows
+the form, even if you're already logged in — no silent redirect
+straight to `/`, so a saved/bookmarked `/login` link always prompts for
+a real login instead of sometimes skipping past it. There's no
+self-service sign-up screen — accounts are created by hand in the
+Supabase dashboard:
 
 1. In your Supabase project, open **Authentication → Users → Add user**
    (top-right).

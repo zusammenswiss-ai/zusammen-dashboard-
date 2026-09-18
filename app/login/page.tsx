@@ -9,10 +9,12 @@ import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
  * — standalone, no dashboard chrome (lives outside the (dashboard) route
  * group, same reasoning as /landing and /together). proxy.ts redirects
  * every dashboard page here when there's no session, with a `?next=`
- * pointing back at whatever page was requested; a session already present
- * gets redirected away from here straight to `/` by that same proxy check,
- * so this page never needs to worry about the "already logged in" case
- * itself. */
+ * pointing back at whatever page was requested — and, deliberately,
+ * shows this same form even when a session already exists (no silent
+ * "you're already logged in" redirect away from here), so a
+ * saved/bookmarked /login link always prompts for a real login.
+ * Submitting valid credentials while already signed in just re-confirms
+ * the same session — this page doesn't need any special-case for that. */
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "forgot">("signin");

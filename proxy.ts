@@ -119,12 +119,12 @@ async function checkSupabaseAuth(request: NextRequest): Promise<NextResponse> {
 
   const pathname = request.nextUrl.pathname;
 
-  if (pathname === "/login") {
-    // Already logged in — no reason to show the login form again.
-    if (user) return NextResponse.redirect(new URL("/", request.url));
-    return response;
-  }
-
+  // /login always shows the form itself, even with a valid session
+  // already active — no silent "you're already logged in, here's your
+  // dashboard" redirect. Submitting valid credentials again is harmless
+  // (just re-confirms/refreshes the same session), and this is what
+  // lets a saved/bookmarked /login link always prompt for a real login
+  // rather than sometimes skipping straight past it.
   if (isPublicRoute(pathname)) {
     return response;
   }
