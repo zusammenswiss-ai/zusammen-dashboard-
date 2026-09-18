@@ -59,6 +59,7 @@ export default function SupplierProfileModal({
   quotes,
   cardAssetOptions,
   cardAssetLabelById,
+  quoteSignedUrls,
   onClose,
   onSave,
   onDelete,
@@ -71,6 +72,10 @@ export default function SupplierProfileModal({
   quotes: PriceQuote[];
   cardAssetOptions: { id: string; label: string }[];
   cardAssetLabelById: Map<string, string>;
+  // price-quotes bucket is private (see supabase/schema.sql) —
+  // screenshot_url is a getPublicUrl()-shaped string that needs
+  // exchanging for a signed URL before it'll actually load.
+  quoteSignedUrls: Map<string, string>;
   onClose: () => void;
   onSave: (draft: SupplierDraft) => Promise<{ error?: string } | void>;
   onDelete?: () => void;
@@ -290,6 +295,7 @@ export default function SupplierProfileModal({
                 quotes={quotes}
                 mode="supplier"
                 cardAssetLabelById={cardAssetLabelById}
+                signedUrls={quoteSignedUrls}
                 onToggleSelected={onToggleQuoteSelected}
                 onDelete={onDeleteQuote}
               />

@@ -17,6 +17,7 @@ import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { openFileLabel } from "@/lib/file-open";
+import { resolveSignedUrls } from "@/lib/signed-storage-url";
 import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 
 const STORAGE_BUCKET = "card-assets";
@@ -90,6 +91,14 @@ export default function CardAssetsPage() {
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
   const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
   const [query, setQuery] = useState("");
+  // card-assets bucket is private (see supabase/schema.sql) — both
+  // asset.file_url and every thumbnails[].url are getPublicUrl()-shaped
+  // strings that need exchanging for a signed URL before they'll
+  // actually load. Keyed by that original stored URL.
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
+  // price-quotes bucket, same idea — separate map since it's a different
+  // bucket than card-assets above.
+  const [quoteSignedUrls, setQuoteSignedUrls] = useState<Map<string, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,6 +116,8 @@ export default function CardAssetsPage() {
       .order("created_at", { ascending: false });
     if (error) setError(error.message);
     else setAssets(data ?? []);
+    const allUrls = (data ?? []).flatMap((a) => [a.file_url, ...a.thumbnails.map((t: { url: string }) => t.url)]);
+    setSignedUrls(await resolveSignedUrls(supabase, STORAGE_BUCKET, allUrls));
     setLoading(false);
   }, [supabase]);
 
@@ -131,6 +142,8 @@ export default function CardAssetsPage() {
         .select("*")
         .order("created_at", { ascending: false });
       setPriceQuotes(data ?? []);
+      const screenshotUrls = (data ?? []).map((q) => q.screenshot_url);
+      setQuoteSignedUrls(await resolveSignedUrls(supabase, "price-quotes", screenshotUrls));
     })();
   }, [supabase]);
 
@@ -228,7 +241,12 @@ export default function CardAssetsPage() {
         .single();
       if (insertError) throw insertError;
 
-      if (data) setAssets((prev) => [data, ...prev]);
+      if (data) {
+        setAssets((prev) => [data, ...prev]);
+        const newUrls = [data.file_url, ...data.thumbnails.map((t: { url: string }) => t.url)];
+        const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, newUrls);
+        setSignedUrls((prev) => new Map([...prev, ...resolved]));
+      }
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nem sikerült feltölteni a fájlt.");
@@ -556,6 +574,7 @@ export default function CardAssetsPage() {
               language={language}
               versions={versions}
               supplierNameById={supplierNameById}
+              signedUrls={signedUrls}
               onOpen={setOpenAssetId}
               onDelete={deleteAsset}
               onLightbox={setLightboxSlot}
@@ -578,9 +597,18 @@ export default function CardAssetsPage() {
           suppliers={suppliers}
           quotes={priceQuotes.filter((q) => q.card_asset_id === openAsset.id)}
           supplierNameById={supplierNameById}
+          signedUrls={signedUrls}
+          quoteSignedUrls={quoteSignedUrls}
           onClose={() => setOpenAssetId(null)}
           onDelete={() => deleteAsset(openAsset)}
-          onQuoteCreated={(quote) => setPriceQuotes((prev) => [quote, ...prev])}
+          onQuoteCreated={(quote) => {
+            setPriceQuotes((prev) => [quote, ...prev]);
+            if (quote.screenshot_url && supabase) {
+              resolveSignedUrls(supabase, "price-quotes", [quote.screenshot_url]).then((resolved) =>
+                setQuoteSignedUrls((prev) => new Map([...prev, ...resolved]))
+              );
+            }
+          }}
           onToggleQuoteSelected={toggleQuoteSelected}
           onDeleteQuote={deletePriceQuote}
         />
@@ -593,6 +621,7 @@ function CardAssetLanguageGroup({
   language,
   versions,
   supplierNameById,
+  signedUrls,
   onOpen,
   onDelete,
   onLightbox,
@@ -600,6 +629,7 @@ function CardAssetLanguageGroup({
   language: string;
   versions: CardAsset[];
   supplierNameById: Map<string, string>;
+  signedUrls: Map<string, string>;
   onOpen: (id: string) => void;
   onDelete: (asset: CardAsset) => void;
   onLightbox: (slot: { url: string; label: string }) => void;
@@ -622,7 +652,8 @@ function CardAssetLanguageGroup({
             >
               <div className="grid shrink-0 grid-cols-2 gap-1">
                 {CARD_ASSET_THUMB_SLOTS.map((slot) => {
-                  const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
+                  const rawUrl = asset.thumbnails.find((t) => t.label === slot.key)?.url;
+                  const url = rawUrl ? signedUrls.get(rawUrl) : undefined;
                   return url ? (
                     <button
                       key={slot.key}
@@ -670,7 +701,7 @@ function CardAssetLanguageGroup({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <a
-                  href={asset.file_url}
+                  href={signedUrls.get(asset.file_url) ?? asset.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}

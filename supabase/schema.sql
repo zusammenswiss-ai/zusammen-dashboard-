@@ -366,13 +366,19 @@ create trigger set_updated_at before update on public.orders
 -- 3. `gmail_connection` (see below) has no anon or authenticated policy
 --    at all — it's reachable only through the service-role client.
 --
--- Note this only locks down the *database* — Supabase Storage bucket
--- objects (documents, card-fájlok, marketing anyagok, stb.) still live
--- in `public: true` buckets for the existing getPublicUrl() links to
--- keep working, so a file's URL itself isn't login-gated, only whether
--- someone can discover that URL by querying the table that references
--- it. Turning buckets private + serving signed URLs instead is a
--- separate, larger follow-up if that gap ever needs closing too.
+-- Storage buckets: documents, card-assets, price-quotes, marketing,
+-- company-logo and product-images are now private (`public = false`,
+-- set right after each bucket's own `insert into storage.buckets`
+-- below) — a founder-only file's URL is no longer enough on its own to
+-- fetch it, the app exchanges the stored path for a short-lived signed
+-- URL at read time (see lib/signed-storage-url.ts). Two buckets stay
+-- `public = true` on purpose: gold-card-letters/journey-memories, read
+-- by /together's visitor who never holds a Supabase Auth session to
+-- request a signed URL with (same soft-gate reasoning as that table's
+-- own policies, see further down), and email-assets, whose logo URL is
+-- embedded straight into campaign HTML sent to external recipients —
+-- their mail client fetches it anonymously, with no way to present a
+-- signed URL's expiry-bound token as authentication.
 -- =====================================================================
 alter table public.suppliers enable row level security;
 alter table public.tasks enable row level security;
@@ -423,6 +429,11 @@ create policy "authenticated full access" on public.orders for all
 insert into storage.buckets (id, name, public)
 values ('documents', 'documents', true)
 on conflict (id) do nothing;
+
+-- Flips an existing bucket private on re-run — the insert above is a
+-- no-op once the bucket already exists, so this is the statement that
+-- actually does the work on a database created before this change.
+update storage.buckets set public = false where id = 'documents';
 
 drop policy if exists "documents bucket anon read" on storage.objects;
 drop policy if exists "documents bucket authenticated read" on storage.objects;
@@ -483,6 +494,8 @@ insert into storage.buckets (id, name, public)
 values ('card-assets', 'card-assets', true)
 on conflict (id) do nothing;
 
+update storage.buckets set public = false where id = 'card-assets';
+
 drop policy if exists "card-assets bucket anon read" on storage.objects;
 drop policy if exists "card-assets bucket authenticated read" on storage.objects;
 create policy "card-assets bucket authenticated read"
@@ -536,6 +549,8 @@ create policy "authenticated full access" on public.price_quotes for all
 insert into storage.buckets (id, name, public)
 values ('price-quotes', 'price-quotes', true)
 on conflict (id) do nothing;
+
+update storage.buckets set public = false where id = 'price-quotes';
 
 drop policy if exists "price-quotes bucket anon read" on storage.objects;
 drop policy if exists "price-quotes bucket authenticated read" on storage.objects;
@@ -635,6 +650,8 @@ alter table public.marketing_content
 insert into storage.buckets (id, name, public)
 values ('marketing', 'marketing', true)
 on conflict (id) do nothing;
+
+update storage.buckets set public = false where id = 'marketing';
 
 drop policy if exists "marketing bucket anon read" on storage.objects;
 drop policy if exists "marketing bucket authenticated read" on storage.objects;
@@ -1037,6 +1054,8 @@ insert into storage.buckets (id, name, public)
 values ('company-logo', 'company-logo', true)
 on conflict (id) do nothing;
 
+update storage.buckets set public = false where id = 'company-logo';
+
 drop policy if exists "company-logo bucket anon read" on storage.objects;
 drop policy if exists "company-logo bucket authenticated read" on storage.objects;
 create policy "company-logo bucket authenticated read"
@@ -1162,6 +1181,8 @@ alter table public.orders add column if not exists product_id uuid references pu
 insert into storage.buckets (id, name, public)
 values ('product-images', 'product-images', true)
 on conflict (id) do nothing;
+
+update storage.buckets set public = false where id = 'product-images';
 
 drop policy if exists "product-images bucket anon read" on storage.objects;
 drop policy if exists "product-images bucket authenticated read" on storage.objects;

@@ -28,6 +28,7 @@ export default function CampaignDetailModal({
   tasks,
   content,
   assetById,
+  signedUrls,
   onClose,
   onUpdate,
 }: {
@@ -35,6 +36,10 @@ export default function CampaignDetailModal({
   tasks: CampaignTaskRef[];
   content: MarketingContent[];
   assetById: Map<string, MarketingAsset>;
+  // marketing bucket is private (see supabase/schema.sql) —
+  // asset.image_url is a getPublicUrl()-shaped string that needs
+  // exchanging for a signed URL before it'll actually load.
+  signedUrls: Map<string, string>;
   onClose: () => void;
   onUpdate: (patch: Partial<Campaign>) => void;
 }) {
@@ -265,33 +270,40 @@ export default function CampaignDetailModal({
             <div className="border-t border-border pt-4">
               <h3 className="mb-2 font-serif text-base text-forest">Marketing anyagok</h3>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {assets.map((asset) => (
-                  <button
-                    key={asset.id}
-                    type="button"
-                    onClick={() => asset.image_url && setLightboxAsset(asset)}
-                    className="block aspect-square overflow-hidden rounded-md bg-ivory-dim"
-                    title={asset.title}
-                    aria-label={`${asset.title} megnyitása nagyban`}
-                  >
-                    {asset.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={asset.image_url} alt={asset.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-muted/40">
-                        <ImageIcon size={18} />
-                      </div>
-                    )}
-                  </button>
-                ))}
+                {assets.map((asset) => {
+                  const imageUrl = asset.image_url ? signedUrls.get(asset.image_url) ?? null : null;
+                  return (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      onClick={() => imageUrl && setLightboxAsset(asset)}
+                      className="block aspect-square overflow-hidden rounded-md bg-ivory-dim"
+                      title={asset.title}
+                      aria-label={`${asset.title} megnyitása nagyban`}
+                    >
+                      {imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imageUrl} alt={asset.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted/40">
+                          <ImageIcon size={18} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {lightboxAsset?.image_url && (
-        <Lightbox src={lightboxAsset.image_url} alt={lightboxAsset.title} onClose={() => setLightboxAsset(null)} />
+      {lightboxAsset?.image_url && signedUrls.get(lightboxAsset.image_url) && (
+        <Lightbox
+          src={signedUrls.get(lightboxAsset.image_url) as string}
+          alt={lightboxAsset.title}
+          onClose={() => setLightboxAsset(null)}
+        />
       )}
     </div>
   );

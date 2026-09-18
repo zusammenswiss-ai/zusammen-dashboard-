@@ -325,12 +325,19 @@ Three deliberate exceptions:
   Supabase Auth session, so its access code is a soft UX gate rather
   than a hard boundary. See [`/together`](#together--shareable-partner-page)
   above.
-- **File storage** (Documents/Kártya-fájlok/Marketing anyagok/etc.)
-  isn't part of RLS the same way — the buckets stay `public: true` so
-  existing file links keep working, meaning a file's direct URL isn't
-  login-gated even though the database row that references it now is.
-  Making buckets private and serving signed URLs instead would close
-  that gap too, but is a separate, larger change.
+- **File storage** (Documents/Kártya-fájlok/Marketing anyagok/Termékek/
+  Árajánlatok/céglogó) — these buckets are private (`public = false`).
+  A stored `file_url`/`image_url`/`screenshot_url` alone is no longer
+  enough to fetch the file; the dashboard exchanges it for a short-lived
+  signed URL at read time (see `lib/signed-storage-url.ts`), so a file's
+  direct link only works for a limited window rather than forever. Two
+  buckets stay `public: true` on purpose: `gold-card-letters` and
+  `journey-memories`, read by `/together`'s visitor who never holds a
+  Supabase Auth session to request a signed URL with (same soft-gate
+  reasoning as that page's tables above), and `email-assets`, whose
+  logo image is embedded straight into campaign HTML sent to external
+  recipients — their mail client fetches it anonymously, with no way to
+  present a signed URL's token as authentication.
 
 Optionally, on top of all this, the network-level Basic Auth lock
 further down adds one more layer in front of the whole dashboard.
