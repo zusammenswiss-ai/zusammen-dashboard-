@@ -169,27 +169,145 @@ export type ProductInsert = Partial<Omit<Product, "id" | "created_at" | "updated
 export type ProductUpdate = Partial<Omit<Product, "id" | "created_at">>;
 export type FinanceProductUpdate = Partial<Omit<FinanceProduct, "id" | "created_at">>;
 
+export type ExpenseType = "Fix költség" | "Változó költség";
+export type PaymentMethod = "Bankkártya" | "Banki átutalás" | "Készpénz" | "Egyéb";
+export type RevenueStatus = "Kiállítva" | "Kifizetve";
+export type BudgetPeriod = "Havi" | "Negyedéves" | "Éves";
+export type InvoiceStatus = "Piszkozat" | "Kiállítva" | "Kifizetve";
+
 // Operating costs, independent of a product's COGS — see the comment on
 // this table in supabase/schema.sql. Reuses RecurrenceType rather than
 // a separate enum (only meaningful when is_recurring is true, same
-// convention as TaskTemplate).
+// convention as TaskTemplate). `type` (Fix/Változó) is what the Fix
+// költségek/Változó költségek tabs filter on — independent of
+// is_recurring, which only feeds the fedezeti pont havi normalizálása.
 export interface Expense {
   id: string;
-  name: string;
+  description: string;
   category: string;
+  type: ExpenseType;
   amount: number;
   currency: CurrencyCode;
   expense_date: string;
   is_recurring: boolean;
   recurrence_type: RecurrenceType | null;
+  payment_method: PaymentMethod | string | null;
+  // Stored as a getPublicUrl()-shaped string against the private
+  // 'receipts' bucket — see lib/signed-storage-url.ts, same pattern as
+  // documents.file_path/card_assets.file_url/etc.
+  receipt_url: string | null;
+  notes: string | null;
+  related_supplier_id: string | null;
+  related_product_id: string | null;
   created_at: string;
   updated_at: string;
 }
 export type ExpenseInsert = Partial<Omit<Expense, "id" | "created_at" | "updated_at">> & {
-  name: string;
+  description: string;
   amount: number;
 };
 export type ExpenseUpdate = Partial<Omit<Expense, "id" | "created_at">>;
+
+// Explicitly logged revenue rows — see the comment on this table in
+// supabase/schema.sql for how this relates to the Megrendelések-based
+// "Tényleges bevétel" summary and the Termékek-based tervezési
+// kalkulátor, both of which stay independent of this table.
+export interface Revenue {
+  id: string;
+  revenue_date: string;
+  amount: number;
+  currency: CurrencyCode;
+  source: string;
+  related_product_id: string | null;
+  notes: string | null;
+  status: RevenueStatus | null;
+  invoice_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type RevenueInsert = Partial<Omit<Revenue, "id" | "created_at" | "updated_at">> & {
+  amount: number;
+  source: string;
+};
+export type RevenueUpdate = Partial<Omit<Revenue, "id" | "created_at">>;
+
+// One planned_amount per category per period — see the comment on this
+// table in supabase/schema.sql for why month/quarter aren't enforced
+// with a check constraint.
+export interface Budget {
+  id: string;
+  category: string;
+  period: BudgetPeriod;
+  year: number;
+  month: number | null;
+  quarter: number | null;
+  planned_amount: number;
+  currency: CurrencyCode;
+  created_at: string;
+  updated_at: string;
+}
+export type BudgetInsert = Partial<Omit<Budget, "id" | "created_at" | "updated_at">> & {
+  category: string;
+  period: BudgetPeriod;
+  year: number;
+  planned_amount: number;
+};
+export type BudgetUpdate = Partial<Omit<Budget, "id" | "created_at">>;
+
+// Svájci QR-számla fejléc — a tételek külön az invoice_items táblában,
+// lásd a schema.sql kommentjét.
+export interface Invoice {
+  id: string;
+  invoice_number: string;
+  customer_name: string;
+  customer_address: string | null;
+  issue_date: string;
+  due_date: string | null;
+  currency: CurrencyCode;
+  status: InvoiceStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type InvoiceInsert = Partial<Omit<Invoice, "id" | "created_at" | "updated_at">> & {
+  invoice_number: string;
+  customer_name: string;
+};
+export type InvoiceUpdate = Partial<Omit<Invoice, "id" | "created_at">>;
+
+export interface InvoiceItem {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  position: number;
+  created_at: string;
+}
+export type InvoiceItemInsert = Partial<Omit<InvoiceItem, "id" | "created_at">> & {
+  invoice_id: string;
+  description: string;
+};
+export type InvoiceItemUpdate = Partial<Omit<InvoiceItem, "id" | "created_at" | "invoice_id">>;
+
+// Negyedéves beszedett/fizetett ÁFA — csak akkor releváns, ha
+// company_settings.vat_registered igaz. Lásd a schema.sql kommentjét:
+// ez egy előkészített, nem egy ténylegesen bevalláshoz kötött funkció.
+export interface VatReturn {
+  id: string;
+  year: number;
+  quarter: number;
+  collected_amount: number;
+  paid_amount: number;
+  currency: CurrencyCode;
+  created_at: string;
+  updated_at: string;
+}
+export type VatReturnInsert = Partial<Omit<VatReturn, "id" | "created_at" | "updated_at">> & {
+  year: number;
+  quarter: number;
+};
+export type VatReturnUpdate = Partial<Omit<VatReturn, "id" | "created_at">>;
 
 export interface EmailTemplate {
   id: string;
@@ -494,6 +612,19 @@ export interface CompanySettings {
   gold_card_reminder_enabled: boolean;
   // Naptár .ics feed subscription token — see app/api/calendar/ics/route.ts.
   ics_token: string | null;
+  // QR-számla kiállító (creditor) adatai — lásd app/api/finance/invoice-pdf/
+  // route.ts. Külön, strukturált mezők, nem a fenti szabad szöveges
+  // `address`, mert a swissqrbill csomag pontosan ezt a formát várja.
+  iban: string | null;
+  billing_street: string | null;
+  billing_zip: string | null;
+  billing_city: string | null;
+  billing_country: string;
+  // Pénzügyek → Cash Flow "Jelenlegi bankegyenleg" — see lib/finance-budget.ts.
+  bank_balance: number | null;
+  // Pénzügyek → ÁFA/MWST — gates whether the negyedéves beszedett/
+  // fizetett ÁFA input mezők (vat_returns) show up.
+  vat_registered: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -763,6 +894,36 @@ export interface Database {
         Update: ExpenseUpdate;
         Relationships: [];
       };
+      revenue: {
+        Row: Revenue;
+        Insert: RevenueInsert;
+        Update: RevenueUpdate;
+        Relationships: [];
+      };
+      budgets: {
+        Row: Budget;
+        Insert: BudgetInsert;
+        Update: BudgetUpdate;
+        Relationships: [];
+      };
+      invoices: {
+        Row: Invoice;
+        Insert: InvoiceInsert;
+        Update: InvoiceUpdate;
+        Relationships: [];
+      };
+      invoice_items: {
+        Row: InvoiceItem;
+        Insert: InvoiceItemInsert;
+        Update: InvoiceItemUpdate;
+        Relationships: [];
+      };
+      vat_returns: {
+        Row: VatReturn;
+        Insert: VatReturnInsert;
+        Update: VatReturnUpdate;
+        Relationships: [];
+      };
       email_templates: {
         Row: EmailTemplate;
         Insert: EmailTemplateInsert;
@@ -826,6 +987,11 @@ export const ANON_TABLE_NAMES = [
   "calendar_events",
   "products",
   "expenses",
+  "revenue",
+  "budgets",
+  "invoices",
+  "invoice_items",
+  "vat_returns",
   "email_templates",
   "newsletter_subscribers",
   "email_unsubscribes",
