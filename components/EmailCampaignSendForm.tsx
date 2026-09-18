@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Send, Eye, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { EmailTemplate, MarketingContent } from "@/lib/supabase/types";
+import { errorMessage } from "@/lib/errors";
 
 type Audience = "demand" | "newsletter";
 
@@ -87,7 +88,7 @@ export default function EmailCampaignSendForm({
       if (data.ok) setPreview(data);
       else setPreviewError(data.error || "Nem sikerült előnézetet készíteni.");
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "Hálózati hiba az előnézet közben.");
+      setPreviewError(errorMessage(err, "Hálózati hiba az előnézet közben."));
     } finally {
       setPreviewLoading(false);
     }
@@ -113,7 +114,7 @@ export default function EmailCampaignSendForm({
         setResult({ ok: false, message: data.error || `Nem sikerült kiküldeni (${data.failed ?? "?"} hiba).` });
       }
     } catch (err) {
-      setResult({ ok: false, message: err instanceof Error ? err.message : "Hálózati hiba a küldés közben." });
+      setResult({ ok: false, message: errorMessage(err, "Hálózati hiba a küldés közben.") });
     } finally {
       setSending(false);
     }

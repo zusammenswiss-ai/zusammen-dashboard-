@@ -8,6 +8,7 @@ import EmptyState from "@/components/EmptyState";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
 import { INVOICE_STATUS_STYLES } from "@/lib/labels";
+import { errorMessage } from "@/lib/errors";
 
 function nextInvoiceNumber(invoices: Invoice[]): string {
   const year = new Date().getFullYear();
@@ -302,7 +303,7 @@ function InvoiceForm({
 
       onCreated(invoice);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült létrehozni a számlát.");
+      setError(errorMessage(err, "Nem sikerült létrehozni a számlát."));
     } finally {
       setSaving(false);
     }

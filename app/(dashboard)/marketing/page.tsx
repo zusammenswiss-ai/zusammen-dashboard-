@@ -58,6 +58,7 @@ import { useShowMore } from "@/lib/useShowMore";
 import { SEASON_HU, CAMPAIGN_STATUS_STYLES } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "marketing";
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
@@ -988,7 +989,7 @@ function ContentForm({
       if (insertError) throw insertError;
       if (data) onCreated(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a tartalmat.");
+      setError(errorMessage(err, "Nem sikerült menteni a tartalmat."));
     } finally {
       setSaving(false);
     }
@@ -1456,7 +1457,7 @@ function AssetForm({
       if (insertError) throw insertError;
       if (data) onCreated(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni az anyagot.");
+      setError(errorMessage(err, "Nem sikerült menteni az anyagot."));
     } finally {
       setSaving(false);
     }

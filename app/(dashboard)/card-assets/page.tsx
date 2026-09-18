@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/format";
 import { openFileLabel } from "@/lib/file-open";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
 import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "card-assets";
 const LANGUAGES = ["HU", "DE", "EN"];
@@ -182,7 +183,7 @@ export default function CardAssetsPage() {
       setFile(new File([blob], `${folderName}.zip`, { type: "application/zip" }));
       setFolderInfo({ name: folderName, count: files.length });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült tömöríteni a mappát.");
+      setError(errorMessage(err, "Nem sikerült tömöríteni a mappát."));
     } finally {
       setZipping(false);
     }
@@ -249,7 +250,7 @@ export default function CardAssetsPage() {
       }
       resetForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült feltölteni a fájlt.");
+      setError(errorMessage(err, "Nem sikerült feltölteni a fájlt."));
     } finally {
       setSaving(false);
     }

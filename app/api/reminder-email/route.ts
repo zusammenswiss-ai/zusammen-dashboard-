@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { getUnreadInboxCount } from "@/lib/email/gmail-inbox";
 import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
+import { errorMessage } from "@/lib/errors";
 
 // Fired daily by Vercel Cron (see vercel.json) — summarizes what's due
 // (overdue/soon tasks, overdue/soon order deliveries, expiring supplier
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
   try {
     notifications = await fetchDueNotifications(supabase);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Nem sikerült lekérdezni az emlékeztetőket.";
+    const message = errorMessage(err, "Nem sikerült lekérdezni az emlékeztetőket.");
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 

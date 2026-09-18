@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { PriceQuote } from "@/lib/supabase/types";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "price-quotes";
 
@@ -90,7 +91,7 @@ export default function PriceQuoteForm({
       if (insertError) throw insertError;
       if (data) onCreated(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni az árajánlatot.");
+      setError(errorMessage(err, "Nem sikerült menteni az árajánlatot."));
     } finally {
       setSaving(false);
     }

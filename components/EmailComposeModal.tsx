@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, Mail, Send, AlertTriangle } from "lucide-react";
 import { ErrorBanner } from "@/components/Feedback";
+import { errorMessage } from "@/lib/errors";
 
 /** Shared "Email küldése" modal — posts to /api/send-email, which sends
  * via whichever provider is active server-side (Gmail by default, or
@@ -62,7 +63,7 @@ export default function EmailComposeModal({
       onSent?.({ to, subject, body });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült elküldeni az emailt.");
+      setError(errorMessage(err, "Nem sikerült elküldeni az emailt."));
     } finally {
       setSending(false);
     }

@@ -7,6 +7,7 @@ import type { EmailTemplate, EmailTemplateUpdate } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import { formatDate } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "email-assets";
 const LOGO_PLACEHOLDER = /YOUR_LOGO_URL/g;
@@ -217,7 +218,7 @@ function TemplateForm({
         if (data) onSaved(data);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a sablont.");
+      setError(errorMessage(err, "Nem sikerült menteni a sablont."));
     } finally {
       setSaving(false);
     }

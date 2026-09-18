@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorMessage } from "@/lib/errors";
 
 // GET /api/finance/exchange-rates — fetched by lib/exchange-rates.ts on
 // Pénzügyek/Áttekintés so mixed-currency totals (a USD-quoted COGS
@@ -33,7 +34,7 @@ export async function GET() {
     });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Nem sikerült lekérni az árfolyamokat." },
+      { ok: false, error: errorMessage(err, "Nem sikerült lekérni az árfolyamokat.") },
       { status: 502 }
     );
   }

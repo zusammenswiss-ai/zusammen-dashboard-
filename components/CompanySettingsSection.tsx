@@ -10,6 +10,7 @@ import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
 import { formatDate } from "@/lib/format";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import { resolveSignedUrl } from "@/lib/signed-storage-url";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Loads the company_settings singleton row once and renders the 4
@@ -152,7 +153,7 @@ function BrandInfoCard({ settings, onSave }: CardProps) {
       const logoUrl = supabase.storage.from("company-logo").getPublicUrl(path).data.publicUrl;
       await onSave({ logo_url: logoUrl });
     } catch (err) {
-      setLogoError(err instanceof Error ? err.message : "Nem sikerült feltölteni a logót.");
+      setLogoError(errorMessage(err, "Nem sikerült feltölteni a logót."));
     } finally {
       setUploadingLogo(false);
     }
