@@ -5,6 +5,7 @@ import { ShieldAlert, Trash2 } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ANON_TABLE_NAMES } from "@/lib/supabase/types";
 import { ErrorBanner } from "@/components/Feedback";
+import { errorMessage } from "@/lib/errors";
 
 const CONFIRM_WORD = "TÖRLÉS";
 
@@ -69,7 +70,7 @@ export default function DangerZoneSection() {
       setConfirmText("");
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült törölni minden adatot.");
+      setError(errorMessage(err, "Nem sikerült törölni minden adatot."));
     } finally {
       setDeleting(false);
     }

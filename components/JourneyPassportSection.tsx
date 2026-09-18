@@ -8,6 +8,7 @@ import type { JourneyMemory, WildCardCompletion, WildCardName } from "@/lib/supa
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import Lightbox from "@/components/Lightbox";
 import { formatDate } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "journey-memories";
 
@@ -160,7 +161,7 @@ export default function JourneyPassportSection({
       setFile(null);
       setShowForm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni az emléket.");
+      setError(errorMessage(err, "Nem sikerült menteni az emléket."));
     } finally {
       setSaving(false);
     }

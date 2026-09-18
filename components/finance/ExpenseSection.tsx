@@ -21,6 +21,7 @@ import { EXPENSE_CATEGORIES, RECURRENCE_TYPES, PAYMENT_METHODS, recurrenceFreque
 import { monthlyEquivalent } from "@/lib/finance";
 import { openFileLabel, isPreviewableInBrowser } from "@/lib/file-open";
 import { toCSV, downloadCSV } from "@/lib/csv";
+import { errorMessage } from "@/lib/errors";
 
 const RECEIPT_BUCKET = "receipts";
 
@@ -441,7 +442,7 @@ function ExpenseForm({
       if (insertError) throw insertError;
       if (data) onCreated(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a költséget.");
+      setError(errorMessage(err, "Nem sikerült menteni a költséget."));
     } finally {
       setSaving(false);
     }
@@ -673,7 +674,7 @@ function ExpenseEditRow({
       if (updateError) throw updateError;
       if (data) onSaved(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a módosítást.");
+      setError(errorMessage(err, "Nem sikerült menteni a módosítást."));
     } finally {
       setSaving(false);
     }

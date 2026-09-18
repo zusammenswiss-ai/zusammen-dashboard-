@@ -17,6 +17,7 @@ import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { isImageFile, isPreviewableInBrowser, openFileLabel } from "@/lib/file-open";
 import { resolveSignedUrlForPath, resolveSignedUrlsForPaths, EMAIL_LINK_EXPIRY_SECONDS } from "@/lib/signed-storage-url";
+import { errorMessage } from "@/lib/errors";
 
 function byDocumentRecency(a: Document, b: Document) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -115,7 +116,7 @@ export default function DocumentsPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       setShowForm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a dokumentumot.");
+      setError(errorMessage(err, "Nem sikerült menteni a dokumentumot."));
     } finally {
       setSaving(false);
     }

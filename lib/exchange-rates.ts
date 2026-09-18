@@ -6,6 +6,7 @@
 // module is what turns "100 USD" into "a real number of CHF" before
 // anything gets summed.
 import type { CurrencyCode } from "@/lib/supabase/types";
+import { errorMessage } from "@/lib/errors";
 
 // "1 CHF equals this many units of X" — CHF is always the pivot.
 export type ExchangeRates = Record<CurrencyCode, number>;
@@ -25,7 +26,7 @@ export async function fetchExchangeRates(): Promise<ExchangeRatesResult> {
     if (!data.ok) return { ok: false, error: data.error ?? "Nem sikerült lekérni az árfolyamokat." };
     return { ok: true, rates: data.ratesFromCHF, date: data.date };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Hálózati hiba az árfolyamok lekérésekor." };
+    return { ok: false, error: errorMessage(err, "Hálózati hiba az árfolyamok lekérésekor.") };
   }
 }
 

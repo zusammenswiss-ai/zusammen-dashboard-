@@ -37,6 +37,7 @@ import { fetchAllCalendarEvents, type CalendarEventItem } from "@/lib/calendar-e
 import { CategoryIcon } from "@/components/CalendarCategoryBadge";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import type { CurrencyCode, PlanStatus, OrderStatus } from "@/lib/supabase/types";
+import { errorMessage } from "@/lib/errors";
 
 const UPCOMING_EVENTS_LIMIT = 5;
 
@@ -276,7 +277,7 @@ export default function OverviewPage() {
         setNotifications(notificationItems);
         setGoldCardReminderEnabled(companySettingsRes.data?.gold_card_reminder_enabled ?? true);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Nem sikerült betölteni a dashboard adatait.");
+        setError(errorMessage(err, "Nem sikerült betölteni a dashboard adatait."));
       } finally {
         setLoading(false);
       }

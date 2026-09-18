@@ -7,6 +7,7 @@ import type { GoldCardLetter } from "@/lib/supabase/types";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import { formatDate } from "@/lib/format";
 import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "gold-card-letters";
 
@@ -98,7 +99,7 @@ export default function GoldCardLettersSection({
       setFile(null);
       setShowForm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a levelet.");
+      setError(errorMessage(err, "Nem sikerült menteni a levelet."));
     } finally {
       setSaving(false);
     }

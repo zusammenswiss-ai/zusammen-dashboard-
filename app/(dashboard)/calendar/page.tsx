@@ -15,6 +15,7 @@ import { useUndoAction } from "@/lib/useUndoAction";
 import { CALENDAR_CATEGORIES, type CalendarCategory } from "@/lib/labels";
 import { fetchAllCalendarEvents, type CalendarEventItem } from "@/lib/calendar-events";
 import { formatDate } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 const WEEKDAY_LABELS = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
 const HIDDEN_CATEGORIES_KEY = "naptar-hidden-categories";
@@ -92,7 +93,7 @@ export default function CalendarPage() {
       setAllEvents(events);
       setCustomEvents(customRes.data ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült betölteni a naptár adatait.");
+      setError(errorMessage(err, "Nem sikerült betölteni a naptár adatait."));
     } finally {
       setLoading(false);
     }

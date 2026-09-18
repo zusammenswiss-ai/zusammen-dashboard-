@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { exchangeCodeForTokens, fetchGoogleAccountEmail } from "@/lib/google-oauth";
 import { saveGmailConnection } from "@/lib/email/gmail-connection";
 import { SITE_URL } from "@/lib/site-url";
+import { errorMessage } from "@/lib/errors";
 
 // GET /api/auth/gmail/callback — where Google redirects back to after
 // the founder approves (or denies) the gmail.send consent screen.
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     await saveGmailConnection({ googleEmail, refreshToken, accessToken, expiresInSeconds });
     return settingsRedirect("connected");
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Nem sikerült összekapcsolni a Gmail fiókot.";
+    const message = errorMessage(err, "Nem sikerült összekapcsolni a Gmail fiókot.");
     return settingsRedirect("error", message);
   }
 }

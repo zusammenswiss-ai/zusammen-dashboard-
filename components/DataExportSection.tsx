@@ -7,6 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { ANON_TABLE_NAMES } from "@/lib/supabase/types";
 import { toCSV } from "@/lib/csv";
 import { ErrorBanner } from "@/components/Feedback";
+import { errorMessage } from "@/lib/errors";
 
 /** Any table row — the shape varies per table, which is exactly why this stays untyped here. */
 type Row = Record<string, unknown>;
@@ -73,7 +74,7 @@ export default function DataExportSection() {
       URL.revokeObjectURL(url);
       setSkipped(emptyTables);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült exportálni az adatokat.");
+      setError(errorMessage(err, "Nem sikerült exportálni az adatokat."));
     } finally {
       setExporting(false);
     }

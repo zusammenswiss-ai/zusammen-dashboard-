@@ -35,6 +35,7 @@ import { DEFAULT_CURRENCY } from "@/lib/company-settings";
 import { convertAmount, fetchExchangeRates, type ExchangeRates } from "@/lib/exchange-rates";
 import type { CurrencyCode } from "@/lib/supabase/types";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
+import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "product-images";
 
@@ -198,7 +199,7 @@ export default function ProductsPage() {
       }
       resetForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült létrehozni a terméket.");
+      setError(errorMessage(err, "Nem sikerült létrehozni a terméket."));
     } finally {
       setSaving(false);
     }
@@ -227,7 +228,7 @@ export default function ProductsPage() {
       }
       resetForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerült menteni a terméket.");
+      setError(errorMessage(err, "Nem sikerült menteni a terméket."));
     } finally {
       setSaving(false);
     }
