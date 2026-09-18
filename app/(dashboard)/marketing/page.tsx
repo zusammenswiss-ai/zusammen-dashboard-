@@ -57,6 +57,7 @@ import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { SEASON_HU, CAMPAIGN_STATUS_STYLES } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
+import { resolveSignedUrls } from "@/lib/signed-storage-url";
 
 const STORAGE_BUCKET = "marketing";
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
@@ -133,6 +134,12 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [composeFor, setComposeFor] = useState<MarketingCampaign | null>(null);
+  // marketing bucket is private (see supabase/schema.sql) — both
+  // marketing_content.image_url and marketing_assets.image_url are
+  // getPublicUrl()-shaped strings that need exchanging for a signed URL
+  // before they'll actually load. Keyed by that original stored URL, one
+  // shared map since both tables' images live in the same bucket.
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
 
   // Kampány részletes nézet state: which campaigns.id is open (set by
   // clicking a kampány mini-card under a season, or by the
@@ -200,6 +207,11 @@ export default function MarketingPage() {
       else setContent(contentRes.data ?? []);
       if (assetsRes.error) setError(assetsRes.error.message);
       else setAssets(assetsRes.data ?? []);
+      const imageUrls = [
+        ...(contentRes.data ?? []).map((c) => c.image_url),
+        ...(assetsRes.data ?? []).map((a) => a.image_url),
+      ];
+      setSignedUrls(await resolveSignedUrls(supabase, STORAGE_BUCKET, imageUrls));
       setLinkedTasks(tasksRes.data ?? []);
       if (templatesRes.error) setError(templatesRes.error.message);
       else setTemplates(templatesRes.data ?? []);
@@ -252,8 +264,12 @@ export default function MarketingPage() {
     if (error) setError(error.message);
   }
 
-  function addContent(item: MarketingContent) {
+  async function addContent(item: MarketingContent) {
     setContent((prev) => [...prev, item].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)));
+    if (item.image_url && supabase) {
+      const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, [item.image_url]);
+      setSignedUrls((prev) => new Map([...prev, ...resolved]));
+    }
   }
 
   async function updateContentStatus(id: string, status: MarketingContentStatus) {
@@ -309,8 +325,12 @@ export default function MarketingPage() {
     if (data) setLinkedTasks((prev) => [...prev, data]);
   }
 
-  function addAsset(asset: MarketingAsset) {
+  async function addAsset(asset: MarketingAsset) {
     setAssets((prev) => [asset, ...prev]);
+    if (asset.image_url && supabase) {
+      const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, [asset.image_url]);
+      setSignedUrls((prev) => new Map([...prev, ...resolved]));
+    }
   }
 
   function deleteAsset(id: string) {
@@ -438,6 +458,7 @@ export default function MarketingPage() {
               campaigns={campaigns}
               campaignById={campaignById}
               taskIdByContentId={taskIdByContentId}
+              signedUrls={signedUrls}
               showForm={showContentForm}
               onShowFormChange={setShowContentForm}
               prefill={contentPrefill}
@@ -453,6 +474,7 @@ export default function MarketingPage() {
           {tab === "assets" && (
             <AssetLibrarySection
               assets={assets}
+              signedUrls={signedUrls}
               onAdd={addAsset}
               onDelete={deleteAsset}
               onCreateContent={createContentFromAsset}
@@ -516,6 +538,7 @@ export default function MarketingPage() {
           tasks={linkedTasks.filter((t) => t.campaign_id === openCampaign.id)}
           content={content.filter((c) => c.campaign_id === openCampaign.id)}
           assetById={assetById}
+          signedUrls={signedUrls}
           onClose={() => setOpenCampaignId(null)}
           onUpdate={(patch) => updateCampaign(openCampaign.id, patch)}
         />
@@ -729,6 +752,7 @@ function ContentCalendarSection({
   campaigns,
   campaignById,
   taskIdByContentId,
+  signedUrls,
   showForm,
   onShowFormChange,
   prefill,
@@ -745,6 +769,7 @@ function ContentCalendarSection({
   campaigns: Campaign[];
   campaignById: Map<string, Campaign>;
   taskIdByContentId: Map<string, string>;
+  signedUrls: Map<string, string>;
   showForm: boolean;
   onShowFormChange: (show: boolean) => void;
   prefill: ContentPrefill | null;
@@ -759,6 +784,11 @@ function ContentCalendarSection({
   const [monthFilter, setMonthFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | MarketingContentType>("");
   const [statusFilter, setStatusFilter] = useState<"" | MarketingContentStatus>("");
+
+  function resolvedImageUrlFor(item: MarketingContent): string | null {
+    const raw = item.asset_id ? assetById.get(item.asset_id)?.image_url ?? null : item.image_url;
+    return raw ? signedUrls.get(raw) ?? null : null;
+  }
 
   const filtered = content.filter((c) => {
     if (monthFilter && !c.scheduled_date.startsWith(monthFilter)) return false;
@@ -845,6 +875,7 @@ function ContentCalendarSection({
           assets={assets}
           campaigns={campaigns}
           prefill={prefill}
+          signedUrls={signedUrls}
           onCreated={(item) => {
             onAdd(item);
             onShowFormChange(false);
@@ -871,7 +902,7 @@ function ContentCalendarSection({
             <ContentCard
               key={item.id}
               item={item}
-              resolvedImageUrl={item.asset_id ? assetById.get(item.asset_id)?.image_url ?? null : item.image_url}
+              resolvedImageUrl={resolvedImageUrlFor(item)}
               linkedTaskId={taskIdByContentId.get(item.id) ?? null}
               linkedCampaign={item.campaign_id ? campaignById.get(item.campaign_id) ?? null : null}
               onDelete={() => onDelete(item.id)}
@@ -890,12 +921,14 @@ function ContentForm({
   assets,
   campaigns,
   prefill,
+  signedUrls,
   onCreated,
   onCancel,
 }: {
   assets: MarketingAsset[];
   campaigns: Campaign[];
   prefill: ContentPrefill | null;
+  signedUrls: Map<string, string>;
   onCreated: (item: MarketingContent) => void;
   onCancel: () => void;
 }) {
@@ -1088,7 +1121,11 @@ function ContentForm({
                 title={asset.title}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={asset.image_url} alt={asset.title} className="h-full w-full object-cover" />
+                <img
+                  src={signedUrls.get(asset.image_url) ?? ""}
+                  alt={asset.title}
+                  className="h-full w-full object-cover"
+                />
                 {selectedAssetId === asset.id && (
                   <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-bronze text-white">
                     <Check size={11} />
@@ -1242,11 +1279,13 @@ const EMPTY_ASSET_FORM = {
 /** c) Marketing anyagok — the image library, grouped by language. */
 function AssetLibrarySection({
   assets,
+  signedUrls,
   onAdd,
   onDelete,
   onCreateContent,
 }: {
   assets: MarketingAsset[];
+  signedUrls: Map<string, string>;
   onAdd: (asset: MarketingAsset) => void;
   onDelete: (id: string) => void;
   onCreateContent: (asset: MarketingAsset) => void;
@@ -1315,7 +1354,14 @@ function AssetLibrarySection({
       ) : (
         <div className="flex flex-col gap-6">
           {grouped.map(({ lang, items }) => (
-            <AssetLanguageGroup key={lang} lang={lang} items={items} onDelete={onDelete} onCreateContent={onCreateContent} />
+            <AssetLanguageGroup
+              key={lang}
+              lang={lang}
+              items={items}
+              signedUrls={signedUrls}
+              onDelete={onDelete}
+              onCreateContent={onCreateContent}
+            />
           ))}
         </div>
       )}
@@ -1326,11 +1372,13 @@ function AssetLibrarySection({
 function AssetLanguageGroup({
   lang,
   items,
+  signedUrls,
   onDelete,
   onCreateContent,
 }: {
   lang: string;
   items: MarketingAsset[];
+  signedUrls: Map<string, string>;
   onDelete: (id: string) => void;
   onCreateContent: (asset: MarketingAsset) => void;
 }) {
@@ -1348,6 +1396,7 @@ function AssetLanguageGroup({
             <AssetCard
               key={asset.id}
               asset={asset}
+              imageUrl={signedUrls.get(asset.image_url) ?? null}
               onDelete={() => onDelete(asset.id)}
               onCreateContent={() => onCreateContent(asset)}
             />
@@ -1514,10 +1563,12 @@ function AssetForm({
 
 function AssetCard({
   asset,
+  imageUrl,
   onDelete,
   onCreateContent,
 }: {
   asset: MarketingAsset;
+  imageUrl: string | null;
   onDelete: () => void;
   onCreateContent: () => void;
 }) {
@@ -1530,8 +1581,10 @@ function AssetCard({
         className="relative block aspect-square w-full bg-ivory-dim"
         aria-label="Kép megnyitása nagyban"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={asset.image_url} alt={asset.title} className="h-full w-full object-cover" />
+        {imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt={asset.title} className="h-full w-full object-cover" />
+        )}
         {/* Overlaid, not just listed below — this must never blend into the
          * rest of the card so a "Koncepció" mockup can't be mistaken for a
          * real product photo further down the line (e.g. webshop upload). */}
@@ -1541,7 +1594,7 @@ function AssetCard({
           {asset.asset_type}
         </span>
       </button>
-      {showLightbox && <Lightbox src={asset.image_url} alt={asset.title} onClose={() => setShowLightbox(false)} />}
+      {showLightbox && imageUrl && <Lightbox src={imageUrl} alt={asset.title} onClose={() => setShowLightbox(false)} />}
       <div className="p-2.5">
         <p className="truncate text-xs font-medium text-forest" title={asset.title}>
           {asset.title}

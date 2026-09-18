@@ -16,6 +16,7 @@ import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { CONTRACT_STATUS_HU } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
+import { resolveSignedUrls } from "@/lib/signed-storage-url";
 
 function bySupplierRecency(a: Supplier, b: Supplier) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -151,6 +152,10 @@ export default function SuppliersPage() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
+  // price-quotes bucket is private (see supabase/schema.sql) —
+  // screenshot_url is a getPublicUrl()-shaped string that needs
+  // exchanging for a signed URL before it'll actually load.
+  const [quoteSignedUrls, setQuoteSignedUrls] = useState<Map<string, string>>(new Map());
   const [cardAssets, setCardAssets] = useState<{ id: string; language: string; version: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -187,6 +192,8 @@ export default function SuppliersPage() {
       setCardAssets(
         (assetsRes.data ?? []).map((a) => ({ id: a.id, language: a.language, version: a.version }))
       );
+      const screenshotUrls = (quotesRes.data ?? []).map((q) => q.screenshot_url);
+      setQuoteSignedUrls(await resolveSignedUrls(supabase, "price-quotes", screenshotUrls));
     })();
   }, [supabase]);
 
@@ -469,7 +476,15 @@ export default function SuppliersPage() {
                 }
               : undefined
           }
-          onQuoteCreated={(quote) => setPriceQuotes((prev) => [quote, ...prev])}
+          quoteSignedUrls={quoteSignedUrls}
+          onQuoteCreated={(quote) => {
+            setPriceQuotes((prev) => [quote, ...prev]);
+            if (quote.screenshot_url && supabase) {
+              resolveSignedUrls(supabase, "price-quotes", [quote.screenshot_url]).then((resolved) =>
+                setQuoteSignedUrls((prev) => new Map([...prev, ...resolved]))
+              );
+            }
+          }}
           onToggleQuoteSelected={toggleQuoteSelected}
           onDeleteQuote={deletePriceQuote}
           onReplyDetected={

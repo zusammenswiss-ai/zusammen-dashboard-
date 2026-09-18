@@ -16,6 +16,7 @@ import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { isImageFile, isPreviewableInBrowser, openFileLabel } from "@/lib/file-open";
+import { resolveSignedUrlForPath, resolveSignedUrlsForPaths, EMAIL_LINK_EXPIRY_SECONDS } from "@/lib/signed-storage-url";
 
 function byDocumentRecency(a: Document, b: Document) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -34,9 +35,14 @@ export default function DocumentsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [composeFor, setComposeFor] = useState<Document | null>(null);
+  const [composeFor, setComposeFor] = useState<{ doc: Document; signedUrl: string | null } | null>(null);
   const [query, setQuery] = useState("");
   const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
+  // documents bucket is private (see supabase/schema.sql) — file_path
+  // alone can't be fetched, it has to be exchanged for a signed URL
+  // first. Keyed by file_path so a lookup doesn't need to re-derive
+  // anything from the row.
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
@@ -52,6 +58,8 @@ export default function DocumentsPage() {
       .order("created_at", { ascending: false });
     if (error) setError(error.message);
     else setDocuments(data ?? []);
+    const paths = (data ?? []).map((d) => d.file_path);
+    setSignedUrls(await resolveSignedUrlsForPaths(supabase, STORAGE_BUCKET, paths));
     setLoading(false);
   }, [supabase]);
 
@@ -95,7 +103,13 @@ export default function DocumentsPage() {
         .single();
       if (insertError) throw insertError;
 
-      if (data) setDocuments((prev) => [data, ...prev]);
+      if (data) {
+        setDocuments((prev) => [data, ...prev]);
+        if (filePath) {
+          const signedUrl = await resolveSignedUrlForPath(supabase, STORAGE_BUCKET, filePath);
+          if (signedUrl) setSignedUrls((prev) => new Map(prev).set(filePath as string, signedUrl));
+        }
+      }
       setForm(EMPTY_FORM);
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -131,8 +145,24 @@ export default function DocumentsPage() {
   }
 
   function fileUrl(doc: Document): string | null {
-    if (!supabase || !doc.file_path) return null;
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(doc.file_path).data.publicUrl;
+    if (!doc.file_path) return null;
+    return signedUrls.get(doc.file_path) ?? null;
+  }
+
+  // The compose modal's defaultBody/defaultSubject only ever seed its
+  // initial useState — it doesn't react to prop changes after mount
+  // (see components/EmailComposeModal.tsx) — so the link that goes into
+  // the email body has to be resolved *before* the modal opens, not
+  // patched in afterwards. It also gets its own long-lived (30-day)
+  // signed URL rather than reusing the short-lived one used for in-
+  // dashboard viewing, since the recipient might not open the email for
+  // days.
+  async function openCompose(doc: Document) {
+    const signedUrl =
+      supabase && doc.file_path
+        ? await resolveSignedUrlForPath(supabase, STORAGE_BUCKET, doc.file_path, EMAIL_LINK_EXPIRY_SECONDS)
+        : null;
+    setComposeFor({ doc, signedUrl });
   }
 
   const filteredDocuments = useMemo(() => {
@@ -279,7 +309,7 @@ export default function DocumentsPage() {
               fileUrl={fileUrl}
               onUpdateStatus={updateStatus}
               onOpenLightbox={setLightboxDoc}
-              onCompose={setComposeFor}
+              onCompose={openCompose}
               onDelete={deleteDocument}
             />
           ))}
@@ -294,12 +324,12 @@ export default function DocumentsPage() {
 
       {composeFor && (
         <EmailComposeModal
-          title={`Email küldése — ${composeFor.title}`}
-          defaultSubject={composeFor.title}
+          title={`Email küldése — ${composeFor.doc.title}`}
+          defaultSubject={composeFor.doc.title}
           defaultBody={
-            fileUrl(composeFor)
-              ? `Szia!\n\nMegosztom veled a következő dokumentumot: ${composeFor.title}\n\n${fileUrl(composeFor)}\n\n`
-              : `Szia!\n\nA "${composeFor.title}" dokumentummal kapcsolatban írok.\n\n`
+            composeFor.signedUrl
+              ? `Szia!\n\nMegosztom veled a következő dokumentumot: ${composeFor.doc.title}\n\n${composeFor.signedUrl}\n\n`
+              : `Szia!\n\nA "${composeFor.doc.title}" dokumentummal kapcsolatban írok.\n\n`
           }
           onClose={() => setComposeFor(null)}
         />

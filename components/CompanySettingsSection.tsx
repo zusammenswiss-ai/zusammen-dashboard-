@@ -9,6 +9,7 @@ import { CURRENCY_OPTIONS } from "@/lib/currency";
 import { nextGoldCardDate, daysUntil } from "@/lib/gold-card";
 import { formatDate } from "@/lib/format";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
+import { resolveSignedUrl } from "@/lib/signed-storage-url";
 
 /**
  * Loads the company_settings singleton row once and renders the 4
@@ -91,6 +92,19 @@ function BrandInfoCard({ settings, onSave }: CardProps) {
   const [saved, setSaved] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  // company-logo bucket is private (see supabase/schema.sql) —
+  // settings.logo_url is a getPublicUrl()-shaped string that needs
+  // exchanging for a signed URL before it'll actually load.
+  const [logoSignedUrl, setLogoSignedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase || !settings?.logo_url) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLogoSignedUrl(null);
+      return;
+    }
+    resolveSignedUrl(supabase, "company-logo", settings.logo_url).then(setLogoSignedUrl);
+  }, [supabase, settings?.logo_url]);
 
   useEffect(() => {
     if (settings) {
@@ -156,9 +170,9 @@ function BrandInfoCard({ settings, onSave }: CardProps) {
 
       <div className="mt-4 flex items-center gap-4">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-ivory-dim">
-          {settings?.logo_url ? (
+          {logoSignedUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={settings.logo_url} alt="Logó" className="h-full w-full object-contain" />
+            <img src={logoSignedUrl} alt="Logó" className="h-full w-full object-contain" />
           ) : (
             <Building2 size={22} className="text-muted/40" />
           )}

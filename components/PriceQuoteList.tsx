@@ -23,6 +23,7 @@ export default function PriceQuoteList({
   mode,
   supplierNameById,
   cardAssetLabelById,
+  signedUrls,
   onToggleSelected,
   onDelete,
 }: {
@@ -30,6 +31,10 @@ export default function PriceQuoteList({
   mode: "card" | "supplier";
   supplierNameById?: Map<string, string>;
   cardAssetLabelById?: Map<string, string>;
+  // price-quotes bucket is private (see supabase/schema.sql) —
+  // screenshot_url is a getPublicUrl()-shaped string that needs
+  // exchanging for a signed URL before it'll actually load.
+  signedUrls: Map<string, string>;
   onToggleSelected: (quote: PriceQuote) => void;
   onDelete: (quote: PriceQuote) => void;
 }) {
@@ -46,6 +51,7 @@ export default function PriceQuoteList({
           mode === "card"
             ? (q.supplier_id && supplierNameById?.get(q.supplier_id)) || "Ismeretlen beszállító"
             : (cardAssetLabelById?.get(q.card_asset_id) ?? "Ismeretlen kártya-verzió");
+        const screenshotUrl = q.screenshot_url ? signedUrls.get(q.screenshot_url) ?? null : null;
         return (
           <div
             key={q.id}
@@ -53,18 +59,18 @@ export default function PriceQuoteList({
               q.is_selected ? "border-green-500 ring-1 ring-green-500" : "border-border"
             }`}
           >
-            {q.screenshot_url && (
+            {screenshotUrl && (
               <button
                 type="button"
-                onClick={() => setLightboxUrl(q.screenshot_url)}
+                onClick={() => setLightboxUrl(screenshotUrl)}
                 className="block h-14 w-14 shrink-0 overflow-hidden rounded-md bg-ivory-dim"
                 aria-label="Árajánlat kép megnyitása nagyban"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={q.screenshot_url} alt="Árajánlat kép" className="h-full w-full object-cover" />
+                <img src={screenshotUrl} alt="Árajánlat kép" className="h-full w-full object-cover" />
               </button>
             )}
-            {!q.screenshot_url && (
+            {!screenshotUrl && (
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-ivory-dim text-muted/40">
                 <ImageIcon size={16} />
               </div>

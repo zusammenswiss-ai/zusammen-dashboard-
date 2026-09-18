@@ -34,6 +34,7 @@ import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { DEFAULT_CURRENCY } from "@/lib/company-settings";
 import { convertAmount, fetchExchangeRates, type ExchangeRates } from "@/lib/exchange-rates";
 import type { CurrencyCode } from "@/lib/supabase/types";
+import { resolveSignedUrls } from "@/lib/signed-storage-url";
 
 const STORAGE_BUCKET = "product-images";
 
@@ -73,6 +74,13 @@ export default function ProductsPage() {
   // Live árfolyamok az Árrés kártyánkénti, valós számolásához — see
   // lib/exchange-rates.ts (same approach as Pénzügyek).
   const [rates, setRates] = useState<ExchangeRates | null>(null);
+  // product-images bucket is private (see supabase/schema.sql) —
+  // product.image_url is a getPublicUrl()-shaped string that needs
+  // exchanging for a signed URL before it'll actually load. Keyed by
+  // that original stored URL, also reused for the edit form's preview
+  // (existingImageUrl below stays the canonical stored URL so a save
+  // without a new file keeps writing that stable form back to the row).
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -98,6 +106,8 @@ export default function ProductsPage() {
     if (!cardAssetsRes.error) setCardAssets(cardAssetsRes.data ?? []);
     if (!suppliersRes.error) setSuppliers(suppliersRes.data ?? []);
     setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
+    const imageUrls = (productsRes.data ?? []).map((p) => p.image_url);
+    setSignedUrls(await resolveSignedUrls(supabase, STORAGE_BUCKET, imageUrls));
     setLoading(false);
   }, [supabase]);
 
@@ -179,7 +189,13 @@ export default function ProductsPage() {
         .select()
         .single();
       if (insertError) throw insertError;
-      if (data) setProducts((prev) => [data, ...prev]);
+      if (data) {
+        setProducts((prev) => [data, ...prev]);
+        if (data.image_url) {
+          const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, [data.image_url]);
+          setSignedUrls((prev) => new Map([...prev, ...resolved]));
+        }
+      }
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nem sikerült létrehozni a terméket.");
@@ -202,7 +218,13 @@ export default function ProductsPage() {
         .select()
         .single();
       if (updateError) throw updateError;
-      if (data) setProducts((prev) => prev.map((p) => (p.id === editingId ? data : p)));
+      if (data) {
+        setProducts((prev) => prev.map((p) => (p.id === editingId ? data : p)));
+        if (data.image_url) {
+          const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, [data.image_url]);
+          setSignedUrls((prev) => new Map([...prev, ...resolved]));
+        }
+      }
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nem sikerült menteni a terméket.");
@@ -392,7 +414,11 @@ export default function ProductsPage() {
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-ivory-dim">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imageFile ? URL.createObjectURL(imageFile) : (existingImageUrl as string)}
+                src={
+                  imageFile
+                    ? URL.createObjectURL(imageFile)
+                    : (signedUrls.get(existingImageUrl as string) ?? (existingImageUrl as string))
+                }
                 alt=""
                 className="h-full w-full object-cover"
               />
@@ -492,6 +518,7 @@ export default function ProductsPage() {
               rates={rates}
               cardAssetById={cardAssetById}
               supplierById={supplierById}
+              signedUrls={signedUrls}
               expandedId={expandedId}
               onToggle={setExpandedId}
               onEdit={startEdit}
@@ -513,6 +540,7 @@ function ProductStatusGroup({
   rates,
   cardAssetById,
   supplierById,
+  signedUrls,
   expandedId,
   onToggle,
   onEdit,
@@ -524,6 +552,7 @@ function ProductStatusGroup({
   rates: ExchangeRates | null;
   cardAssetById: Map<string, Pick<CardAsset, "id" | "language" | "version">>;
   supplierById: Map<string, Pick<Supplier, "id" | "name">>;
+  signedUrls: Map<string, string>;
   expandedId: string | null;
   onToggle: React.Dispatch<React.SetStateAction<string | null>>;
   onEdit: (product: Product) => void;
@@ -547,6 +576,7 @@ function ProductStatusGroup({
               rates={rates}
               cardAsset={product.card_asset_id ? cardAssetById.get(product.card_asset_id) : undefined}
               supplier={product.supplier_id ? supplierById.get(product.supplier_id) : undefined}
+              imageUrl={product.image_url ? signedUrls.get(product.image_url) ?? null : null}
               expanded={expandedId === product.id}
               onToggle={() => onToggle((id) => (id === product.id ? null : product.id))}
               onEdit={() => onEdit(product)}
@@ -568,6 +598,7 @@ function ProductCard({
   rates,
   cardAsset,
   supplier,
+  imageUrl,
   expanded,
   onToggle,
   onEdit,
@@ -578,6 +609,7 @@ function ProductCard({
   rates: ExchangeRates | null;
   cardAsset?: Pick<CardAsset, "id" | "language" | "version">;
   supplier?: Pick<Supplier, "id" | "name">;
+  imageUrl: string | null;
   expanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
@@ -598,7 +630,7 @@ function ProductCard({
   return (
     <div className="card overflow-hidden">
       <div onClick={onToggle} className="flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-start sm:p-5">
-        {product.image_url ? (
+        {imageUrl ? (
           <button
             type="button"
             onClick={(e) => {
@@ -609,7 +641,7 @@ function ProductCard({
             aria-label="Kép megnyitása nagyban"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+            <img src={imageUrl} alt={product.name} className="h-full w-full object-cover" />
           </button>
         ) : (
           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-forest/5">
@@ -719,8 +751,8 @@ function ProductCard({
         </div>
       )}
 
-      {showLightbox && product.image_url && (
-        <Lightbox src={product.image_url} alt={product.name} onClose={() => setShowLightbox(false)} />
+      {showLightbox && imageUrl && (
+        <Lightbox src={imageUrl} alt={product.name} onClose={() => setShowLightbox(false)} />
       )}
     </div>
   );

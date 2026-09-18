@@ -24,6 +24,8 @@ export default function CardAssetDetailModal({
   suppliers,
   quotes,
   supplierNameById,
+  signedUrls,
+  quoteSignedUrls,
   onClose,
   onDelete,
   onQuoteCreated,
@@ -35,6 +37,8 @@ export default function CardAssetDetailModal({
   suppliers: { id: string; name: string }[];
   quotes: PriceQuote[];
   supplierNameById: Map<string, string>;
+  signedUrls: Map<string, string>;
+  quoteSignedUrls: Map<string, string>;
   onClose: () => void;
   onDelete: () => void;
   onQuoteCreated: (quote: PriceQuote) => void;
@@ -117,7 +121,8 @@ export default function CardAssetDetailModal({
         <div className="flex-1 overflow-y-auto p-5">
           <div className="grid grid-cols-4 gap-2">
             {CARD_ASSET_THUMB_SLOTS.map((slot) => {
-              const url = asset.thumbnails.find((t) => t.label === slot.key)?.url;
+              const rawUrl = asset.thumbnails.find((t) => t.label === slot.key)?.url;
+              const url = rawUrl ? signedUrls.get(rawUrl) : undefined;
               return (
                 <div key={slot.key} className="flex flex-col items-center gap-1">
                   {url ? (
@@ -196,6 +201,7 @@ export default function CardAssetDetailModal({
                   quotes={quotes}
                   mode="card"
                   supplierNameById={supplierNameById}
+                  signedUrls={quoteSignedUrls}
                   onToggleSelected={onToggleQuoteSelected}
                   onDelete={onDeleteQuote}
                 />
@@ -250,7 +256,7 @@ export default function CardAssetDetailModal({
             <Trash2 size={15} /> Törlés
           </button>
           <a
-            href={asset.file_url}
+            href={signedUrls.get(asset.file_url) ?? asset.file_url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
