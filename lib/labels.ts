@@ -12,6 +12,10 @@ import type {
   RecurrenceType,
   ProductStatus,
   CampaignStatus,
+  ExpenseType,
+  PaymentMethod,
+  BudgetPeriod,
+  InvoiceStatus,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -140,6 +144,23 @@ export const EXPENSE_CATEGORIES = [
 // recurrence_type is already stored in Hungarian (see the schema check
 // constraint) — this is display order for the select, not a translation.
 export const RECURRENCE_TYPES: RecurrenceType[] = ["Napi", "Heti", "Havi", "Negyedéves", "Éves"];
+
+// expenses.type — Fix/Változó költségek tabs both read/write the same
+// `expenses` table, filtered on this column.
+export const EXPENSE_TYPES: ExpenseType[] = ["Fix költség", "Változó költség"];
+
+// Suggested options for a Kiadás fizetési módja — free text on the
+// table itself (same convention as EXPENSE_CATEGORIES above).
+export const PAYMENT_METHODS: PaymentMethod[] = ["Bankkártya", "Banki átutalás", "Készpénz", "Egyéb"];
+
+export const BUDGET_PERIODS: BudgetPeriod[] = ["Havi", "Negyedéves", "Éves"];
+
+export const INVOICE_STATUSES: InvoiceStatus[] = ["Piszkozat", "Kiállítva", "Kifizetve"];
+export const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
+  Piszkozat: "bg-gray-200 text-gray-700",
+  Kiállítva: "bg-blue-100 text-blue-700",
+  Kifizetve: "bg-green-100 text-green-700",
+};
 
 // The grammatical unit word for "Minden {n}. ___" — e.g. interval 2 +
 // Heti → "Minden 2. hét" (every 2nd week = biweekly).

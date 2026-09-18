@@ -1327,6 +1327,246 @@ drop trigger if exists set_updated_at on public.expenses;
 create trigger set_updated_at before update on public.expenses
   for each row execute function public.set_updated_at();
 
+-- Pénzügyek & Számvitel bővítés — a Kiadások sor mostantól explicit Fix/
+-- Változó típusú (a Fix/Változó költségek fülek ez alapján szűrnek, nem
+-- is_recurring alapján — az továbbra is csak a fedezeti pont havi
+-- normalizálásához kell, lásd lib/finance.ts). `name` átnevezve
+-- `description`-re, hogy a mezőnév a valódi tartalmát tükrözze (pl.
+-- "Claude AI előfizetés") — a `do $$ ... $$` blokk ugyanaz a
+-- rename-guard minta, mint a tasks.campaign_id -> campaign_label
+-- átnevezésnél fentebb, így csak egyszer fut le.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'expenses' and column_name = 'name'
+  ) then
+    alter table public.expenses rename column name to description;
+  end if;
+end $$;
+
+-- Nincs automatikus Fix/Változó besorolás a meglévő sorokra (pl.
+-- is_recurring -> 'Fix költség') — egy induló vállalkozásnál ez pár
+-- sort jelent, egyszerűbb és biztonságosabb kézzel átsorolni az új
+-- inline-szerkesztéssel, mint egy újrafuttatáskor mindig felülíró
+-- automatikus szabályt fenntartani.
+alter table public.expenses add column if not exists type text not null default 'Változó költség'
+  check (type in ('Fix költség', 'Változó költség'));
+alter table public.expenses add column if not exists payment_method text;
+alter table public.expenses add column if not exists notes text;
+-- A nyugta/számla képe/PDF-je a private 'receipts' Storage bucketben —
+-- lásd lib/signed-storage-url.ts, ugyanaz az aláírt-link minta, mint a
+-- többi founder-only bucketnél.
+alter table public.expenses add column if not exists receipt_url text;
+alter table public.expenses add column if not exists related_supplier_id uuid references public.suppliers(id) on delete set null;
+alter table public.expenses add column if not exists related_product_id uuid references public.products(id) on delete set null;
+
+-- Storage — bucket a kiadásokhoz csatolt nyugták/számlák képéhez/PDF-jéhez.
+-- Privát a létrehozásától fogva (nem kellett előbb public: true-nak
+-- lennie, mint a korábbi bucketeknek — lásd a lenti biztonsági jegyzetet
+-- a README-ben).
+insert into storage.buckets (id, name, public)
+values ('receipts', 'receipts', false)
+on conflict (id) do nothing;
+
+drop policy if exists "receipts bucket authenticated read" on storage.objects;
+create policy "receipts bucket authenticated read"
+  on storage.objects for select
+  using (bucket_id = 'receipts' and auth.uid() is not null);
+
+drop policy if exists "receipts bucket authenticated write" on storage.objects;
+create policy "receipts bucket authenticated write"
+  on storage.objects for insert
+  with check (bucket_id = 'receipts' and auth.uid() is not null);
+
+drop policy if exists "receipts bucket authenticated update" on storage.objects;
+create policy "receipts bucket authenticated update"
+  on storage.objects for update
+  using (bucket_id = 'receipts' and auth.uid() is not null);
+
+drop policy if exists "receipts bucket authenticated delete" on storage.objects;
+create policy "receipts bucket authenticated delete"
+  on storage.objects for delete
+  using (bucket_id = 'receipts' and auth.uid() is not null);
+
+-- =====================================================================
+-- Bevételek (Pénzügyek → Bevételek) — explicitly logged revenue rows,
+-- independent of the Megrendelések-based "Tényleges bevétel" summary
+-- and the Termékek-based tervezési kalkulátor on Áttekintés (those stay
+-- as they were). invoice_id is set only when a row was auto-created by
+-- issuing a Számlázás QR-számla — see the invoices table further down —
+-- and status then mirrors that invoice's Kiállítva/Kifizetve state;
+-- a manually-logged revenue row (not from an invoice) leaves both null.
+-- =====================================================================
+create table if not exists public.revenue (
+  id uuid primary key default gen_random_uuid(),
+  revenue_date date not null default current_date,
+  amount numeric(12, 2) not null,
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  source text not null,
+  related_product_id uuid references public.products(id) on delete set null,
+  notes text,
+  status text check (status in ('Kiállítva', 'Kifizetve')),
+  invoice_id uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.revenue enable row level security;
+
+drop policy if exists "authenticated full access" on public.revenue;
+create policy "authenticated full access" on public.revenue for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.revenue;
+create trigger set_updated_at before update on public.revenue
+  for each row execute function public.set_updated_at();
+
+-- =====================================================================
+-- Költségvetés (Pénzügyek → Költségvetés) — one planned_amount per
+-- category per period. `month`/`quarter` are only meaningful for their
+-- matching `period` (Havi -> month 1-12, Negyedéves -> quarter 1-4,
+-- Éves -> neither) — enforced app-side (the Költségvetés form only
+-- shows the field that applies), not with a check constraint, since
+-- expressing "exactly one of two columns is null depending on a third
+-- column's value" cleanly in SQL isn't worth the extra rigidity here.
+-- Same free-text category vocabulary as expenses.category (not a shared
+-- FK/enum — a budget line can exist before any expense in that category
+-- does).
+-- =====================================================================
+create table if not exists public.budgets (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  period text not null check (period in ('Havi', 'Negyedéves', 'Éves')),
+  year integer not null,
+  month integer check (month between 1 and 12),
+  quarter integer check (quarter between 1 and 4),
+  planned_amount numeric(12, 2) not null,
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.budgets enable row level security;
+
+drop policy if exists "authenticated full access" on public.budgets;
+create policy "authenticated full access" on public.budgets for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.budgets;
+create trigger set_updated_at before update on public.budgets
+  for each row execute function public.set_updated_at();
+
+-- =====================================================================
+-- Számlázás (Pénzügyek → Számlázás) — svájci QR-számla (QR-Rechnung).
+-- invoice_number is generated app-side ("<év>-<sorszám>", e.g.
+-- "2026-001") at creation, not by a DB sequence, so a Piszkozat that
+-- never gets kiállítva doesn't burn a number out of order — simple
+-- enough for the realistic volume here (one founder, occasional
+-- invoices). invoice_items is a separate table (not a jsonb column)
+-- so each line's mennyiség/egységár stays a real numeric, queryable if
+-- this ever needs a per-line report.
+-- =====================================================================
+create table if not exists public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  invoice_number text not null unique,
+  customer_name text not null,
+  customer_address text,
+  issue_date date not null default current_date,
+  due_date date,
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  status text not null default 'Piszkozat' check (status in ('Piszkozat', 'Kiállítva', 'Kifizetve')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.invoices enable row level security;
+
+drop policy if exists "authenticated full access" on public.invoices;
+create policy "authenticated full access" on public.invoices for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.invoices;
+create trigger set_updated_at before update on public.invoices
+  for each row execute function public.set_updated_at();
+
+-- Added now that invoices exists — the FK on revenue.invoice_id from
+-- earlier in this file couldn't reference it yet at that point.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where table_schema = 'public' and table_name = 'revenue' and constraint_name = 'revenue_invoice_id_fkey'
+  ) then
+    alter table public.revenue
+      add constraint revenue_invoice_id_fkey foreign key (invoice_id) references public.invoices(id) on delete set null;
+  end if;
+end $$;
+
+create table if not exists public.invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references public.invoices(id) on delete cascade,
+  description text not null,
+  quantity numeric(12, 2) not null default 1,
+  unit_price numeric(12, 2) not null default 0,
+  position integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.invoice_items enable row level security;
+
+drop policy if exists "authenticated full access" on public.invoice_items;
+create policy "authenticated full access" on public.invoice_items for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- QR-számla kiállító (creditor) adatai — a company_settings singleton
+-- soron, a Márka-adatok mellett, mert ugyanaz a "cégadat" fogalomkör.
+-- Külön mezők (nem az already-meglévő szabad szöveges `address`), mert
+-- a swissqrbill csomag strukturált utca/irányítószám/város/ország
+-- mezőket vár, nem egy egyben beírt címet.
+alter table public.company_settings add column if not exists iban text;
+alter table public.company_settings add column if not exists billing_street text;
+alter table public.company_settings add column if not exists billing_zip text;
+alter table public.company_settings add column if not exists billing_city text;
+alter table public.company_settings add column if not exists billing_country text not null default 'CH';
+
+-- Pénzügyek → Cash Flow "Jelenlegi bankegyenleg" — kézzel frissített
+-- kiindulópont a havi projekcióhoz (lásd lib/finance-budget.ts
+-- buildCashFlowProjection), mindig a company_settings.currency
+-- pénznemében értendő, ugyanúgy mint minden más összesítő nézet.
+alter table public.company_settings add column if not exists bank_balance numeric(14, 2);
+
+-- Pénzügyek → ÁFA/MWST — csak a küszöb-mérőhöz (lásd
+-- lib/finance-budget.ts vatThresholdProgress) kell revenue-t olvasni,
+-- azon már nincs mit tárolni. vat_registered egyetlen kapcsoló: ha be
+-- van kapcsolva, a fül megmutatja a negyedéves beszedett/fizetett ÁFA
+-- rögzítő mezőket is (vat_returns) — ez még nem küld semmit sehova,
+-- csak előkészíti a jövőbeli, tényleges bevallás-funkciót.
+alter table public.company_settings add column if not exists vat_registered boolean not null default false;
+
+create table if not exists public.vat_returns (
+  id uuid primary key default gen_random_uuid(),
+  year integer not null,
+  quarter integer not null check (quarter between 1 and 4),
+  collected_amount numeric(12, 2) not null default 0,
+  paid_amount numeric(12, 2) not null default 0,
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (year, quarter)
+);
+
+alter table public.vat_returns enable row level security;
+
+drop policy if exists "authenticated full access" on public.vat_returns;
+create policy "authenticated full access" on public.vat_returns for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.vat_returns;
+create trigger set_updated_at before update on public.vat_returns
+  for each row execute function public.set_updated_at();
+
 -- =====================================================================
 -- Kampányok — named marketing pushes (e.g. "ZUSAMMEN FIRST 20"),
 -- distinct from marketing_campaigns above (the 4 fixed Évszakos
