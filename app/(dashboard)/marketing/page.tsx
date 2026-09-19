@@ -78,14 +78,17 @@ const ASSET_TYPES: MarketingAssetType[] = ["Koncepció", "Valódi termékfotó",
 const CONTENT_TYPE_STYLES: Record<MarketingContentType, string> = {
   "Instagram poszt": "bg-forest/10 text-forest",
   "Instagram story": "bg-bronze/15 text-walnut",
-  Email: "bg-blue-50 text-blue-700",
+  Email: "bg-teal/10 text-teal",
   Kampány: "bg-walnut/15 text-walnut",
 };
+// Same "draft → in progress → advanced → done" brand progression used
+// for every 4-stage status badge in the app — see PRINT_STATUS_STYLES
+// in lib/labels.ts.
 const CONTENT_STATUS_STYLES: Record<MarketingContentStatus, string> = {
-  Ötlet: "bg-gray-200 text-gray-700",
-  Tervezve: "bg-yellow-100 text-yellow-800",
-  Ütemezve: "bg-blue-100 text-blue-700",
-  Kiküldve: "bg-green-100 text-green-700",
+  Ötlet: "bg-ivory-dim text-walnut",
+  Tervezve: "bg-bronze/15 text-walnut",
+  Ütemezve: "bg-forest-light/15 text-forest",
+  Kiküldve: "bg-forest/10 text-forest",
 };
 // Deliberately loud, high-contrast badges — this distinction exists so a
 // "Koncepció" mockup is never mistaken for something safe to actually ship
@@ -898,8 +901,80 @@ function ContentCalendarSection({
       ) : filtered.length === 0 ? (
         <EmptyState icon={CalendarClock} title="Nincs találat a szűrőkkel" />
       ) : (
+        <div className="flex flex-col gap-6">
+          {groupContentByMonth(filtered).map(([month, items]) => (
+            <ContentMonthGroup
+              key={month}
+              month={month}
+              items={items}
+              resolvedImageUrlFor={resolvedImageUrlFor}
+              taskIdByContentId={taskIdByContentId}
+              campaignById={campaignById}
+              onDelete={onDelete}
+              onStatusChange={onStatusChange}
+              onCreateTask={onCreateTask}
+              onOpenCampaign={onOpenCampaign}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "YYYY-MM" -> that month's items, nearest month first — same "→
+ * Feladat létrehozása" list, just grouped instead of one long flat
+ * scroll (the Marketing anyagok tab, on this same page, already groups
+ * by language; this brings the Tartalom-naptár tab to the same
+ * collapsible convention). */
+function groupContentByMonth(items: MarketingContent[]): [string, MarketingContent[]][] {
+  const map = new Map<string, MarketingContent[]>();
+  for (const item of items) {
+    const key = item.scheduled_date.slice(0, 7);
+    const list = map.get(key);
+    if (list) list.push(item);
+    else map.set(key, [item]);
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat("hu-HU", { year: "numeric", month: "long" }).format(new Date(year, month - 1, 1));
+}
+
+function ContentMonthGroup({
+  month,
+  items,
+  resolvedImageUrlFor,
+  taskIdByContentId,
+  campaignById,
+  onDelete,
+  onStatusChange,
+  onCreateTask,
+  onOpenCampaign,
+}: {
+  month: string;
+  items: MarketingContent[];
+  resolvedImageUrlFor: (item: MarketingContent) => string | null;
+  taskIdByContentId: Map<string, string>;
+  campaignById: Map<string, Campaign>;
+  onDelete: (id: string) => void;
+  onStatusChange: (id: string, status: MarketingContentStatus) => void;
+  onCreateTask: (item: MarketingContent) => void;
+  onOpenCampaign: (id: string) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg capitalize text-forest">{monthLabel(month)}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
+        storageKey={`zusammen-collapsed-marketing-content-month-${month}`}
+        headerClassName="mb-3"
+      >
         <div className="flex flex-col gap-3">
-          {filtered.map((item) => (
+          {visible.map((item) => (
             <ContentCard
               key={item.id}
               item={item}
@@ -913,7 +988,10 @@ function ContentCalendarSection({
             />
           ))}
         </div>
-      )}
+        {items.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
     </div>
   );
 }

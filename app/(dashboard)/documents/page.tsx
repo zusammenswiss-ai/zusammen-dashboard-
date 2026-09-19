@@ -1,7 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, FolderOpen, Download, ExternalLink, Paperclip, FileText, Image as ImageIcon, Mail, Search } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  FolderOpen,
+  Download,
+  ExternalLink,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
+  Mail,
+  Search,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Document } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -38,6 +52,7 @@ export default function DocumentsPage() {
   const [saving, setSaving] = useState(false);
   const [composeFor, setComposeFor] = useState<{ doc: Document; signedUrl: string | null } | null>(null);
   const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
   // documents bucket is private (see supabase/schema.sql) — file_path
   // alone can't be fetched, it has to be exchanged for a signed URL
@@ -127,6 +142,17 @@ export default function DocumentsPage() {
     if (!supabase) return;
     const { error } = await supabase.from("documents").update({ status }).eq("id", id);
     if (error) setError(error.message);
+  }
+
+  async function updateDocument(id: string, patch: { title: string; category: string | null; notes: string | null }) {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("documents").update(patch).eq("id", id).select().single();
+    if (error) {
+      setError(errorMessage(error, "Nem sikerült menteni a módosítást."));
+      return;
+    }
+    if (data) setDocuments((prev) => prev.map((d) => (d.id === id ? data : d)));
+    setEditingId(null);
   }
 
   function deleteDocument(doc: Document) {
@@ -312,6 +338,10 @@ export default function DocumentsPage() {
               onOpenLightbox={setLightboxDoc}
               onCompose={openCompose}
               onDelete={deleteDocument}
+              editingId={editingId}
+              onStartEdit={setEditingId}
+              onCancelEdit={() => setEditingId(null)}
+              onSaveEdit={updateDocument}
             />
           ))}
         </div>
@@ -347,6 +377,10 @@ function DocumentCategoryGroup({
   onOpenLightbox,
   onCompose,
   onDelete,
+  editingId,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
 }: {
   category: string;
   items: Document[];
@@ -355,6 +389,10 @@ function DocumentCategoryGroup({
   onOpenLightbox: (doc: Document) => void;
   onCompose: (doc: Document) => void;
   onDelete: (doc: Document) => void;
+  editingId: string | null;
+  onStartEdit: (id: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (id: string, patch: { title: string; category: string | null; notes: string | null }) => void;
 }) {
   const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
   return (
@@ -366,86 +404,164 @@ function DocumentCategoryGroup({
         headerClassName="mb-3"
       >
         <div className="flex flex-col gap-3">
-          {visible.map((doc) => {
-            const url = fileUrl(doc);
-            const isImage = isImageFile(doc.file_name ?? url);
-            return (
-              <div key={doc.id} className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forest/5 text-bronze">
-                  {isImage ? <ImageIcon size={18} /> : <FileText size={18} />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-forest">{doc.title}</p>
-                    {doc.category && <span className="badge bg-ivory-dim text-walnut">{doc.category}</span>}
-                  </div>
-                  {doc.notes && <p className="mt-1 line-clamp-1 text-xs text-muted">{doc.notes}</p>}
-                  <p className="mt-1 text-xs text-muted">
-                    {formatDate(doc.created_at)}
-                    {doc.file_name && (
-                      <span className="ml-2 inline-flex items-center gap-1">
-                        <Paperclip size={11} /> {doc.file_name}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <select
-                    className="select w-auto text-xs"
-                    value={doc.status ?? "Piszkozat"}
-                    onChange={(e) => onUpdateStatus(doc.id, e.target.value)}
-                  >
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  {url && isImage && (
-                    <button
-                      onClick={() => onOpenLightbox(doc)}
-                      className="btn btn-ghost !px-2"
-                      aria-label="Kép megnyitása nagyban"
-                      title="Kép megnyitása nagyban"
-                    >
-                      <ImageIcon size={15} />
-                    </button>
-                  )}
-                  {url && !isImage && (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-ghost !px-2"
-                      aria-label={openFileLabel(doc.file_name ?? url)}
-                      title={openFileLabel(doc.file_name ?? url)}
-                    >
-                      {isPreviewableInBrowser(doc.file_name ?? url) ? (
-                        <ExternalLink size={15} />
-                      ) : (
-                        <Download size={15} />
-                      )}
-                    </a>
-                  )}
-                  <button onClick={() => onCompose(doc)} className="btn btn-ghost !px-2" aria-label="Email küldése">
-                    <Mail size={15} />
-                  </button>
-                  <button
-                    onClick={() => onDelete(doc)}
-                    className="btn btn-danger !px-2"
-                    aria-label="Dokumentum törlése"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {visible.map((doc) =>
+            editingId === doc.id ? (
+              <DocumentEditRow key={doc.id} doc={doc} onSave={onSaveEdit} onCancel={onCancelEdit} />
+            ) : (
+              <DocumentRow
+                key={doc.id}
+                doc={doc}
+                url={fileUrl(doc)}
+                onUpdateStatus={onUpdateStatus}
+                onOpenLightbox={onOpenLightbox}
+                onCompose={onCompose}
+                onDelete={onDelete}
+                onEdit={() => onStartEdit(doc.id)}
+              />
+            )
+          )}
         </div>
         {items.length > 8 && (
           <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
         )}
       </CollapsibleSection>
     </div>
+  );
+}
+
+function DocumentRow({
+  doc,
+  url,
+  onUpdateStatus,
+  onOpenLightbox,
+  onCompose,
+  onDelete,
+  onEdit,
+}: {
+  doc: Document;
+  url: string | null;
+  onUpdateStatus: (id: string, status: string) => void;
+  onOpenLightbox: (doc: Document) => void;
+  onCompose: (doc: Document) => void;
+  onDelete: (doc: Document) => void;
+  onEdit: () => void;
+}) {
+  const isImage = isImageFile(doc.file_name ?? url);
+  return (
+    <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forest/5 text-bronze">
+        {isImage ? <ImageIcon size={18} /> : <FileText size={18} />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium text-forest">{doc.title}</p>
+          {doc.category && <span className="badge bg-ivory-dim text-walnut">{doc.category}</span>}
+        </div>
+        {doc.notes && <p className="mt-1 line-clamp-1 text-xs text-muted">{doc.notes}</p>}
+        <p className="mt-1 text-xs text-muted">
+          {formatDate(doc.created_at)}
+          {doc.file_name && (
+            <span className="ml-2 inline-flex items-center gap-1">
+              <Paperclip size={11} /> {doc.file_name}
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <select
+          className="select w-auto text-xs"
+          value={doc.status ?? "Piszkozat"}
+          onChange={(e) => onUpdateStatus(doc.id, e.target.value)}
+        >
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        {url && isImage && (
+          <button
+            onClick={() => onOpenLightbox(doc)}
+            className="btn btn-ghost !px-2"
+            aria-label="Kép megnyitása nagyban"
+            title="Kép megnyitása nagyban"
+          >
+            <ImageIcon size={15} />
+          </button>
+        )}
+        {url && !isImage && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-ghost !px-2"
+            aria-label={openFileLabel(doc.file_name ?? url)}
+            title={openFileLabel(doc.file_name ?? url)}
+          >
+            {isPreviewableInBrowser(doc.file_name ?? url) ? <ExternalLink size={15} /> : <Download size={15} />}
+          </a>
+        )}
+        <button onClick={onEdit} className="btn btn-ghost !px-2" aria-label="Szerkesztés" title="Szerkesztés">
+          <Pencil size={15} />
+        </button>
+        <button onClick={() => onCompose(doc)} className="btn btn-ghost !px-2" aria-label="Email küldése">
+          <Mail size={15} />
+        </button>
+        <button onClick={() => onDelete(doc)} className="btn btn-danger !px-2" aria-label="Dokumentum törlése">
+          <Trash2 size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Inline edit for a document's metadata (title/kategória/jegyzetek) —
+ * the file itself isn't replaceable here, only the record around it; a
+ * new file needs a fresh upload, same as every other file-backed list
+ * in this app. */
+function DocumentEditRow({
+  doc,
+  onSave,
+  onCancel,
+}: {
+  doc: Document;
+  onSave: (id: string, patch: { title: string; category: string | null; notes: string | null }) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(doc.title);
+  const [category, setCategory] = useState(doc.category ?? "");
+  const [notes, setNotes] = useState(doc.notes ?? "");
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onSave(doc.id, { title: title.trim(), category: category.trim() || null, notes: notes.trim() || null });
+  }
+
+  return (
+    <form onSubmit={save} className="animate-fade-in card flex flex-col gap-3 border-bronze/40 bg-ivory-dim/40 p-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
+          <input className="input" required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
+          <input className="input" value={category} onChange={(e) => setCategory(e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
+        <textarea className="textarea min-h-16" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" className="btn btn-primary">
+          <Check size={14} /> Mentés
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>
+          <X size={14} /> Mégse
+        </button>
+      </div>
+    </form>
   );
 }
