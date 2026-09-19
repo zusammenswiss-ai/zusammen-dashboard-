@@ -1634,3 +1634,68 @@ alter table public.marketing_content add column if not exists campaign_id uuid r
 insert into public.campaigns (name, season, status)
 select 'ZUSAMMEN FIRST 20', 'Autumn', 'Tervezve'
 where not exists (select 1 from public.campaigns where name = 'ZUSAMMEN FIRST 20');
+
+-- =====================================================================
+-- Fiókok & Szolgáltatások (Beállítások → Fiókok & Szolgáltatások) — a
+-- metadata-only overview of third-party services the business uses:
+-- which email a service is registered under, what it's for, when it
+-- renews. Deliberately NOT a credentials store — there is no password
+-- column here or anywhere in the UI, not even encrypted.
+-- password_manager_note is a fixed display string ("Jelszó a
+-- Bitwardenben tárolva"), the same on every row, pointing the founder
+-- at the real password manager instead of tempting a "just this once"
+-- plaintext/encrypted entry here.
+-- =====================================================================
+create table if not exists public.service_accounts (
+  id uuid primary key default gen_random_uuid(),
+  service_name text not null,
+  account_email text,
+  purpose text,
+  renewal_date date,
+  renewal_cost numeric(12, 2),
+  renewal_currency text check (renewal_currency in ('CHF', 'USD', 'EUR')),
+  notes text,
+  password_manager_note text not null default 'Jelszó a Bitwardenben tárolva',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.service_accounts enable row level security;
+
+drop policy if exists "authenticated full access" on public.service_accounts;
+create policy "authenticated full access" on public.service_accounts for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.service_accounts;
+create trigger set_updated_at before update on public.service_accounts
+  for each row execute function public.set_updated_at();
+
+-- Seed the founder's initial services/accounts — idempotent by
+-- service_name (same pattern as the campaigns seed above), safe to
+-- re-run this file without duplicating rows. The last row's shape
+-- differs from the others: it describes the brand email alias itself
+-- (connect@das-zusammen.ch) rather than a third-party service, so it
+-- has no separate registration email of its own.
+insert into public.service_accounts (service_name, account_email, purpose, renewal_date)
+select 'Infomaniak', 'zusammen.swiss@gmail.com', 'Domain (das-zusammen.ch) + email hoszting', '2027-09-18'
+where not exists (select 1 from public.service_accounts where service_name = 'Infomaniak');
+
+insert into public.service_accounts (service_name, account_email, purpose)
+select 'Brevo', 'zusammen.swiss@gmail.com', 'Email-kampányok küldése'
+where not exists (select 1 from public.service_accounts where service_name = 'Brevo');
+
+insert into public.service_accounts (service_name, account_email, purpose)
+select 'Vercel', 'zusammen.swiss@gmail.com', 'Hosting, Dashboard + landing oldal'
+where not exists (select 1 from public.service_accounts where service_name = 'Vercel');
+
+insert into public.service_accounts (service_name, account_email, purpose)
+select 'Supabase', 'zusammen.swiss@gmail.com', 'Adatbázis'
+where not exists (select 1 from public.service_accounts where service_name = 'Supabase');
+
+insert into public.service_accounts (service_name, account_email, purpose)
+select 'QPMN', 'zusammen.swiss@gmail.com', 'Kártyagyártó'
+where not exists (select 1 from public.service_accounts where service_name = 'QPMN');
+
+insert into public.service_accounts (service_name, account_email, purpose)
+select 'connect@das-zusammen.ch', null, 'Márka email-cím, Infomaniakon keresztül'
+where not exists (select 1 from public.service_accounts where service_name = 'connect@das-zusammen.ch');

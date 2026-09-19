@@ -9,6 +9,7 @@ import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { TogetherSettings } from "@/lib/supabase/types";
 import { generateAccessCode } from "@/lib/together";
 import CompanySettingsSection from "@/components/CompanySettingsSection";
+import ServiceAccountsSection from "@/components/ServiceAccountsSection";
 import DataExportSection from "@/components/DataExportSection";
 import DangerZoneSection from "@/components/DangerZoneSection";
 
@@ -26,6 +27,7 @@ export default function SettingsPage() {
           <>
             <TogetherAccessCard />
             <CompanySettingsSection />
+            <ServiceAccountsSection />
             <DataExportSection />
             <DangerZoneSection />
             <AccountCard />
