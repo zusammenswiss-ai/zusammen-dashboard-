@@ -17,7 +17,19 @@ export default function ExportTab({ expenses, revenue, budgets }: { expenses: Ex
     const sheets: XlsxSheet[] = [
       {
         name: "Fix költségek",
-        headers: ["Dátum", "Kategória", "Leírás", "Összeg", "Pénznem", "Ismétlődő", "Gyakoriság", "Fizetési mód", "Megjegyzés"],
+        headers: [
+          "Dátum",
+          "Kategória",
+          "Leírás",
+          "Összeg",
+          "Pénznem",
+          "Ismétlődő",
+          "Gyakoriság",
+          "Fizetési mód",
+          "Megjegyzés",
+          "Lezárva",
+          "Feloldva valaha",
+        ],
         rows: expenses
           .filter((e) => e.type === "Fix költség")
           .map((e) => [
@@ -30,19 +42,40 @@ export default function ExportTab({ expenses, revenue, budgets }: { expenses: Ex
             e.recurrence_type ?? "",
             e.payment_method ?? "",
             e.notes ?? "",
+            e.is_locked ? "igen" : "nem",
+            e.unlock_history.length > 0 ? "igen" : "nem",
           ]),
       },
       {
         name: "Változó költségek",
-        headers: ["Dátum", "Kategória", "Leírás", "Összeg", "Pénznem", "Fizetési mód", "Megjegyzés"],
+        headers: ["Dátum", "Kategória", "Leírás", "Összeg", "Pénznem", "Fizetési mód", "Megjegyzés", "Lezárva", "Feloldva valaha"],
         rows: expenses
           .filter((e) => e.type === "Változó költség")
-          .map((e) => [e.expense_date, e.category, e.description, e.amount, e.currency, e.payment_method ?? "", e.notes ?? ""]),
+          .map((e) => [
+            e.expense_date,
+            e.category,
+            e.description,
+            e.amount,
+            e.currency,
+            e.payment_method ?? "",
+            e.notes ?? "",
+            e.is_locked ? "igen" : "nem",
+            e.unlock_history.length > 0 ? "igen" : "nem",
+          ]),
       },
       {
         name: "Bevételek",
-        headers: ["Dátum", "Forrás", "Összeg", "Pénznem", "Státusz", "Megjegyzés"],
-        rows: revenue.map((r) => [r.revenue_date, r.source, r.amount, r.currency, r.status ?? "", r.notes ?? ""]),
+        headers: ["Dátum", "Forrás", "Összeg", "Pénznem", "Státusz", "Megjegyzés", "Lezárva", "Feloldva valaha"],
+        rows: revenue.map((r) => [
+          r.revenue_date,
+          r.source,
+          r.amount,
+          r.currency,
+          r.status ?? "",
+          r.notes ?? "",
+          r.is_locked ? "igen" : "nem",
+          r.unlock_history.length > 0 ? "igen" : "nem",
+        ]),
       },
       {
         name: "Költségvetés",
