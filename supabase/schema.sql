@@ -284,6 +284,12 @@ create table if not exists public.documents (
   created_at timestamptz not null default now()
 );
 
+-- Cross-links to the task/supplier a document belongs to (e.g. a
+-- contract tied to a supplier, or a reference file for an open task) —
+-- same on-delete-set-null convention as expenses.related_supplier_id.
+alter table public.documents add column if not exists related_task_id uuid references public.tasks(id) on delete set null;
+alter table public.documents add column if not exists related_supplier_id uuid references public.suppliers(id) on delete set null;
+
 -- ---------------------------------------------------------------------
 -- Future Plans — idea backlog
 -- ---------------------------------------------------------------------

@@ -16,6 +16,7 @@ import {
   Check,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Document } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -40,7 +41,17 @@ function byDocumentRecency(a: Document, b: Document) {
 const STATUSES = ["Piszkozat", "Felülvizsgálat alatt", "Végleges", "Archiválva"];
 const STORAGE_BUCKET = "documents";
 
-const EMPTY_FORM = { title: "", category: "", status: "Piszkozat", notes: "" };
+const EMPTY_FORM = {
+  title: "",
+  category: "",
+  status: "Piszkozat",
+  notes: "",
+  related_task_id: "",
+  related_supplier_id: "",
+};
+
+type SupplierOption = { id: string; name: string };
+type TaskOption = { id: string; title: string };
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -59,6 +70,8 @@ export default function DocumentsPage() {
   // first. Keyed by file_path so a lookup doesn't need to re-derive
   // anything from the row.
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [tasks, setTasks] = useState<TaskOption[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
@@ -68,13 +81,16 @@ export default function DocumentsPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
-      .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) setError(error.message);
-    else setDocuments(data ?? []);
-    const paths = (data ?? []).map((d) => d.file_path);
+    const [documentsRes, suppliersRes, tasksRes] = await Promise.all([
+      supabase.from("documents").select("*").order("created_at", { ascending: false }),
+      supabase.from("suppliers").select("id, name").order("name"),
+      supabase.from("tasks").select("id, title").order("title"),
+    ]);
+    if (documentsRes.error) setError(documentsRes.error.message);
+    else setDocuments(documentsRes.data ?? []);
+    if (!suppliersRes.error) setSuppliers(suppliersRes.data ?? []);
+    if (!tasksRes.error) setTasks(tasksRes.data ?? []);
+    const paths = (documentsRes.data ?? []).map((d) => d.file_path);
     setSignedUrls(await resolveSignedUrlsForPaths(supabase, STORAGE_BUCKET, paths));
     setLoading(false);
   }, [supabase]);
@@ -114,6 +130,8 @@ export default function DocumentsPage() {
           notes: form.notes.trim() || null,
           file_path: filePath,
           file_name: fileName,
+          related_task_id: form.related_task_id || null,
+          related_supplier_id: form.related_supplier_id || null,
         })
         .select()
         .single();
@@ -144,15 +162,52 @@ export default function DocumentsPage() {
     if (error) setError(error.message);
   }
 
-  async function updateDocument(id: string, patch: { title: string; category: string | null; notes: string | null }) {
+  async function updateDocument(
+    id: string,
+    patch: {
+      title: string;
+      category: string | null;
+      notes: string | null;
+      related_task_id: string | null;
+      related_supplier_id: string | null;
+    },
+    newFile: File | null
+  ) {
     if (!supabase) return;
-    const { data, error } = await supabase.from("documents").update(patch).eq("id", id).select().single();
-    if (error) {
-      setError(errorMessage(error, "Nem sikerült menteni a módosítást."));
-      return;
+    setError(null);
+    try {
+      let filePatch: { file_path: string; file_name: string } | null = null;
+      if (newFile) {
+        const existing = documents.find((d) => d.id === id);
+        const safeName = newFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${crypto.randomUUID()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(path, newFile, { upsert: false });
+        if (uploadError) throw uploadError;
+        if (existing?.file_path) {
+          await supabase.storage.from(STORAGE_BUCKET).remove([existing.file_path]);
+        }
+        filePatch = { file_path: path, file_name: newFile.name };
+      }
+      const { data, error } = await supabase
+        .from("documents")
+        .update({ ...patch, ...(filePatch ?? {}) })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      if (data) {
+        setDocuments((prev) => prev.map((d) => (d.id === id ? data : d)));
+        if (filePatch) {
+          const signedUrl = await resolveSignedUrlForPath(supabase, STORAGE_BUCKET, filePatch.file_path);
+          if (signedUrl) setSignedUrls((prev) => new Map(prev).set((filePatch as { file_path: string }).file_path, signedUrl));
+        }
+      }
+      setEditingId(null);
+    } catch (err) {
+      setError(errorMessage(err, "Nem sikerült menteni a módosítást."));
     }
-    if (data) setDocuments((prev) => prev.map((d) => (d.id === id ? data : d)));
-    setEditingId(null);
   }
 
   function deleteDocument(doc: Document) {
@@ -175,6 +230,9 @@ export default function DocumentsPage() {
     if (!doc.file_path) return null;
     return signedUrls.get(doc.file_path) ?? null;
   }
+
+  const supplierNameById = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers]);
+  const taskTitleById = useMemo(() => new Map(tasks.map((t) => [t.id, t.title])), [tasks]);
 
   // The compose modal's defaultBody/defaultSubject only ever seed its
   // initial useState — it doesn't react to prop changes after mount
@@ -295,6 +353,36 @@ export default function DocumentsPage() {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Kapcsolódó feladat (opcionális)</label>
+              <select
+                className="select"
+                value={form.related_task_id}
+                onChange={(e) => setForm((f) => ({ ...f, related_task_id: e.target.value }))}
+              >
+                <option value="">— Nincs —</option>
+                {tasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Kapcsolódó beszállító (opcionális)</label>
+              <select
+                className="select"
+                value={form.related_supplier_id}
+                onChange={(e) => setForm((f) => ({ ...f, related_supplier_id: e.target.value }))}
+              >
+                <option value="">— Nincs —</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
@@ -342,6 +430,10 @@ export default function DocumentsPage() {
               onStartEdit={setEditingId}
               onCancelEdit={() => setEditingId(null)}
               onSaveEdit={updateDocument}
+              suppliers={suppliers}
+              tasks={tasks}
+              supplierNameById={supplierNameById}
+              taskTitleById={taskTitleById}
             />
           ))}
         </div>
@@ -381,6 +473,10 @@ function DocumentCategoryGroup({
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
+  suppliers,
+  tasks,
+  supplierNameById,
+  taskTitleById,
 }: {
   category: string;
   items: Document[];
@@ -392,7 +488,21 @@ function DocumentCategoryGroup({
   editingId: string | null;
   onStartEdit: (id: string) => void;
   onCancelEdit: () => void;
-  onSaveEdit: (id: string, patch: { title: string; category: string | null; notes: string | null }) => void;
+  onSaveEdit: (
+    id: string,
+    patch: {
+      title: string;
+      category: string | null;
+      notes: string | null;
+      related_task_id: string | null;
+      related_supplier_id: string | null;
+    },
+    newFile: File | null
+  ) => void;
+  suppliers: SupplierOption[];
+  tasks: TaskOption[];
+  supplierNameById: Map<string, string>;
+  taskTitleById: Map<string, string>;
 }) {
   const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
   return (
@@ -406,7 +516,14 @@ function DocumentCategoryGroup({
         <div className="flex flex-col gap-3">
           {visible.map((doc) =>
             editingId === doc.id ? (
-              <DocumentEditRow key={doc.id} doc={doc} onSave={onSaveEdit} onCancel={onCancelEdit} />
+              <DocumentEditRow
+                key={doc.id}
+                doc={doc}
+                onSave={onSaveEdit}
+                onCancel={onCancelEdit}
+                suppliers={suppliers}
+                tasks={tasks}
+              />
             ) : (
               <DocumentRow
                 key={doc.id}
@@ -417,6 +534,8 @@ function DocumentCategoryGroup({
                 onCompose={onCompose}
                 onDelete={onDelete}
                 onEdit={() => onStartEdit(doc.id)}
+                supplierName={doc.related_supplier_id ? supplierNameById.get(doc.related_supplier_id) ?? null : null}
+                taskTitle={doc.related_task_id ? taskTitleById.get(doc.related_task_id) ?? null : null}
               />
             )
           )}
@@ -437,6 +556,8 @@ function DocumentRow({
   onCompose,
   onDelete,
   onEdit,
+  supplierName,
+  taskTitle,
 }: {
   doc: Document;
   url: string | null;
@@ -445,6 +566,8 @@ function DocumentRow({
   onCompose: (doc: Document) => void;
   onDelete: (doc: Document) => void;
   onEdit: () => void;
+  supplierName: string | null;
+  taskTitle: string | null;
 }) {
   const isImage = isImageFile(doc.file_name ?? url);
   return (
@@ -456,6 +579,24 @@ function DocumentRow({
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium text-forest">{doc.title}</p>
           {doc.category && <span className="badge bg-ivory-dim text-walnut">{doc.category}</span>}
+          {taskTitle && (
+            <Link
+              href="/tasks"
+              onClick={(e) => e.stopPropagation()}
+              className="badge bg-bronze/15 text-walnut hover:underline"
+            >
+              {taskTitle}
+            </Link>
+          )}
+          {supplierName && (
+            <Link
+              href="/suppliers"
+              onClick={(e) => e.stopPropagation()}
+              className="badge bg-forest/10 text-forest hover:underline"
+            >
+              {supplierName}
+            </Link>
+          )}
         </div>
         {doc.notes && <p className="mt-1 line-clamp-1 text-xs text-muted">{doc.notes}</p>}
         <p className="mt-1 text-xs text-muted">
@@ -515,27 +656,54 @@ function DocumentRow({
   );
 }
 
-/** Inline edit for a document's metadata (title/kategória/jegyzetek) —
- * the file itself isn't replaceable here, only the record around it; a
- * new file needs a fresh upload, same as every other file-backed list
- * in this app. */
+/** Inline edit for a document's metadata (title/kategória/jegyzetek/
+ * kapcsolódó feladat/beszállító) plus an optional file swap — picking a
+ * new file here replaces the stored one (old file removed from Storage)
+ * instead of requiring a delete + re-create like before. */
 function DocumentEditRow({
   doc,
   onSave,
   onCancel,
+  suppliers,
+  tasks,
 }: {
   doc: Document;
-  onSave: (id: string, patch: { title: string; category: string | null; notes: string | null }) => void;
+  onSave: (
+    id: string,
+    patch: {
+      title: string;
+      category: string | null;
+      notes: string | null;
+      related_task_id: string | null;
+      related_supplier_id: string | null;
+    },
+    newFile: File | null
+  ) => void;
   onCancel: () => void;
+  suppliers: SupplierOption[];
+  tasks: TaskOption[];
 }) {
   const [title, setTitle] = useState(doc.title);
   const [category, setCategory] = useState(doc.category ?? "");
   const [notes, setNotes] = useState(doc.notes ?? "");
+  const [relatedTaskId, setRelatedTaskId] = useState(doc.related_task_id ?? "");
+  const [relatedSupplierId, setRelatedSupplierId] = useState(doc.related_supplier_id ?? "");
+  const [newFile, setNewFile] = useState<File | null>(null);
 
   function save(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave(doc.id, { title: title.trim(), category: category.trim() || null, notes: notes.trim() || null });
+    onSave(
+      doc.id,
+      {
+        title: title.trim(),
+        category: category.trim() || null,
+        notes: notes.trim() || null,
+        related_task_id: relatedTaskId || null,
+        related_supplier_id: relatedSupplierId || null,
+      },
+      newFile
+    );
   }
 
   return (
@@ -549,10 +717,46 @@ function DocumentEditRow({
           <label className="mb-1 block text-xs font-medium text-muted">Kategória</label>
           <input className="input" value={category} onChange={(e) => setCategory(e.target.value)} />
         </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Kapcsolódó feladat</label>
+          <select className="select" value={relatedTaskId} onChange={(e) => setRelatedTaskId(e.target.value)}>
+            <option value="">— Nincs —</option>
+            {tasks.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Kapcsolódó beszállító</label>
+          <select
+            className="select"
+            value={relatedSupplierId}
+            onChange={(e) => setRelatedSupplierId(e.target.value)}
+          >
+            <option value="">— Nincs —</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">Jegyzetek</label>
         <textarea className="textarea min-h-16" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted">
+          Fájl cseréje {doc.file_name && <span className="font-normal text-muted">(jelenlegi: {doc.file_name})</span>}
+        </label>
+        <input
+          type="file"
+          className="input file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ivory"
+          onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
+        />
       </div>
       <div className="flex gap-2">
         <button type="submit" className="btn btn-primary">
