@@ -2,7 +2,10 @@
 // If you change the schema, update this file to match (or generate with
 // `supabase gen types typescript` once you have the Supabase CLI linked).
 
-export type TaskStatus = "Teendő" | "Folyamatban" | "Kész";
+export type TaskStatus = "Várakozás" | "Teendő" | "Folyamatban" | "Kész";
+// The only two statuses a task_templates row can hand a newly-created
+// task by default — never "Folyamatban"/"Kész" directly.
+export type TemplateDefaultStatus = "Teendő" | "Várakozás";
 export type TaskPriority = "Low" | "Medium" | "High";
 export type TaskType = "Egyszeri" | "Ismétlődő" | "Kampány";
 export type PlanStatus = "Idea" | "Considering" | "Planned";
@@ -72,6 +75,12 @@ export interface TaskItem {
   // shown only as a fallback when campaign_id is null, e.g. an older
   // task that hasn't been linked to a real Kampány row yet.
   campaign_label: string | null;
+  // Only meaningful while status = "Várakozás" — the day this parked
+  // task is worth revisiting. Drives the "⏰ Esedékes az ellenőrzés"
+  // card badge, the Áttekintés counter, and the daily digest email; see
+  // TaskCard in app/(dashboard)/tasks/page.tsx and
+  // app/api/cron/check-date-digest/route.ts.
+  check_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -115,6 +124,11 @@ export interface TaskTemplate {
   recurrence_type: RecurrenceType | null;
   recurrence_interval: number;
   next_due_date: string | null;
+  // Status a task created from this template starts in, and (only when
+  // that's "Várakozás") how many days after creation its check_date
+  // defaults to — see TemplatePickerModal.
+  default_status: TemplateDefaultStatus;
+  default_check_offset_days: number | null;
   created_at: string;
 }
 export type TaskTemplateInsert = Partial<Omit<TaskTemplate, "id" | "created_at">> & {

@@ -3,6 +3,10 @@
     {
       "path": "/api/reminder-email",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/check-date-digest",
+      "schedule": "0 7 * * *"
     }
   ]
 }

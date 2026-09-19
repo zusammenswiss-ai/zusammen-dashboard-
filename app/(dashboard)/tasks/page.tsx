@@ -7,6 +7,7 @@ import {
   Trash2,
   KanbanSquare,
   CalendarDays,
+  CalendarClock,
   User,
   StickyNote,
   Search,
@@ -50,6 +51,22 @@ function isOverdue(task: TaskItem): boolean {
   return task.due_date < new Date().toISOString().slice(0, 10);
 }
 
+// A "Várakozás" task is due for a look once its check_date arrives or
+// passes — same string-compare reasoning as isOverdue above. Unlike
+// due_date, this never auto-moves the task; it's purely a badge (see
+// the "⏰ Esedékes az ellenőrzés" card badge below and the spec comment
+// on tasks.check_date in supabase/schema.sql).
+function isCheckDue(task: TaskItem): boolean {
+  if (task.status !== "Várakozás" || !task.check_date) return false;
+  return task.check_date <= new Date().toISOString().slice(0, 10);
+}
+
+function addDaysISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 const EXPORT_HEADERS = [
   "title",
   "category",
@@ -77,7 +94,7 @@ function exportTasksCSV(tasks: TaskItem[], campaignById: Map<string, Campaign>) 
   downloadCSV("feladatok.csv", toCSV(EXPORT_HEADERS, rows));
 }
 
-const STATUS_COLUMNS: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
+const STATUS_COLUMNS: TaskStatus[] = ["Várakozás", "Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
@@ -97,7 +114,9 @@ const EMPTY_FORM = {
   title: "",
   category: "",
   priority: "Medium" as TaskPriority,
+  status: "Teendő" as TaskStatus,
   due_date: "",
+  check_date: "",
   assignee: "",
   task_type: "Egyszeri" as TaskType,
   campaign_id: "",
@@ -114,6 +133,10 @@ export default function TasksPage() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | TaskType>("");
+  // Set via the /tasks?due=waiting deep link — the Áttekintés "X várakozó
+  // feladat esedékes" counter links here. Narrows the board down to just
+  // the Várakozás tasks whose check_date is due, with a chip to clear it.
+  const [waitingDueFilter, setWaitingDueFilter] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
@@ -135,10 +158,16 @@ export default function TasksPage() {
   // window.location instead of useSearchParams to avoid needing a
   // Suspense boundary just for this one-time check.
   useEffect(() => {
-    const openId = new URLSearchParams(window.location.search).get("open");
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get("open");
     if (openId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpenTaskId(openId);
+    }
+    if (params.get("due") === "waiting") {
+      setWaitingDueFilter(true);
+    }
+    if (openId || params.has("due")) {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
@@ -215,7 +244,8 @@ export default function TasksPage() {
         priority: form.priority,
         due_date: form.due_date || null,
         assignee: form.assignee.trim() || null,
-        status: "Teendő",
+        status: form.status,
+        check_date: form.status === "Várakozás" ? form.check_date || null : null,
         task_type: form.task_type,
         campaign_id: form.task_type === "Kampány" ? form.campaign_id || null : null,
       })
@@ -269,6 +299,7 @@ export default function TasksPage() {
   const filteredTasks = useMemo(() => {
     const q = query.trim().toLowerCase();
     return activeTasks.filter((t) => {
+      if (waitingDueFilter && !isCheckDue(t)) return false;
       if (typeFilter && t.task_type !== typeFilter) return false;
       if (!q) return true;
       return (
@@ -277,7 +308,7 @@ export default function TasksPage() {
         (t.assignee ?? "").toLowerCase().includes(q)
       );
     });
-  }, [activeTasks, query, typeFilter]);
+  }, [activeTasks, query, typeFilter, waitingDueFilter]);
 
   function archiveTask(id: string) {
     void updateTask(id, { archived_at: new Date().toISOString() });
@@ -379,6 +410,16 @@ export default function TasksPage() {
                 ))}
               </select>
             </div>
+            {waitingDueFilter && (
+              <button
+                type="button"
+                onClick={() => setWaitingDueFilter(false)}
+                className="badge bg-amber-100 text-amber-800 hover:bg-amber-200"
+                title="Szűrő törlése"
+              >
+                ⏰ Csak esedékes várakozó tételek <X size={11} />
+              </button>
+            )}
           </div>
 
           {/* Kanban-tábla csoportosítás — az állapot szerinti (alapértelmezett)
@@ -459,6 +500,31 @@ export default function TasksPage() {
             </select>
           </div>
           <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Állapot</label>
+            <select
+              className="select"
+              value={form.status}
+              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as TaskStatus }))}
+            >
+              {STATUS_COLUMNS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          {form.status === "Várakozás" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Mikor nézzük meg újra?</label>
+              <input
+                type="date"
+                className="input"
+                value={form.check_date}
+                onChange={(e) => setForm((f) => ({ ...f, check_date: e.target.value }))}
+              />
+            </div>
+          )}
+          <div>
             <label className="mb-1 block text-xs font-medium text-muted">Határidő</label>
             <input
               type="date"
@@ -522,7 +588,11 @@ export default function TasksPage() {
       ) : filteredTasks.length === 0 ? (
         <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div
+          className={`grid grid-cols-1 gap-4 ${
+            groupBy === "status" ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"
+          }`}
+        >
           {(groupBy === "status" ? STATUS_COLUMNS : TASK_TYPES).map((column) => {
             const columnTasks =
               groupBy === "status"
@@ -578,6 +648,7 @@ export default function TasksPage() {
                     onDelete={() => deleteTask(task.id)}
                     onArchive={task.status === "Kész" ? () => archiveTask(task.id) : undefined}
                     onStatusChange={(status) => updateTask(task.id, { status })}
+                    onCheckDateChange={(check_date) => updateTask(task.id, { check_date })}
                   />
                 ))}
                 {columnTasks.length === 0 && (
@@ -650,6 +721,7 @@ function TaskCard({
   onDelete,
   onArchive,
   onStatusChange,
+  onCheckDateChange,
 }: {
   task: TaskItem;
   campaignById: Map<string, Campaign>;
@@ -658,15 +730,18 @@ function TaskCard({
   onDelete: () => void;
   onArchive?: () => void;
   onStatusChange: (status: TaskStatus) => void;
+  onCheckDateChange: (checkDate: string) => void;
 }) {
   const overdue = isOverdue(task);
+  const checkDue = isCheckDue(task);
+  const [customDateOpen, setCustomDateOpen] = useState(false);
   return (
     <div
       draggable
       onDragStart={() => onDragStart(task.id)}
       onClick={onOpen}
       className={`card group cursor-grab p-3 text-left active:cursor-grabbing ${
-        overdue ? "border-red-300 ring-1 ring-red-200" : ""
+        overdue ? "border-red-300 ring-1 ring-red-200" : checkDue ? "border-amber-300 ring-1 ring-amber-200" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -723,13 +798,19 @@ function TaskCard({
         )}
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
         {overdue && <span className="badge bg-red-100 text-red-700">Lejárt</span>}
+        {checkDue && <span className="badge bg-amber-100 text-amber-800">⏰ Esedékes az ellenőrzés</span>}
       </div>
 
-      {(task.due_date || task.assignee || task.notes) && (
-        <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
+      {(task.due_date || task.check_date || task.assignee || task.notes) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs text-muted">
           {task.due_date && (
             <span className={`flex items-center gap-1 ${overdue ? "font-medium text-red-600" : ""}`}>
               <CalendarDays size={12} /> {formatDate(task.due_date)}
+            </span>
+          )}
+          {task.status === "Várakozás" && task.check_date && (
+            <span className={`flex items-center gap-1 ${checkDue ? "font-medium text-amber-700" : ""}`}>
+              <CalendarClock size={12} /> Ellenőrzés: {formatDate(task.check_date)}
             </span>
           )}
           {task.assignee && (
@@ -741,6 +822,50 @@ function TaskCard({
             <span className="flex items-center gap-1" title="Van megjegyzés">
               <StickyNote size={12} />
             </span>
+          )}
+        </div>
+      )}
+
+      {/* Quick date-extend — only for a currently-due Várakozás card, so
+          the founder can push check_date out without opening the full
+          edit form. All three options compute from today, not the old
+          check_date, since the old date is by definition already in the
+          past here. */}
+      {checkDue && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => onCheckDateChange(addDaysISO(1))}
+            className="btn btn-ghost !px-2 !py-1 text-xs"
+          >
+            +1 nap
+          </button>
+          <button
+            type="button"
+            onClick={() => onCheckDateChange(addDaysISO(3))}
+            className="btn btn-ghost !px-2 !py-1 text-xs"
+          >
+            +3 nap
+          </button>
+          {customDateOpen ? (
+            <input
+              type="date"
+              autoFocus
+              className="input !w-auto !py-1 text-xs"
+              onChange={(e) => {
+                if (e.target.value) onCheckDateChange(e.target.value);
+                setCustomDateOpen(false);
+              }}
+              onBlur={() => setCustomDateOpen(false)}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCustomDateOpen(true)}
+              className="btn btn-ghost !px-2 !py-1 text-xs"
+            >
+              Egyéni dátum
+            </button>
           )}
         </div>
       )}

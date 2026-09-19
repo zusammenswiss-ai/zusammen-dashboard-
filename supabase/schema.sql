@@ -108,6 +108,23 @@ end $$;
 -- creates the text column that migration immediately renames away.
 alter table public.tasks add column if not exists campaign_id text;
 
+-- Negyedik állapot: "Várakozás" — a founder-created task that's neither
+-- to-do nor in-progress, just parked until a given day is worth
+-- revisiting (e.g. waiting on a supplier's reply, a DNS record to
+-- propagate, a shipment to move). check_date is that day; the badge/
+-- quick-extend UI (TaskCard, app/(dashboard)/tasks/page.tsx) and the
+-- daily digest (app/api/cron/check-date-digest) both key off it. The
+-- inline check on `status` was created unnamed inside the original
+-- `create table`, so re-adding it under its auto-generated name
+-- (`tasks_status_check`) is the only way to widen it on an existing
+-- database — safe to re-run: existing rows already satisfy the wider
+-- constraint, so the validation the ADD CONSTRAINT step performs never
+-- fails.
+alter table public.tasks drop constraint if exists tasks_status_check;
+alter table public.tasks add constraint tasks_status_check
+  check (status in ('Várakozás', 'Teendő', 'Folyamatban', 'Kész'));
+alter table public.tasks add column if not exists check_date date;
+
 -- ---------------------------------------------------------------------
 -- Task templates — presets for the "Sablonból hozzáadás" quick-add on
 -- Feladatok and its "Sablonok kezelése" editor.
@@ -202,6 +219,33 @@ update public.task_templates set is_recurring = true, recurrence_type = 'Heti', 
   where title = 'Beérkezett Feedback-ek átnézése' and category = 'Founder Journey & Közösség' and is_recurring is not true;
 update public.task_templates set is_recurring = true, recurrence_type = 'Heti', recurrence_interval = 1, next_due_date = current_date
   where title = 'Founder Wall új bejegyzéseinek ellenőrzése' and category = 'Founder Journey & Közösség' and is_recurring is not true;
+
+-- Sablon-alapú "Várakozás" — a Sablonból hozzáadás picker (és a
+-- Sablonkezelő szerkesztő form) ezt olvassa, hogy egy sablonból
+-- létrehozott feladat rögtön Várakozás állapotban, kiszámolt
+-- check_date-tel jöjjön létre, a felelős kézi beállítása nélkül. Csak
+-- 'Teendő'/'Várakozás' érvényes — egy sablon sosem hoz létre Folyamatban/
+-- Kész állapotú feladatot közvetlenül.
+alter table public.task_templates add column if not exists default_status text not null default 'Teendő'
+  check (default_status in ('Teendő', 'Várakozás'));
+-- Csak akkor értelmezett, ha default_status = 'Várakozás' — hány nappal a
+-- létrehozás után legyen az első check_date (lásd TemplatePickerModal).
+alter table public.task_templates add column if not exists default_check_offset_days integer
+  check (default_check_offset_days > 0);
+
+-- Új, visszatérően előforduló, de eddig sablon nélküli teendők — 3
+-- "Várakozás" alapértelmezésű (a founder elindítja, aztán X nap múlva
+-- automatikusan figyelmeztet, hogy nézze meg újra), plusz egy sima heti
+-- ismétlődő. on conflict do nothing, mint a fenti kezdő sablon-listánál.
+insert into public.task_templates (title, category, default_priority, default_status, default_check_offset_days) values
+  ('Beszállítói válasz ellenőrzése', 'Beszállítók & Gyártás', 'Medium', 'Várakozás', 3),
+  ('DNS/domain-hitelesítés ellenőrzése', 'Jogi & Adminisztráció', 'Medium', 'Várakozás', 1),
+  ('Csomag-nyomkövetés ellenőrzése', 'Beszállítók & Gyártás', 'Medium', 'Várakozás', 2)
+on conflict (title, category) do nothing;
+
+insert into public.task_templates (title, category, default_priority, is_recurring, recurrence_type, recurrence_interval, next_due_date) values
+  ('Heti Aktivitás-napló átnézése', 'Founder Journey & Közösség', 'Low', true, 'Heti', 1, current_date)
+on conflict (title, category) do nothing;
 
 -- ---------------------------------------------------------------------
 -- Finance — product rows for the revenue/margin calculator
