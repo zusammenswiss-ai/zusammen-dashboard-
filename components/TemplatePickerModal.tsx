@@ -12,6 +12,12 @@ const PRIORITY_STYLES: Record<string, string> = {
   High: "bg-red-100 text-red-700",
 };
 
+function addDaysISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Checkbox picker over the task_templates set — ticking any number of
  * them and confirming creates one Teendő task per pick, in one bulk
  * insert. Grouped by category, same order as the Sablonok kezelése view. */
@@ -58,7 +64,11 @@ export default function TemplatePickerModal({
         title: t.title,
         category: t.category,
         priority: t.default_priority,
-        status: "Teendő" as const,
+        status: t.default_status,
+        check_date:
+          t.default_status === "Várakozás" && t.default_check_offset_days
+            ? addDaysISO(t.default_check_offset_days)
+            : null,
         assignee: t.default_assignee,
         notes: t.notes_template,
         task_type: taskType,
@@ -152,6 +162,9 @@ export default function TemplatePickerModal({
                           onChange={() => toggle(t.id)}
                         />
                         <span className="flex-1 text-sm text-forest">{t.title}</span>
+                        {t.default_status === "Várakozás" && (
+                          <span className="badge bg-amber-100 text-amber-800">⏳ Várakozás</span>
+                        )}
                         <span className={`badge ${PRIORITY_STYLES[t.default_priority]}`}>
                           {PRIORITY_HU[t.default_priority]}
                         </span>

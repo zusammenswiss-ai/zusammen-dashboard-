@@ -20,6 +20,7 @@ import {
   Bell,
   ClockAlert,
   CircleAlert,
+  Hourglass,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import PageHeader from "@/components/PageHeader";
@@ -82,6 +83,11 @@ export default function OverviewPage() {
   // error) — a disconnected Gmail just leaves this section shorter, not
   // broken-looking.
   const [unreadMail, setUnreadMail] = useState<number | null>(null);
+  // "X várakozó feladat esedékes" — Várakozás-státuszú feladatok, amiknek
+  // a check_date-je ma vagy korábbra esik. Ugyanabból a tasksRes
+  // lekérdezésből számolva, amit a Stats/Kanban snapshot is használ, nem
+  // külön query.
+  const [waitingDueCount, setWaitingDueCount] = useState(0);
   // Raw Termékek rows + Beállítások → Pénznem, kept separate from Stats
   // (rather than folded into one setStats call) so the revenue/margin
   // stat card can be a useMemo depending on live exchange rates — those
@@ -175,6 +181,12 @@ export default function OverviewPage() {
         const wildCardCompletions = wildCardCompletionsRes.data ?? [];
         const surpriseQuestionLog = surpriseQuestionLogRes.data ?? [];
         setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        setWaitingDueCount(
+          tasks.filter((t) => !t.archived_at && t.status === "Várakozás" && t.check_date && t.check_date <= todayStr)
+            .length
+        );
 
         setStats({
           suppliersTotal: suppliers.length,
@@ -357,7 +369,7 @@ export default function OverviewPage() {
   const today = new Date();
   const nextLetterDate = nextGoldCardDate(today);
   const nextLetterDays = daysUntil(nextLetterDate, today);
-  const urgentTotal = notifications.length + (unreadMail ?? 0);
+  const urgentTotal = notifications.length + (unreadMail ?? 0) + waitingDueCount;
 
   return (
     <>
@@ -403,6 +415,24 @@ export default function OverviewPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-forest">{unreadMail} olvasatlan levél</p>
                         <p className="text-xs text-muted">Postaláda</p>
+                      </div>
+                    </Link>
+                  </li>
+                )}
+                {waitingDueCount > 0 && (
+                  <li>
+                    <Link
+                      href="/tasks?due=waiting"
+                      className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ivory-dim/60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                        <Hourglass size={15} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-forest">
+                          {waitingDueCount} várakozó feladat esedékes
+                        </p>
+                        <p className="text-xs text-muted">Feladatok · Várakozás</p>
                       </div>
                     </Link>
                   </li>

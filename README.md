@@ -625,6 +625,16 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
   https://your-deployment.vercel.app/api/reminder-email
 ```
 
+**A second, separate cron** — `app/api/cron/check-date-digest/route.ts` —
+sends a dedicated digest for just the Feladatok "Várakozás" tasks whose
+`check_date` is due (07:00 UTC daily, also in `vercel.json`, same
+`CRON_SECRET`). Unlike the summary above, it sends nothing at all when
+nothing's due. It defaults to sending `from` `connect@das-zusammen.ch` —
+that only works once that sending domain is verified in Resend; until
+then, either verify it or set `RESEND_FROM_EMAIL_CHECK_DATE` to something
+already verified (e.g. the same `onboarding@resend.dev`/verified domain
+used elsewhere).
+
 > **Vercel plan note:** cron jobs are available on Vercel's Hobby (free)
 > plan, but limited to once a day per job — which is exactly what this
 > uses. If your project is on a different plan with different limits,
@@ -675,6 +685,7 @@ real starting point: run it alongside `npx tsc --noEmit` and
    | `RESEND_FROM_EMAIL` *(optional)* | only once you've verified your own domain in Resend |
    | `RESEND_REPLY_TO` *(optional)* | only if replies shouldn't go to zusammen.swiss@gmail.com |
    | `REMINDER_EMAIL_TO` *(optional)* | only if the daily reminder shouldn't go to zusammen.swiss@gmail.com |
+   | `RESEND_FROM_EMAIL_CHECK_DATE` *(optional)* | only until `connect@das-zusammen.ch` is verified in Resend — see step 3 |
 6. Click **Deploy**. In about a minute you'll get a live URL like
    `https://zusammen-dashboard.vercel.app`.
 
@@ -688,6 +699,7 @@ Every time you push to your main branch, Vercel redeploys automatically.
 app/                     Next.js App Router pages (one folder per tab)
 app/api/send-email/      Server-side route that calls Resend (holds RESEND_API_KEY)
 app/api/reminder-email/  Daily cron route — due-soon summary via Resend (holds CRON_SECRET)
+app/api/cron/check-date-digest/  Daily cron route — Várakozás check_date digest via Resend (only sends if something's due)
 app/api/og/              Generates the /landing social-preview image (?lang=de|en|hu)
 app/landing/page.tsx     Server wrapper: generateMetadata (og:/twitter: tags) + initial lang
 app/landing/LandingClient.tsx  The actual interactive funnel (moved out so page.tsx can be a Server Component)

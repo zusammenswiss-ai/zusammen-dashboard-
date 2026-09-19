@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/format";
 import CampaignFormModal from "@/components/CampaignFormModal";
 import BackButton from "@/components/BackButton";
 
-const STATUSES: TaskStatus[] = ["Teendő", "Folyamatban", "Kész"];
+const STATUSES: TaskStatus[] = ["Várakozás", "Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
 
 /** Full detail/edit view for a single task — opened from a Kanban card or
@@ -39,6 +39,7 @@ export default function TaskDetailModal({
     priority: task.priority,
     status: task.status,
     due_date: task.due_date ?? "",
+    check_date: task.check_date ?? "",
     assignee: task.assignee ?? "",
     notes: task.notes ?? "",
     task_type: task.task_type,
@@ -69,6 +70,7 @@ export default function TaskDetailModal({
       priority: draft.priority,
       status: draft.status,
       due_date: draft.due_date || null,
+      check_date: draft.status === "Várakozás" ? draft.check_date || null : null,
       assignee: draft.assignee.trim() || null,
       notes: draft.notes.trim() || null,
       task_type: draft.task_type,
@@ -119,6 +121,9 @@ export default function TaskDetailModal({
                 <Field label="Prioritás" value={PRIORITY_HU[draft.priority]} />
                 <Field label="Típus" value={`${TASK_TYPE_ICON[draft.task_type]}${draft.task_type}`} />
                 <Field icon={CalendarDays} label="Határidő" value={formatDate(draft.due_date)} />
+                {draft.status === "Várakozás" && (
+                  <Field icon={CalendarDays} label="Mikor nézzük meg újra?" value={formatDate(draft.check_date)} />
+                )}
                 <Field icon={User} label="Felelős" value={draft.assignee || "—"} />
                 {draft.task_type === "Kampány" && (draft.campaign_id || task.campaign_label) && (
                   <div className="col-span-2">
@@ -196,6 +201,19 @@ export default function TaskDetailModal({
                     onChange={(e) => setDraft((d) => ({ ...d, due_date: e.target.value }))}
                   />
                 </div>
+                {draft.status === "Várakozás" && (
+                  <div>
+                    <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted">
+                      <CalendarDays size={12} /> Mikor nézzük meg újra?
+                    </label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={draft.check_date}
+                      onChange={(e) => setDraft((d) => ({ ...d, check_date: e.target.value }))}
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Típus</label>
                   <select

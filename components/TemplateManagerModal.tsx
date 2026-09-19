@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X, Plus, Pencil, Trash2, Repeat } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { RecurrenceType, TaskPriority, TaskTemplate } from "@/lib/supabase/types";
+import type { RecurrenceType, TaskPriority, TaskTemplate, TemplateDefaultStatus } from "@/lib/supabase/types";
 import {
   PRIORITY_HU,
   TEMPLATE_CATEGORY_ORDER,
@@ -17,6 +17,7 @@ import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
+const DEFAULT_STATUSES: TemplateDefaultStatus[] = ["Teendő", "Várakozás"];
 const NEW_CATEGORY = "__new__";
 
 const EMPTY_FORM = {
@@ -30,6 +31,8 @@ const EMPTY_FORM = {
   recurrence_type: "Heti" as RecurrenceType,
   recurrence_interval: "1",
   next_due_date: "",
+  default_status: "Teendő" as TemplateDefaultStatus,
+  default_check_offset_days: "",
 };
 
 function byRecency(a: TaskTemplate, b: TaskTemplate) {
@@ -80,6 +83,8 @@ export default function TemplateManagerModal({
       recurrence_type: t.recurrence_type ?? "Heti",
       recurrence_interval: String(t.recurrence_interval || 1),
       next_due_date: t.next_due_date ?? "",
+      default_status: t.default_status,
+      default_check_offset_days: t.default_check_offset_days != null ? String(t.default_check_offset_days) : "",
     });
   }
 
@@ -93,6 +98,16 @@ export default function TemplateManagerModal({
       recurrence_type: form.is_recurring ? form.recurrence_type : null,
       recurrence_interval: form.is_recurring ? Math.max(1, Number(form.recurrence_interval) || 1) : 1,
       next_due_date: form.is_recurring ? form.next_due_date || null : null,
+    };
+  }
+
+  function defaultStatusPayload() {
+    return {
+      default_status: form.default_status,
+      default_check_offset_days:
+        form.default_status === "Várakozás" && form.default_check_offset_days
+          ? Math.max(1, Number(form.default_check_offset_days) || 1)
+          : null,
     };
   }
 
@@ -116,6 +131,7 @@ export default function TemplateManagerModal({
         default_assignee: form.default_assignee || null,
         notes_template: form.notes_template.trim() || null,
         ...recurrencePayload(),
+        ...defaultStatusPayload(),
       })
       .select()
       .single();
@@ -148,6 +164,7 @@ export default function TemplateManagerModal({
         default_assignee: form.default_assignee || null,
         notes_template: form.notes_template.trim() || null,
         ...recurrencePayload(),
+        ...defaultStatusPayload(),
       })
       .eq("id", editingId)
       .select()
@@ -255,6 +272,36 @@ export default function TemplateManagerModal({
           onChange={(e) => setForm((f) => ({ ...f, notes_template: e.target.value }))}
           placeholder="Előre kitöltött megjegyzés-szöveg (opcionális)…"
         />
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <label className="mb-1 block text-xs font-medium text-muted">Alapértelmezett állapot</label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <select
+            className="select"
+            value={form.default_status}
+            onChange={(e) => setForm((f) => ({ ...f, default_status: e.target.value as TemplateDefaultStatus }))}
+          >
+            {DEFAULT_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          {form.default_status === "Várakozás" && (
+            <div>
+              <input
+                type="number"
+                min="1"
+                className="input"
+                value={form.default_check_offset_days}
+                onChange={(e) => setForm((f) => ({ ...f, default_check_offset_days: e.target.value }))}
+                placeholder="pl. 3"
+              />
+              <p className="mt-1 text-xs text-muted">Hány nappal a létrehozás után legyen az első check_date.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg border border-border p-3">
@@ -380,6 +427,11 @@ export default function TemplateManagerModal({
                               {t.is_recurring && t.recurrence_type && (
                                 <span className="badge shrink-0 bg-bronze/15 text-walnut">
                                   🔁 {t.recurrence_type}
+                                </span>
+                              )}
+                              {t.default_status === "Várakozás" && (
+                                <span className="badge shrink-0 bg-amber-100 text-amber-800">
+                                  ⏳ Várakozás{t.default_check_offset_days ? ` +${t.default_check_offset_days} nap` : ""}
                                 </span>
                               )}
                             </div>
