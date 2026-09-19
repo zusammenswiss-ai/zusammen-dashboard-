@@ -631,6 +631,30 @@ export interface CompanySettings {
 export type CompanySettingsInsert = Partial<Omit<CompanySettings, "id" | "created_at" | "updated_at">>;
 export type CompanySettingsUpdate = Partial<Omit<CompanySettings, "id" | "created_at">>;
 
+// Beállítások → Fiókok & Szolgáltatások — a metadata-only overview of
+// third-party services (which email a service is registered under, what
+// it's for, when it renews). Deliberately NOT a credentials store: no
+// password field exists here or anywhere in the UI, not even encrypted —
+// password_manager_note is a fixed display string, never user-editable
+// beyond what schema.sql seeds it to.
+export interface ServiceAccount {
+  id: string;
+  service_name: string;
+  account_email: string | null;
+  purpose: string | null;
+  renewal_date: string | null;
+  renewal_cost: number | null;
+  renewal_currency: CurrencyCode | null;
+  notes: string | null;
+  password_manager_note: string;
+  created_at: string;
+  updated_at: string;
+}
+export type ServiceAccountInsert = Partial<Omit<ServiceAccount, "id" | "created_at" | "updated_at">> & {
+  service_name: string;
+};
+export type ServiceAccountUpdate = Partial<Omit<ServiceAccount, "id" | "created_at">>;
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -876,6 +900,12 @@ export interface Database {
         Update: CompanySettingsUpdate;
         Relationships: [];
       };
+      service_accounts: {
+        Row: ServiceAccount;
+        Insert: ServiceAccountInsert;
+        Update: ServiceAccountUpdate;
+        Relationships: [];
+      };
       calendar_events: {
         Row: CalendarEvent;
         Insert: CalendarEventInsert;
@@ -996,4 +1026,5 @@ export const ANON_TABLE_NAMES = [
   "newsletter_subscribers",
   "email_unsubscribes",
   "company_settings",
+  "service_accounts",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];
