@@ -28,7 +28,9 @@ import TaskDetailModal from "@/components/TaskDetailModal";
 import TemplatePickerModal from "@/components/TemplatePickerModal";
 import TemplateManagerModal from "@/components/TemplateManagerModal";
 import CampaignFormModal from "@/components/CampaignFormModal";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_STYLES, TASK_TYPE_ICON } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
@@ -606,55 +608,26 @@ export default function TasksPage() {
             const columnLabel =
               groupBy === "status" ? column : `${TASK_TYPE_ICON[column as TaskType]}${column}`;
             return (
-              <div
+              <KanbanColumn
                 key={column}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOverCol(column);
+                column={column}
+                columnLabel={columnLabel}
+                columnTasks={columnTasks}
+                isDoneColumn={isDoneColumn}
+                dragOverCol={dragOverCol}
+                setDragOverCol={setDragOverCol}
+                handleDrop={handleDrop}
+                bulkArchive={bulkArchive}
+                campaignById={campaignById}
+                onDragStart={(id) => {
+                  draggedId.current = id;
                 }}
-                onDragLeave={() => setDragOverCol((c) => (c === column ? null : c))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  handleDrop(column);
-                }}
-                className={`flex min-h-[16rem] flex-col gap-3 rounded-xl border-2 border-dashed p-3 transition-colors ${
-                  dragOverCol === column ? "border-bronze bg-bronze/5" : "border-transparent"
-                }`}
-              >
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-serif text-base text-forest">{columnLabel}</h2>
-                    <span className="badge bg-ivory-dim text-walnut">{columnTasks.length}</span>
-                  </div>
-                  {isDoneColumn && columnTasks.length > 0 && (
-                    <button
-                      onClick={() => bulkArchive(columnTasks.map((t) => t.id))}
-                      className="flex items-center gap-1 text-xs text-muted hover:text-forest"
-                      title="Az összes látható Kész feladat archiválása"
-                    >
-                      <Archive size={12} /> Összes archiválása
-                    </button>
-                  )}
-                </div>
-                {columnTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    campaignById={campaignById}
-                    onDragStart={(id) => {
-                      draggedId.current = id;
-                    }}
-                    onOpen={() => setOpenTaskId(task.id)}
-                    onDelete={() => deleteTask(task.id)}
-                    onArchive={task.status === "Kész" ? () => archiveTask(task.id) : undefined}
-                    onStatusChange={(status) => updateTask(task.id, { status })}
-                    onCheckDateChange={(check_date) => updateTask(task.id, { check_date })}
-                  />
-                ))}
-                {columnTasks.length === 0 && (
-                  <p className="px-1 text-xs text-muted">Húzd ide a feladatokat</p>
-                )}
-              </div>
+                onOpen={setOpenTaskId}
+                onDelete={deleteTask}
+                onArchive={archiveTask}
+                onStatusChange={(id, status) => updateTask(id, { status })}
+                onCheckDateChange={(id, check_date) => updateTask(id, { check_date })}
+              />
             );
           })}
         </div>
@@ -710,6 +683,95 @@ export default function TasksPage() {
         />
       )}
     </>
+  );
+}
+
+/** One Kanban column — caps visible cards at 8 with the shared
+ * "+N továbbiak" pattern used by every other longer list in the app
+ * (Beszállítók, Dokumentumok, Kártya-fájlok…), so a busy Teendő column
+ * can't grow the whole board indefinitely tall. */
+function KanbanColumn({
+  column,
+  columnLabel,
+  columnTasks,
+  isDoneColumn,
+  dragOverCol,
+  setDragOverCol,
+  handleDrop,
+  bulkArchive,
+  campaignById,
+  onDragStart,
+  onOpen,
+  onDelete,
+  onArchive,
+  onStatusChange,
+  onCheckDateChange,
+}: {
+  column: string;
+  columnLabel: string;
+  columnTasks: TaskItem[];
+  isDoneColumn: boolean;
+  dragOverCol: string | null;
+  setDragOverCol: (col: string | null | ((c: string | null) => string | null)) => void;
+  handleDrop: (column: TaskStatus | TaskType) => void;
+  bulkArchive: (ids: string[]) => void;
+  campaignById: Map<string, Campaign>;
+  onDragStart: (id: string) => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+  onArchive: (id: string) => void;
+  onStatusChange: (id: string, status: TaskStatus) => void;
+  onCheckDateChange: (id: string, checkDate: string) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(columnTasks, 8);
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOverCol(column);
+      }}
+      onDragLeave={() => setDragOverCol((c) => (c === column ? null : c))}
+      onDrop={(e) => {
+        e.preventDefault();
+        handleDrop(column as TaskStatus | TaskType);
+      }}
+      className={`flex min-h-[16rem] flex-col gap-3 rounded-xl border-2 border-dashed p-3 transition-colors ${
+        dragOverCol === column ? "border-bronze bg-bronze/5" : "border-transparent"
+      }`}
+    >
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <h2 className="font-serif text-base text-forest">{columnLabel}</h2>
+          <span className="badge bg-ivory-dim text-walnut">{columnTasks.length}</span>
+        </div>
+        {isDoneColumn && columnTasks.length > 0 && (
+          <button
+            onClick={() => bulkArchive(columnTasks.map((t) => t.id))}
+            className="flex items-center gap-1 text-xs text-muted hover:text-forest"
+            title="Az összes látható Kész feladat archiválása"
+          >
+            <Archive size={12} /> Összes archiválása
+          </button>
+        )}
+      </div>
+      {visible.map((task) => (
+        <TaskCard
+          key={task.id}
+          task={task}
+          campaignById={campaignById}
+          onDragStart={onDragStart}
+          onOpen={() => onOpen(task.id)}
+          onDelete={() => onDelete(task.id)}
+          onArchive={task.status === "Kész" ? () => onArchive(task.id) : undefined}
+          onStatusChange={(status) => onStatusChange(task.id, status)}
+          onCheckDateChange={(checkDate) => onCheckDateChange(task.id, checkDate)}
+        />
+      ))}
+      {hiddenCount > 0 && (
+        <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+      )}
+      {columnTasks.length === 0 && <p className="px-1 text-xs text-muted">Húzd ide a feladatokat</p>}
+    </div>
   );
 }
 

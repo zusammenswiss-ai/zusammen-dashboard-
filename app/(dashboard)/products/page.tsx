@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -82,6 +82,10 @@ export default function ProductsPage() {
   // (existingImageUrl below stays the canonical stored URL so a save
   // without a new file keeps writing that stable form back to the row).
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
+  // Scrolled into view whenever the edit form opens — without this,
+  // clicking "Szerkesztés" on a card far down the list opens the form
+  // at the top of the page with no visible change near the click.
+  const formRef = useRef<HTMLFormElement>(null);
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -91,6 +95,10 @@ export default function ProductsPage() {
       if (result.ok) setRates(result.rates);
     });
   }, []);
+
+  useEffect(() => {
+    if (showForm || editingId) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showForm, editingId]);
 
   const loadAll = useCallback(async () => {
     if (!supabase) return;
@@ -480,6 +488,7 @@ export default function ProductsPage() {
 
       {(showForm || editingId) && (
         <form
+          ref={formRef}
           onSubmit={editingId ? saveEdit : createProduct}
           className="card mb-6 flex flex-col gap-3 p-4 sm:p-5"
         >

@@ -8,7 +8,10 @@ import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
+import { useShowMore } from "@/lib/useShowMore";
 import { PLAN_STATUS_HU } from "@/lib/labels";
 
 function byPlanRecency(a: FuturePlan, b: FuturePlan) {
@@ -32,7 +35,6 @@ export default function FuturePlansPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState<PlanStatus | "All">("All");
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -101,7 +103,10 @@ export default function FuturePlansPage() {
     );
   }
 
-  const visiblePlans = filter === "All" ? plans : plans.filter((p) => p.status === filter);
+  const groups = STATUSES.map((status) => ({
+    status,
+    items: plans.filter((p) => p.status === status),
+  })).filter((g) => g.items.length > 0);
 
   if (!isSupabaseConfigured) {
     return (
@@ -189,22 +194,6 @@ export default function FuturePlansPage() {
         </form>
       )}
 
-      {!loading && plans.length > 0 && (
-        <div className="mb-4 flex gap-2">
-          {(["All", ...STATUSES] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`badge cursor-pointer border ${
-                filter === s ? "border-forest bg-forest text-ivory" : "border-border bg-white text-muted"
-              }`}
-            >
-              {s === "All" ? "Összes" : PLAN_STATUS_HU[s]}
-            </button>
-          ))}
-        </div>
-      )}
-
       {loading ? (
         <Spinner />
       ) : plans.length === 0 ? (
@@ -214,13 +203,51 @@ export default function FuturePlansPage() {
           description="Gyűjts össze mindent, amit érdemes lehet újragondolni az indulás után — új termékek, csatornák, partnerségek."
         />
       ) : (
+        <div className="flex flex-col gap-6">
+          {groups.map(({ status, items }) => (
+            <PlanStatusGroup
+              key={status}
+              status={status}
+              items={items}
+              onUpdateStatus={updateStatus}
+              onDelete={deletePlan}
+            />
+          ))}
+        </div>
+      )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+    </>
+  );
+}
+
+function PlanStatusGroup({
+  status,
+  items,
+  onUpdateStatus,
+  onDelete,
+}: {
+  status: PlanStatus;
+  items: FuturePlan[];
+  onUpdateStatus: (id: string, status: PlanStatus) => void;
+  onDelete: (id: string) => void;
+}) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div>
+      <CollapsibleSection
+        title={<h2 className="font-serif text-lg text-forest">{PLAN_STATUS_HU[status]}</h2>}
+        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
+        storageKey={`zusammen-collapsed-future-plans-status-${status}`}
+        headerClassName="mb-3"
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visiblePlans.map((plan) => (
+          {visible.map((plan) => (
             <div key={plan.id} className="card flex flex-col gap-2 p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="font-medium text-forest">{plan.title}</p>
                 <button
-                  onClick={() => deletePlan(plan.id)}
+                  onClick={() => onDelete(plan.id)}
                   className="shrink-0 text-muted hover:text-red-600"
                   aria-label="Ötlet törlése"
                 >
@@ -232,7 +259,7 @@ export default function FuturePlansPage() {
               <select
                 className={`select mt-1 w-fit text-xs ${STATUS_STYLES[plan.status]}`}
                 value={plan.status}
-                onChange={(e) => updateStatus(plan.id, e.target.value as PlanStatus)}
+                onChange={(e) => onUpdateStatus(plan.id, e.target.value as PlanStatus)}
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -243,9 +270,10 @@ export default function FuturePlansPage() {
             </div>
           ))}
         </div>
-      )}
-
-      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
-    </>
+        {items.length > 8 && (
+          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+        )}
+      </CollapsibleSection>
+    </div>
   );
 }

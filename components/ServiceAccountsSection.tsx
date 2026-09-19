@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/format";
 import { daysUntil } from "@/lib/gold-card";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { errorMessage } from "@/lib/errors";
@@ -76,25 +77,29 @@ export default function ServiceAccountsSection() {
 
   return (
     <div className="card p-5 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <KeyRound size={18} className="text-bronze" />
-          <h2 className="font-serif text-lg text-forest">
-            Fiókok &amp; Szolgáltatások {accounts.length > 0 && `(${accounts.length})`}
+      <CollapsibleSection
+        title={
+          <h2 className="flex items-center gap-2 font-serif text-lg text-forest">
+            <KeyRound size={18} className="text-bronze" /> Fiókok &amp; Szolgáltatások
           </h2>
-        </div>
-        <button
-          type="button"
-          className="btn btn-bronze !px-3 !py-1.5 text-xs"
-          onClick={() => {
-            setEditingId(null);
-            setShowForm((v) => !v);
-          }}
-        >
-          <Plus size={14} /> Új szolgáltatás hozzáadása
-        </button>
-      </div>
-
+        }
+        right={accounts.length > 0 && <span className="badge bg-ivory-dim text-walnut">{accounts.length}</span>}
+        actions={
+          <button
+            type="button"
+            className="btn btn-bronze !px-3 !py-1.5 text-xs"
+            onClick={() => {
+              setEditingId(null);
+              setShowForm((v) => !v);
+            }}
+          >
+            <Plus size={14} /> Új szolgáltatás hozzáadása
+          </button>
+        }
+        storageKey="zusammen-collapsed-settings-service-accounts"
+        defaultOpen={false}
+        headerClassName="mb-4"
+      >
       <p className="mb-4 text-xs text-muted">
         Kizárólag áttekintés — melyik szolgáltatás melyik email-címmel van regisztrálva, mire használjuk, mikor
         újul meg. Jelszó vagy bármilyen hitelesítő adat nincs itt tárolva, azok a Bitwarden jelszókezelőben vannak.
@@ -151,6 +156,7 @@ export default function ServiceAccountsSection() {
       )}
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
+      </CollapsibleSection>
     </div>
   );
 }

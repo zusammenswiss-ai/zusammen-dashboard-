@@ -8,6 +8,8 @@ import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import ShowMoreButton from "@/components/ShowMoreButton";
+import { useShowMore } from "@/lib/useShowMore";
 
 // The /landing survey stores answers as whatever language the visitor was
 // using (German or English option text) — these canonical Hungarian
@@ -182,41 +184,47 @@ export default function DemandPage() {
               )}
 
               <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="card p-5">
-                  <h2 className="font-serif text-lg text-forest">Ötletek, amiket írtak</h2>
-                  {stats.ideas.length === 0 ? (
-                    <p className="mt-3 text-sm text-muted">Még senki nem írt szabad szöveges ötletet.</p>
-                  ) : (
-                    <ul className="mt-3 flex flex-col divide-y divide-border">
-                      {stats.ideas.map((idea, i) => (
-                        <li key={i} className="py-2.5 text-sm text-forest">
-                          {idea}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                <div className="card p-5">
-                  <h2 className="font-serif text-lg text-forest">Megadott emailek</h2>
-                  {stats.emails.length === 0 ? (
-                    <p className="mt-3 text-sm text-muted">Még senki nem adott meg emailt.</p>
-                  ) : (
-                    <ul className="mt-3 flex flex-col divide-y divide-border">
-                      {stats.emails.map((email, i) => (
-                        <li key={i} className="py-2.5 text-sm text-forest">
-                          {email}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <SimpleListCard
+                  title="Ötletek, amiket írtak"
+                  items={stats.ideas}
+                  emptyText="Még senki nem írt szabad szöveges ötletet."
+                />
+                <SimpleListCard
+                  title="Megadott emailek"
+                  items={stats.emails}
+                  emptyText="Még senki nem adott meg emailt."
+                />
               </div>
             </>
           )}
         </>
       )}
     </>
+  );
+}
+
+function SimpleListCard({ title, items, emptyText }: { title: string; items: string[]; emptyText: string }) {
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  return (
+    <div className="card p-5">
+      <h2 className="font-serif text-lg text-forest">{title}</h2>
+      {items.length === 0 ? (
+        <p className="mt-3 text-sm text-muted">{emptyText}</p>
+      ) : (
+        <>
+          <ul className="mt-3 flex flex-col divide-y divide-border">
+            {visible.map((item, i) => (
+              <li key={i} className="py-2.5 text-sm text-forest">
+                {item}
+              </li>
+            ))}
+          </ul>
+          {hiddenCount > 0 && (
+            <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+          )}
+        </>
+      )}
+    </div>
   );
 }
 

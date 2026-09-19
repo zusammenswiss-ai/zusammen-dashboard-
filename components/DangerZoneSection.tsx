@@ -5,6 +5,7 @@ import { ShieldAlert, Trash2 } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ANON_TABLE_NAMES } from "@/lib/supabase/types";
 import { ErrorBanner } from "@/components/Feedback";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import { errorMessage } from "@/lib/errors";
 
 const CONFIRM_WORD = "TÖRLÉS";
@@ -82,11 +83,17 @@ export default function DangerZoneSection() {
   // class loses that cascade tie and never visibly applies.
   return (
     <div className="card max-w-xl p-5 sm:p-6" style={{ borderColor: "#fecaca" }}>
-      <div className="flex items-center gap-2">
-        <ShieldAlert size={18} className="text-red-600" />
-        <h2 className="font-serif text-lg text-red-700">Veszélyes zóna</h2>
-      </div>
-      <p className="mt-1.5 text-sm text-muted">
+      <CollapsibleSection
+        title={
+          <h2 className="flex items-center gap-2 font-serif text-lg text-red-700">
+            <ShieldAlert size={18} className="text-red-600" /> Veszélyes zóna
+          </h2>
+        }
+        storageKey="zusammen-collapsed-settings-danger-zone"
+        defaultOpen={false}
+        headerClassName="mb-1.5"
+      >
+      <p className="text-sm text-muted">
         Minden üzleti és tartalmi adat (Beszállítók, Feladatok — beleértve a saját, kézzel létrehozott
         feladat-sablonokat is, a 19 beépített nem vész el, azok schema.sql újrafuttatásával visszatérnek —,
         Termékek, Megrendelések, Pénzügyek, Marketing-tartalom, Email sablonok, Hírlevél feliratkozók,
@@ -137,6 +144,7 @@ export default function DangerZoneSection() {
           </div>
         </div>
       )}
+      </CollapsibleSection>
     </div>
   );
 }
