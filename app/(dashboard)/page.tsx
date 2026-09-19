@@ -37,6 +37,7 @@ import { convertAmount, fetchExchangeRates, type ExchangeRates } from "@/lib/exc
 import { fetchAllCalendarEvents, type CalendarEventItem } from "@/lib/calendar-events";
 import { CategoryIcon } from "@/components/CalendarCategoryBadge";
 import CollapsibleSection from "@/components/CollapsibleSection";
+import WeeklyMonthlyStatsWidget from "@/components/WeeklyMonthlyStatsWidget";
 import type { CurrencyCode, PlanStatus, OrderStatus } from "@/lib/supabase/types";
 import { errorMessage } from "@/lib/errors";
 
@@ -495,6 +496,12 @@ export default function OverviewPage() {
               </CollapsibleSection>
             </div>
           )}
+
+          {/* 1c. Heti/Havi statisztika — period-to-date counts vs. the
+              prior full week/month, across the founder-facing tables. */}
+          <div className="mt-6">
+            <WeeklyMonthlyStatsWidget currency={currency} rates={rates} />
+          </div>
 
           {/* 2. Business snapshot */}
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
