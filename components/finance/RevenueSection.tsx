@@ -6,6 +6,7 @@ import { Plus, Trash2, Pencil, X, Check, Download, FileText } from "lucide-react
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Revenue, RevenueInsert, CurrencyCode, Product } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
+import LockControls from "@/components/finance/LockControls";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
@@ -64,8 +65,35 @@ export default function RevenueSection({
     );
   }
 
+  async function handleLock(r: Revenue) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("revenue")
+      .update({ is_locked: true, locked_at: new Date().toISOString() })
+      .eq("id", r.id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message || "Nem sikerült lezárni a rögzítést.");
+    if (data) onUpdate(data);
+  }
+
+  async function handleUnlock(r: Revenue, reason: string | null) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const nextHistory = [...r.unlock_history, { unlocked_at: new Date().toISOString(), reason }];
+    const { data, error } = await supabase
+      .from("revenue")
+      .update({ is_locked: false, unlock_history: nextHistory })
+      .eq("id", r.id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message || "Nem sikerült feloldani a zárolást.");
+    if (data) onUpdate(data);
+  }
+
   function exportCSV() {
-    const headers = ["datum", "forras", "osszeg", "penznem", "termek", "statusz", "megjegyzes"];
+    const headers = ["datum", "forras", "osszeg", "penznem", "termek", "statusz", "megjegyzes", "lezarva", "feloldva_valaha"];
     const rows = sorted.map((r) => [
       r.revenue_date,
       r.source,
@@ -74,6 +102,8 @@ export default function RevenueSection({
       r.related_product_id ? productNameById.get(r.related_product_id) ?? "" : "",
       r.status ?? "",
       r.notes ?? "",
+      r.is_locked ? "igen" : "nem",
+      r.unlock_history.length > 0 ? "igen" : "nem",
     ]);
     downloadCSV(`bevetelek-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(headers, rows));
   }
@@ -143,6 +173,8 @@ export default function RevenueSection({
                   setEditingId(r.id);
                 }}
                 onDelete={() => handleDelete(r)}
+                onLock={() => handleLock(r)}
+                onUnlock={(reason) => handleUnlock(r, reason)}
               />
             )
           )}
@@ -159,19 +191,26 @@ function RevenueRow({
   productName,
   onEdit,
   onDelete,
+  onLock,
+  onUnlock,
 }: {
   revenue: Revenue;
   productName: string | null;
   onEdit: () => void;
   onDelete: () => void;
+  onLock: () => Promise<void>;
+  onUnlock: (reason: string | null) => Promise<void>;
 }) {
+  const locked = revenue.is_locked;
   return (
     <div
-      onClick={onEdit}
-      className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-bronze/40"
+      onClick={locked ? undefined : onEdit}
+      className={`flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm ${
+        locked ? "" : "cursor-pointer hover:border-bronze/40"
+      }`}
     >
       <div className="min-w-0">
-        <span className="font-medium text-forest">{revenue.source}</span>
+        <span className={`font-medium ${locked ? "text-muted" : "text-forest"}`}>{revenue.source}</span>
         {productName && (
           <Link
             href="/products"
@@ -191,27 +230,40 @@ function RevenueRow({
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <span className="text-xs text-muted">{formatDate(revenue.revenue_date)}</span>
-        <span className="font-medium text-forest">{formatMoney(revenue.amount, revenue.currency)}</span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-          className="text-muted/70 hover:text-forest"
-          title="Szerkesztés"
-        >
-          <Pencil size={13} />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="text-muted/70 hover:text-red-600"
-          title="Törlés"
-        >
-          <Trash2 size={13} />
-        </button>
+        <span className={`font-medium ${locked ? "text-muted" : "text-forest"}`}>
+          {formatMoney(revenue.amount, revenue.currency)}
+        </span>
+        {!locked && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="text-muted/70 hover:text-forest"
+              title="Szerkesztés"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="text-muted/70 hover:text-red-600"
+              title="Törlés"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
+        <LockControls
+          isLocked={locked}
+          lockedAt={revenue.locked_at}
+          unlockHistory={revenue.unlock_history}
+          onLock={onLock}
+          onUnlock={onUnlock}
+        />
       </div>
     </div>
   );

@@ -195,6 +195,11 @@ export type InvoiceStatus = "Piszkozat" | "Kiállítva" | "Kifizetve";
 // convention as TaskTemplate). `type` (Fix/Változó) is what the Fix
 // költségek/Változó költségek tabs filter on — independent of
 // is_recurring, which only feeds the fedezeti pont havi normalizálása.
+// "Rögzítés lezárása" — see the comment on this addition in
+// supabase/schema.sql. Shared shape between Expense and Revenue's
+// unlock_history, each entry appended (never overwritten) on unlock.
+export type UnlockHistoryEntry = { unlocked_at: string; reason: string | null };
+
 export interface Expense {
   id: string;
   description: string;
@@ -213,6 +218,9 @@ export interface Expense {
   notes: string | null;
   related_supplier_id: string | null;
   related_product_id: string | null;
+  is_locked: boolean;
+  locked_at: string | null;
+  unlock_history: UnlockHistoryEntry[];
   created_at: string;
   updated_at: string;
 }
@@ -236,6 +244,9 @@ export interface Revenue {
   notes: string | null;
   status: RevenueStatus | null;
   invoice_id: string | null;
+  is_locked: boolean;
+  locked_at: string | null;
+  unlock_history: UnlockHistoryEntry[];
   created_at: string;
   updated_at: string;
 }

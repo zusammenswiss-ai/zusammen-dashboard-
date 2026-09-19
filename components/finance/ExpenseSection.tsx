@@ -13,6 +13,7 @@ import type {
   Product,
 } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
+import LockControls from "@/components/finance/LockControls";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
@@ -119,6 +120,33 @@ export default function ExpenseSection({
     );
   }
 
+  async function handleLock(expense: Expense) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("expenses")
+      .update({ is_locked: true, locked_at: new Date().toISOString() })
+      .eq("id", expense.id)
+      .select()
+      .single();
+    if (error) throw new Error(errorMessage(error, "Nem sikerült lezárni a rögzítést."));
+    if (data) onUpdate(data);
+  }
+
+  async function handleUnlock(expense: Expense, reason: string | null) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const nextHistory = [...expense.unlock_history, { unlocked_at: new Date().toISOString(), reason }];
+    const { data, error } = await supabase
+      .from("expenses")
+      .update({ is_locked: false, unlock_history: nextHistory })
+      .eq("id", expense.id)
+      .select()
+      .single();
+    if (error) throw new Error(errorMessage(error, "Nem sikerült feloldani a zárolást."));
+    if (data) onUpdate(data);
+  }
+
   function exportCSV() {
     const headers = [
       "datum",
@@ -132,6 +160,8 @@ export default function ExpenseSection({
       "beszallito",
       "termek",
       "megjegyzes",
+      "lezarva",
+      "feloldva_valaha",
     ];
     const rows = filtered.map((e) => [
       e.expense_date,
@@ -145,6 +175,8 @@ export default function ExpenseSection({
       e.related_supplier_id ? supplierNameById.get(e.related_supplier_id) ?? "" : "",
       e.related_product_id ? productNameById.get(e.related_product_id) ?? "" : "",
       e.notes ?? "",
+      e.is_locked ? "igen" : "nem",
+      e.unlock_history.length > 0 ? "igen" : "nem",
     ]);
     downloadCSV(
       `${type === "Fix költség" ? "fix-koltsegek" : "valtozo-koltsegek"}-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -268,6 +300,8 @@ export default function ExpenseSection({
                   setEditingId(expense.id);
                 }}
                 onDelete={() => handleDelete(expense)}
+                onLock={() => handleLock(expense)}
+                onUnlock={(reason) => handleUnlock(expense, reason)}
               />
             )
           )}
@@ -286,6 +320,8 @@ function ExpenseRow({
   receiptUrl,
   onEdit,
   onDelete,
+  onLock,
+  onUnlock,
 }: {
   expense: Expense;
   supplierName: string | null;
@@ -293,15 +329,22 @@ function ExpenseRow({
   receiptUrl: string | null;
   onEdit: () => void;
   onDelete: () => void;
+  onLock: () => Promise<void>;
+  onUnlock: (reason: string | null) => Promise<void>;
 }) {
+  const locked = expense.is_locked;
   return (
     <div
-      onClick={onEdit}
-      className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-bronze/40"
+      onClick={locked ? undefined : onEdit}
+      className={`flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm ${
+        locked ? "" : "cursor-pointer hover:border-bronze/40"
+      }`}
     >
       <div className="min-w-0">
-        <span className="font-medium text-forest">{expense.description}</span>
-        <span className="ml-1.5 badge bg-ivory-dim text-walnut">{expense.category}</span>
+        <span className={`font-medium ${locked ? "text-muted" : "text-forest"}`}>{expense.description}</span>
+        <span className={`ml-1.5 badge ${locked ? "bg-ivory-dim text-muted" : "bg-ivory-dim text-walnut"}`}>
+          {expense.category}
+        </span>
         {expense.is_recurring && expense.recurrence_type && (
           <span className="ml-1.5 badge bg-blue-100 text-blue-700">
             <Repeat size={10} className="mr-0.5 inline" />
@@ -342,27 +385,40 @@ function ExpenseRow({
           </a>
         )}
         <span className="text-xs text-muted">{formatDate(expense.expense_date)}</span>
-        <span className="font-medium text-forest">{formatMoney(expense.amount, expense.currency)}</span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-          className="text-muted/70 hover:text-forest"
-          title="Szerkesztés"
-        >
-          <Pencil size={13} />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="text-muted/70 hover:text-red-600"
-          title="Törlés"
-        >
-          <Trash2 size={13} />
-        </button>
+        <span className={`font-medium ${locked ? "text-muted" : "text-forest"}`}>
+          {formatMoney(expense.amount, expense.currency)}
+        </span>
+        {!locked && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="text-muted/70 hover:text-forest"
+              title="Szerkesztés"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="text-muted/70 hover:text-red-600"
+              title="Törlés"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
+        <LockControls
+          isLocked={locked}
+          lockedAt={expense.locked_at}
+          unlockHistory={expense.unlock_history}
+          onLock={onLock}
+          onUnlock={onUnlock}
+        />
       </div>
     </div>
   );

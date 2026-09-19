@@ -1743,3 +1743,22 @@ where not exists (select 1 from public.service_accounts where service_name = 'QP
 insert into public.service_accounts (service_name, account_email, purpose)
 select 'connect@das-zusammen.ch', null, 'Márka email-cím, Infomaniakon keresztül'
 where not exists (select 1 from public.service_accounts where service_name = 'connect@das-zusammen.ch');
+
+-- =====================================================================
+-- "Rögzítés lezárása" — Pénzügyek → Fix/Változó költségek és Bevételek.
+-- Once a founder marks an expense/revenue row locked, its amount/date/
+-- category become read-only in the UI (components/finance/
+-- LockControls.tsx) until explicitly unlocked again — every unlock is
+-- logged in unlock_history (never overwritten, only appended to), so an
+-- accountant can trust a locked-and-never-unlocked row was never
+-- touched after the fact. locked_at is the most recent lock time (reset
+-- on every re-lock); unlock_history is independent of it and keeps
+-- accumulating across every lock/unlock cycle a row goes through.
+-- =====================================================================
+alter table public.expenses add column if not exists is_locked boolean not null default false;
+alter table public.expenses add column if not exists locked_at timestamptz;
+alter table public.expenses add column if not exists unlock_history jsonb not null default '[]'::jsonb;
+
+alter table public.revenue add column if not exists is_locked boolean not null default false;
+alter table public.revenue add column if not exists locked_at timestamptz;
+alter table public.revenue add column if not exists unlock_history jsonb not null default '[]'::jsonb;
