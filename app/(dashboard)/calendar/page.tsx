@@ -2,7 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, CalendarRange, Plus, Pencil, Trash2, List, LayoutGrid, GripVertical, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CalendarRange,
+  CalendarClock,
+  Plus,
+  Pencil,
+  Trash2,
+  List,
+  LayoutGrid,
+  GripVertical,
+  X,
+} from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CalendarEvent as CalendarEventRow } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -409,6 +421,7 @@ export default function CalendarPage() {
                             customEvent={customEventFor(ev)}
                             onEdit={(row) => setEventModal({ event: row })}
                             onDelete={deleteCustomEvent}
+                            onReschedule={rescheduleTask}
                           />
                         ))}
                       </ul>
@@ -436,6 +449,7 @@ export default function CalendarPage() {
             setOpenDayModal(null);
           }}
           onDelete={deleteCustomEvent}
+          onReschedule={rescheduleTask}
         />
       )}
 
@@ -466,6 +480,7 @@ function DayEventsModal({
   onAddEvent,
   onEdit,
   onDelete,
+  onReschedule,
 }: {
   date: string;
   events: CalendarEventItem[];
@@ -474,6 +489,7 @@ function DayEventsModal({
   onAddEvent: () => void;
   onEdit: (row: CalendarEventRow) => void;
   onDelete: (row: CalendarEventRow) => void;
+  onReschedule: (taskId: string, newDate: string) => void;
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -507,7 +523,14 @@ function DayEventsModal({
           ) : (
             <ul className="flex flex-col divide-y divide-border">
               {events.map((ev) => (
-                <EventRow key={ev.id} event={ev} customEvent={customEventFor(ev)} onEdit={onEdit} onDelete={onDelete} />
+                <EventRow
+                  key={ev.id}
+                  event={ev}
+                  customEvent={customEventFor(ev)}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onReschedule={onReschedule}
+                />
               ))}
             </ul>
           )}
@@ -528,13 +551,16 @@ function EventRow({
   customEvent,
   onEdit,
   onDelete,
+  onReschedule,
 }: {
   event: CalendarEventItem;
   customEvent?: CalendarEventRow;
   onEdit: (row: CalendarEventRow) => void;
   onDelete: (row: CalendarEventRow) => void;
+  onReschedule?: (taskId: string, newDate: string) => void;
 }) {
   const draggable = event.category === "task";
+  const [rescheduling, setRescheduling] = useState(false);
 
   const inner = (
     <>
@@ -543,6 +569,37 @@ function EventRow({
       <span className="min-w-0 flex-1 truncate">{event.title}</span>
       <span className="shrink-0 text-xs text-muted">{CALENDAR_CATEGORIES[event.category].label}</span>
     </>
+  );
+
+  // Touch fallback for drag-to-reschedule — native HTML5 drag doesn't
+  // work on iPad/iOS Safari (same reasoning as the Feladatok Kanban's
+  // own touch-select fallback), so a task event needs some other way to
+  // move to a new day there.
+  const rescheduleButton = draggable && onReschedule && (
+    <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+      {rescheduling ? (
+        <input
+          type="date"
+          autoFocus
+          className="input !w-auto !py-1 text-xs"
+          onChange={(e) => {
+            if (e.target.value) onReschedule(event.id.replace(/^task-/, ""), e.target.value);
+            setRescheduling(false);
+          }}
+          onBlur={() => setRescheduling(false)}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setRescheduling(true)}
+          className="rounded-md p-1 text-muted hover:bg-ivory-dim hover:text-forest"
+          aria-label="Átütemezés"
+          title="Átütemezés"
+        >
+          <CalendarClock size={13} />
+        </button>
+      )}
+    </span>
   );
 
   if (customEvent) {
@@ -570,17 +627,18 @@ function EventRow({
   }
 
   return (
-    <li>
+    <li className="flex items-center gap-1">
       <Link
         href={event.href}
         draggable={draggable}
         onDragStart={
           draggable ? (e) => e.dataTransfer.setData(TASK_DRAG_MIME, event.id.replace(/^task-/, "")) : undefined
         }
-        className={`flex items-center gap-2.5 py-2.5 text-sm text-forest hover:text-bronze ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
+        className={`flex min-w-0 flex-1 items-center gap-2.5 py-2.5 text-sm text-forest hover:text-bronze ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
       >
         {inner}
       </Link>
+      {rescheduleButton}
     </li>
   );
 }

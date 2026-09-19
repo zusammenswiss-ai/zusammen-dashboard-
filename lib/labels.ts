@@ -29,8 +29,8 @@ export const PRIORITY_HU: Record<TaskPriority, string> = {
 // for the card badge, same convention as print_status/product status.
 export const TASK_TYPES: TaskType[] = ["Egyszeri", "Ismétlődő", "Kampány"];
 export const TASK_TYPE_STYLES: Record<TaskType, string> = {
-  Egyszeri: "bg-gray-200 text-gray-700",
-  Ismétlődő: "bg-blue-100 text-blue-700",
+  Egyszeri: "bg-ivory-dim text-walnut",
+  Ismétlődő: "bg-forest-light/15 text-forest",
   Kampány: "bg-bronze/20 text-walnut",
 };
 export const TASK_TYPE_ICON: Record<TaskType, string> = {
@@ -74,11 +74,16 @@ export const PRINT_STATUSES: PrintStatus[] = [
   "Megrendelve",
   "Megérkezett",
 ];
+// Same "draft → in progress → advanced → done" brand progression as
+// STATUS_STYLES on Megrendelések (ivory-dim → bronze/15 → forest-light/15
+// → forest/10) — every 4-stage status badge in the app now shares this
+// one visual language instead of each page inventing its own gray/
+// yellow/blue/green scheme.
 export const PRINT_STATUS_STYLES: Record<PrintStatus, string> = {
-  Piszkozat: "bg-gray-200 text-gray-700",
-  "Nyomdának elküldve": "bg-yellow-100 text-yellow-800",
-  Megrendelve: "bg-blue-100 text-blue-700",
-  Megérkezett: "bg-green-100 text-green-700",
+  Piszkozat: "bg-ivory-dim text-walnut",
+  "Nyomdának elküldve": "bg-bronze/15 text-walnut",
+  Megrendelve: "bg-forest-light/15 text-forest",
+  Megérkezett: "bg-forest/10 text-forest",
 };
 
 // status is already stored in Hungarian (see the schema check constraint
@@ -86,10 +91,10 @@ export const PRINT_STATUS_STYLES: Record<PrintStatus, string> = {
 // print_status above.
 export const PRODUCT_STATUSES: ProductStatus[] = ["Fejlesztés alatt", "Tesztelés", "Élő", "Jövőbeli terv"];
 export const PRODUCT_STATUS_STYLES: Record<ProductStatus, string> = {
-  "Fejlesztés alatt": "bg-gray-200 text-gray-700",
-  Tesztelés: "bg-yellow-100 text-yellow-800",
-  Élő: "bg-green-100 text-green-700",
-  "Jövőbeli terv": "bg-blue-100 text-blue-700",
+  "Fejlesztés alatt": "bg-ivory-dim text-walnut",
+  Tesztelés: "bg-bronze/15 text-walnut",
+  Élő: "bg-forest/10 text-forest",
+  "Jövőbeli terv": "bg-forest-light/15 text-forest",
 };
 
 // status is already stored in Hungarian (see the schema check constraint
@@ -97,9 +102,9 @@ export const PRODUCT_STATUS_STYLES: Record<ProductStatus, string> = {
 // print_status/product status above.
 export const CAMPAIGN_STATUSES: CampaignStatus[] = ["Tervezve", "Aktív", "Lezárva"];
 export const CAMPAIGN_STATUS_STYLES: Record<CampaignStatus, string> = {
-  Tervezve: "bg-gray-200 text-gray-700",
-  Aktív: "bg-green-100 text-green-700",
-  Lezárva: "bg-blue-100 text-blue-700",
+  Tervezve: "bg-ivory-dim text-walnut",
+  Aktív: "bg-forest/10 text-forest",
+  Lezárva: "bg-forest-light/15 text-forest",
 };
 
 // Fixed preview slots a card-asset ZIP is scanned for on upload — shared
@@ -157,9 +162,9 @@ export const BUDGET_PERIODS: BudgetPeriod[] = ["Havi", "Negyedéves", "Éves"];
 
 export const INVOICE_STATUSES: InvoiceStatus[] = ["Piszkozat", "Kiállítva", "Kifizetve"];
 export const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
-  Piszkozat: "bg-gray-200 text-gray-700",
-  Kiállítva: "bg-blue-100 text-blue-700",
-  Kifizetve: "bg-green-100 text-green-700",
+  Piszkozat: "bg-ivory-dim text-walnut",
+  Kiállítva: "bg-forest-light/15 text-forest",
+  Kifizetve: "bg-forest/10 text-forest",
 };
 
 // The grammatical unit word for "Minden {n}. ___" — e.g. interval 2 +

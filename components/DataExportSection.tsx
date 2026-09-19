@@ -7,6 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { ANON_TABLE_NAMES } from "@/lib/supabase/types";
 import { toCSV } from "@/lib/csv";
 import { ErrorBanner } from "@/components/Feedback";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import { errorMessage } from "@/lib/errors";
 
 /** Any table row — the shape varies per table, which is exactly why this stays untyped here. */
@@ -82,11 +83,17 @@ export default function DataExportSection() {
 
   return (
     <div className="card max-w-xl p-5 sm:p-6">
-      <div className="flex items-center gap-2">
-        <Download size={18} className="text-bronze" />
-        <h2 className="font-serif text-lg text-forest">Adatexport</h2>
-      </div>
-      <p className="mt-1.5 text-sm text-muted">
+      <CollapsibleSection
+        title={
+          <h2 className="flex items-center gap-2 font-serif text-lg text-forest">
+            <Download size={18} className="text-bronze" /> Adatexport
+          </h2>
+        }
+        storageKey="zusammen-collapsed-settings-data-export"
+        defaultOpen={false}
+        headerClassName="mb-1.5"
+      >
+      <p className="text-sm text-muted">
         Minden Supabase-tábla egy-egy CSV fájlként, egy ZIP-be csomagolva — teljes biztonsági mentés egy kattintással.
       </p>
 
@@ -105,6 +112,7 @@ export default function DataExportSection() {
           {skipped.length} tábla üres volt, azok kimaradtak a ZIP-ből (részletek a benne lévő README.txt-ben).
         </p>
       )}
+      </CollapsibleSection>
     </div>
   );
 }

@@ -441,6 +441,8 @@ export interface Document {
   notes: string | null;
   file_path: string | null;
   file_name: string | null;
+  related_task_id: string | null;
+  related_supplier_id: string | null;
   created_at: string;
 }
 export type DocumentInsert = Partial<Omit<Document, "id" | "created_at">> & {

@@ -541,29 +541,11 @@ export default function OverviewPage() {
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2">
               <h2 className="font-serif text-lg text-forest">Üzleti aktivitás</h2>
-              {businessActivity.length === 0 ? (
-                <p className="mt-4 text-sm text-muted">
-                  Még nincs semmi rögzítve — kezdd egy beszállító, feladat vagy dokumentum hozzáadásával.
-                </p>
-              ) : (
-                <ul className="mt-4 flex flex-col divide-y divide-border">
-                  {businessActivity.map((item) => (
-                    <li key={item.id}>
-                      <Link
-                        href={item.href}
-                        className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-ivory-dim/60"
-                      >
-                        <BusinessActivityIcon kind={item.kind} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-forest">{item.title}</p>
-                          <p className="text-xs text-muted">{item.detail}</p>
-                        </div>
-                        <span className="shrink-0 text-xs text-muted">{timeAgo(item.timestamp)}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ActivityFeed
+                emptyMessage="Még nincs semmi rögzítve — kezdd egy beszállító, feladat vagy dokumentum hozzáadásával."
+                items={businessActivity}
+                renderIcon={(kind) => <BusinessActivityIcon kind={kind} />}
+              />
             </div>
 
             <div className="card p-5">
@@ -587,29 +569,11 @@ export default function OverviewPage() {
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2">
               <h2 className="font-serif text-lg text-forest">Személyes rituálé aktivitás</h2>
-              {ritualActivity.length === 0 ? (
-                <p className="mt-4 text-sm text-muted">
-                  Még nincs rögzítve semmi — kezdj egy Gold Card levéllel vagy egy emlékkel.
-                </p>
-              ) : (
-                <ul className="mt-4 flex flex-col divide-y divide-border">
-                  {ritualActivity.map((item) => (
-                    <li key={item.id}>
-                      <Link
-                        href={item.href}
-                        className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-ivory-dim/60"
-                      >
-                        <RitualActivityIcon kind={item.kind} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-forest">{item.title}</p>
-                          <p className="text-xs text-muted">{item.detail}</p>
-                        </div>
-                        <span className="shrink-0 text-xs text-muted">{timeAgo(item.timestamp)}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ActivityFeed
+                emptyMessage="Még nincs rögzítve semmi — kezdj egy Gold Card levéllel vagy egy emlékkel."
+                items={ritualActivity}
+                renderIcon={(kind) => <RitualActivityIcon kind={kind} />}
+              />
             </div>
 
             <div className="card p-5">
@@ -638,6 +602,44 @@ export default function OverviewPage() {
         </>
       ) : null}
     </>
+  );
+}
+
+/** Shared row list for both the business and personal-ritual activity
+ * feeds — same icon/title/detail/relative-time link row either way,
+ * just a different item set and icon renderer (the two feeds' `kind`
+ * unions don't overlap, hence the generic + a renderIcon callback
+ * rather than one shared icon-map). */
+function ActivityFeed<K extends string>({
+  emptyMessage,
+  items,
+  renderIcon,
+}: {
+  emptyMessage: string;
+  items: ActivityItem<K>[];
+  renderIcon: (kind: K) => React.ReactNode;
+}) {
+  if (items.length === 0) {
+    return <p className="mt-4 text-sm text-muted">{emptyMessage}</p>;
+  }
+  return (
+    <ul className="mt-4 flex flex-col divide-y divide-border">
+      {items.map((item) => (
+        <li key={item.id}>
+          <Link
+            href={item.href}
+            className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-ivory-dim/60"
+          >
+            {renderIcon(item.kind)}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-forest">{item.title}</p>
+              <p className="text-xs text-muted">{item.detail}</p>
+            </div>
+            <span className="shrink-0 text-xs text-muted">{timeAgo(item.timestamp)}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
