@@ -535,6 +535,95 @@ export type PriceQuoteInsert = Partial<Omit<PriceQuote, "id" | "created_at">> & 
 };
 export type PriceQuoteUpdate = Partial<Omit<PriceQuote, "id" | "created_at">>;
 
+// Shared draft/testing/published/archived workflow for Rituals and Cards
+// (Kártyák / Rituálék menu) — see the "Rituals + Cards" block in
+// schema.sql for the full versioning story.
+export type ContentStatus = "draft" | "testing" | "published" | "archived";
+
+export interface RitualSnapshot {
+  name: string;
+  category: string | null;
+  duration_minutes: number | null;
+  steps: string[];
+}
+// One entry per save that changed the record — `snapshot` is null for a
+// status-only change (no content edit), so the history stays a true log
+// of every version *and* every status transition without duplicating
+// content on a trivial status flip. Never overwritten, only appended to
+// (see components/ContentVersionHistoryModal.tsx).
+export interface RitualVersionEntry {
+  version: string;
+  status: ContentStatus;
+  changed_at: string;
+  snapshot: RitualSnapshot | null;
+}
+
+export interface Ritual {
+  id: string;
+  name: string;
+  category: string | null;
+  duration_minutes: number | null;
+  steps: string[];
+  status: ContentStatus;
+  version: string;
+  version_history: RitualVersionEntry[];
+  created_at: string;
+  updated_at: string;
+}
+export type RitualInsert = Partial<Omit<Ritual, "id" | "created_at" | "updated_at">> & {
+  name: string;
+};
+export type RitualUpdate = Partial<Omit<Ritual, "id" | "created_at" | "updated_at">>;
+
+export interface CardSnapshot {
+  title: string;
+  category: string | null;
+  question: string | null;
+  short_description: string | null;
+  deep_question: string | null;
+  ritual_id: string | null;
+  duration_minutes: number | null;
+  energy: string | null;
+  depth: string | null;
+  mode: string | null;
+  nfc_id: string | null;
+  qr_url: string | null;
+  journey: string | null;
+}
+export interface CardVersionEntry {
+  version: string;
+  status: ContentStatus;
+  changed_at: string;
+  snapshot: CardSnapshot | null;
+}
+
+export interface ContentCard {
+  id: string;
+  card_number: number;
+  title: string;
+  category: string | null;
+  question: string | null;
+  short_description: string | null;
+  deep_question: string | null;
+  ritual_id: string | null;
+  duration_minutes: number | null;
+  energy: string | null;
+  depth: string | null;
+  mode: string | null;
+  nfc_id: string | null;
+  qr_url: string | null;
+  journey: string | null;
+  status: ContentStatus;
+  version: string;
+  version_history: CardVersionEntry[];
+  created_at: string;
+  updated_at: string;
+}
+export type ContentCardInsert = Partial<Omit<ContentCard, "id" | "card_number" | "created_at" | "updated_at">> & {
+  title: string;
+};
+export type ContentCardUpdate = Partial<Omit<ContentCard, "id" | "card_number" | "created_at" | "updated_at">>;
+
 export type LandingLang = "de" | "en";
 
 export interface LandingLetter {
@@ -933,6 +1022,18 @@ export interface Database {
         Update: ServiceAccountUpdate;
         Relationships: [];
       };
+      rituals: {
+        Row: Ritual;
+        Insert: RitualInsert;
+        Update: RitualUpdate;
+        Relationships: [];
+      };
+      cards: {
+        Row: ContentCard;
+        Insert: ContentCardInsert;
+        Update: ContentCardUpdate;
+        Relationships: [];
+      };
       calendar_events: {
         Row: CalendarEvent;
         Insert: CalendarEventInsert;
@@ -1054,4 +1155,6 @@ export const ANON_TABLE_NAMES = [
   "email_unsubscribes",
   "company_settings",
   "service_accounts",
+  "rituals",
+  "cards",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];

@@ -16,6 +16,7 @@ import type {
   PaymentMethod,
   BudgetPeriod,
   InvoiceStatus,
+  ContentStatus,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -166,6 +167,35 @@ export const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
   Kiállítva: "bg-forest-light/15 text-forest",
   Kifizetve: "bg-forest/10 text-forest",
 };
+
+// Shared draft/testing/published/archived workflow — Kártyák (cards) és
+// Rituálék (rituals). Archived intentionally reuses draft's neutral
+// ivory-dim background but with muted (not walnut) text, so it doesn't
+// read as "still a draft" at a glance.
+export const CONTENT_STATUSES: ContentStatus[] = ["draft", "testing", "published", "archived"];
+export const CONTENT_STATUS_HU: Record<ContentStatus, string> = {
+  draft: "Piszkozat",
+  testing: "Tesztelés",
+  published: "Publikálva",
+  archived: "Archiválva",
+};
+export const CONTENT_STATUS_STYLES: Record<ContentStatus, string> = {
+  draft: "bg-ivory-dim text-walnut",
+  testing: "bg-bronze/15 text-walnut",
+  published: "bg-forest/10 text-forest",
+  archived: "bg-ivory-dim text-muted",
+};
+
+// Starting suggestions only — every one of these fields is free text
+// (a founder can type anything), these just seed the datalist so the
+// first few cards/rituals don't start from a totally blank field. Same
+// convention as EXPENSE_CATEGORIES/PAYMENT_METHODS above.
+export const CARD_CATEGORY_SUGGESTIONS = ["RECONNECT", "PLAYFUL", "DEEP", "GRATITUDE", "TRUST"];
+export const CARD_ENERGY_SUGGESTIONS = ["Nyugodt", "Játékos", "Intenzív", "Gyengéd"];
+export const CARD_DEPTH_SUGGESTIONS = ["Felszínes", "Közepes", "Mély"];
+export const CARD_MODE_SUGGESTIONS = ["Beszélgetés", "Csend", "Fizikai érintés", "Írás"];
+export const CARD_JOURNEY_SUGGESTIONS = ["Ismerkedés", "Elmélyülés", "Elköteleződés"];
+export const RITUAL_CATEGORY_SUGGESTIONS = CARD_CATEGORY_SUGGESTIONS;
 
 // The grammatical unit word for "Minden {n}. ___" — e.g. interval 2 +
 // Heti → "Minden 2. hét" (every 2nd week = biweekly).
