@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import CommandPalette from "@/components/CommandPalette";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import {
@@ -64,6 +65,7 @@ export default function Nav() {
         <Brand />
         <div className="flex items-center gap-1">
           <NotificationBell />
+          <UserMenu onNavigate={() => setOpen(false)} />
           <button
             onClick={() => setOpen((v) => !v)}
             aria-label="Navigáció megnyitása/bezárása"
@@ -91,7 +93,10 @@ export default function Nav() {
         >
           <div className="hidden items-center justify-between px-6 py-7 lg:flex">
             <Brand />
-            <NotificationBell />
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <UserMenu />
+            </div>
           </div>
 
           <div className="px-3 pb-2 lg:px-4">

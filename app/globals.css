@@ -157,6 +157,19 @@ h1, h2, h3, h4, .font-serif {
   box-shadow: 0 0 0 3px rgba(176, 138, 82, 0.18);
 }
 
+/* Keyboard-navigation focus ring — everything clickable (buttons, links,
+   nav items, icon-only close buttons, clickable cards) gets the same
+   bronze ring as form fields above. :focus-visible only (not plain
+   :focus), so a mouse click never shows it, only Tab/keyboard focus —
+   the browser's own heuristic for "was this focused by keyboard". */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--bronze);
+  outline-offset: 2px;
+  border-radius: 0.3rem;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

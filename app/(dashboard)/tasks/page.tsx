@@ -33,7 +33,7 @@ import BackButton from "@/components/BackButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
-import { PRIORITY_HU, TASK_TYPES, TASK_TYPE_STYLES, TASK_TYPE_ICON } from "@/lib/labels";
+import { PRIORITY_HU, PRIORITY_STYLES, TASK_TYPES, TASK_TYPE_STYLES, TASK_TYPE_ICON } from "@/lib/labels";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import { runRecurringTemplateCheck } from "@/lib/recurring-templates";
 
@@ -99,12 +99,6 @@ function exportTasksCSV(tasks: TaskItem[], campaignById: Map<string, Campaign>) 
 
 const STATUS_COLUMNS: TaskStatus[] = ["Várakozás", "Teendő", "Folyamatban", "Kész"];
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
-
-const PRIORITY_STYLES: Record<TaskPriority, string> = {
-  Low: "bg-forest/10 text-forest",
-  Medium: "bg-bronze/15 text-walnut",
-  High: "bg-red-100 text-red-700",
-};
 
 // Kanban board grouping — "status" is the original 3-column board
 // (Teendő/Folyamatban/Kész); "type" regroups the same tasks into

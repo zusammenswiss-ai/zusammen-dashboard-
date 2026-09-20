@@ -4,14 +4,8 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Campaign, TaskItem, TaskTemplate, TaskType } from "@/lib/supabase/types";
-import { PRIORITY_HU, TEMPLATE_CATEGORY_ORDER, TASK_TYPES, groupByCategory } from "@/lib/labels";
+import { PRIORITY_HU, PRIORITY_STYLES, TEMPLATE_CATEGORY_ORDER, TASK_TYPES, groupByCategory } from "@/lib/labels";
 import BackButton from "@/components/BackButton";
-
-const PRIORITY_STYLES: Record<string, string> = {
-  Low: "bg-forest/10 text-forest",
-  Medium: "bg-bronze/15 text-walnut",
-  High: "bg-red-100 text-red-700",
-};
 
 function addDaysISO(days: number): string {
   const d = new Date();
