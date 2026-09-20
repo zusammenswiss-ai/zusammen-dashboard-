@@ -5,6 +5,7 @@ import { Plus, Trash2, FileDown, FileText, Check, Settings2 } from "lucide-react
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CompanySettings, CurrencyCode, Invoice, InvoiceItem, Revenue } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
+import StickyFormActions from "@/components/StickyFormActions";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
 import { INVOICE_STATUS_STYLES } from "@/lib/labels";
@@ -432,14 +433,14 @@ function InvoiceForm({
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
+      <StickyFormActions>
         <button type="submit" disabled={saving} className="btn btn-primary">
           {saving ? "Mentés…" : "Számla létrehozása (Piszkozat)"}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Mégse
         </button>
-      </div>
+      </StickyFormActions>
     </form>
   );
 }

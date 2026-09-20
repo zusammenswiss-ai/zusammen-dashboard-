@@ -5,6 +5,8 @@ import { Stamp, Lock, History, X } from "lucide-react";
 import type { UnlockHistoryEntry } from "@/lib/supabase/types";
 import { formatDate } from "@/lib/format";
 import BackButton from "@/components/BackButton";
+import ShowMoreButton from "@/components/ShowMoreButton";
+import { useShowMore } from "@/lib/useShowMore";
 
 /**
  * "Rögzítés lezárása" / "Zárolás feloldása" — shared between Fix/Változó
@@ -39,6 +41,8 @@ export default function LockControls({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reversedHistory = [...unlockHistory].reverse();
+  const { visible: visibleHistory, hiddenCount, showAll, setShowAll } = useShowMore(reversedHistory, 8);
 
   async function handleLock(e: React.MouseEvent) {
     e.stopPropagation();
@@ -111,8 +115,11 @@ export default function LockControls({
           className="fixed inset-0 z-50 flex items-center justify-center bg-forest/40 px-4 py-8 backdrop-blur-[2px]"
           onClick={() => setShowUnlockConfirm(false)}
         >
-          <div className="animate-fade-in card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3">
+          <div
+            className="animate-fade-in card flex max-h-full w-full max-w-sm flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 p-5 pb-0">
               <h3 className="font-serif text-base text-forest">Zárolás feloldása</h3>
               <button
                 onClick={() => setShowUnlockConfirm(false)}
@@ -122,20 +129,22 @@ export default function LockControls({
                 <X size={16} />
               </button>
             </div>
-            <BackButton onClick={() => setShowUnlockConfirm(false)} label="Vissza" />
-            <p className="text-sm text-muted">
-              Biztosan feloldod ezt a rögzített tételt? Ez a módosítás nyoma megmarad.
-            </p>
-            <label className="mt-3 block text-xs font-medium text-muted">Miért oldod fel? (opcionális)</label>
-            <textarea
-              className="textarea mt-1 min-h-16 text-sm"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="pl. elírás javítása"
-              autoFocus
-            />
-            {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-            <div className="mt-3 flex gap-2">
+            <div className="flex-1 overflow-y-auto p-5">
+              <BackButton onClick={() => setShowUnlockConfirm(false)} label="Vissza" />
+              <p className="text-sm text-muted">
+                Biztosan feloldod ezt a rögzített tételt? Ez a módosítás nyoma megmarad.
+              </p>
+              <label className="mt-3 block text-xs font-medium text-muted">Miért oldod fel? (opcionális)</label>
+              <textarea
+                className="textarea mt-1 min-h-16 text-sm"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="pl. elírás javítása"
+                autoFocus
+              />
+              {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+            </div>
+            <div className="flex gap-2 border-t border-border p-4">
               <button
                 type="button"
                 disabled={saving}
@@ -157,8 +166,11 @@ export default function LockControls({
           className="fixed inset-0 z-50 flex items-center justify-center bg-forest/40 px-4 py-8 backdrop-blur-[2px]"
           onClick={() => setShowHistory(false)}
         >
-          <div className="animate-fade-in card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3">
+          <div
+            className="animate-fade-in card flex max-h-full w-full max-w-sm flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 p-5 pb-0">
               <h3 className="flex items-center gap-1.5 font-serif text-base text-forest">
                 <History size={15} className="text-bronze" /> Módosítási előzmény
               </h3>
@@ -170,15 +182,20 @@ export default function LockControls({
                 <X size={16} />
               </button>
             </div>
-            <BackButton onClick={() => setShowHistory(false)} label="Vissza" />
-            <ul className="flex flex-col gap-2 text-sm">
-              {[...unlockHistory].reverse().map((entry, i) => (
-                <li key={i} className="rounded-md bg-ivory-dim px-3 py-2">
-                  <p className="text-xs text-muted">{formatDate(entry.unlocked_at)}</p>
-                  <p className="text-forest">{entry.reason || "Nincs megadva indoklás."}</p>
-                </li>
-              ))}
-            </ul>
+            <div className="flex-1 overflow-y-auto p-5">
+              <BackButton onClick={() => setShowHistory(false)} label="Vissza" />
+              <ul className="flex flex-col gap-2 text-sm">
+                {visibleHistory.map((entry, i) => (
+                  <li key={i} className="rounded-md bg-ivory-dim px-3 py-2">
+                    <p className="text-xs text-muted">{formatDate(entry.unlocked_at)}</p>
+                    <p className="text-forest">{entry.reason || "Nincs megadva indoklás."}</p>
+                  </li>
+                ))}
+              </ul>
+              {hiddenCount > 0 && (
+                <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+              )}
+            </div>
           </div>
         </div>
       )}

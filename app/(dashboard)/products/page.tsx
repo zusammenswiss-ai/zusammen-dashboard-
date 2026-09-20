@@ -26,6 +26,7 @@ import UndoToast from "@/components/UndoToast";
 import Lightbox from "@/components/Lightbox";
 import BackButton from "@/components/BackButton";
 import SearchBar from "@/components/SearchBar";
+import StickyFormActions from "@/components/StickyFormActions";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
@@ -447,14 +448,14 @@ export default function ProductsPage() {
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
+      <StickyFormActions>
         <button type="submit" disabled={saving} className="btn btn-primary">
           {saving ? "Mentés…" : editingId ? "Mentés" : "Termék létrehozása"}
         </button>
         <button type="button" className="btn btn-ghost" onClick={resetForm}>
           Mégse
         </button>
-      </div>
+      </StickyFormActions>
     </>
   );
 
