@@ -2075,3 +2075,64 @@ create trigger set_updated_at before update on public.collection_cards
 -- products.collection_id — a Termékek egy bejegyzését (pl. Pear
 -- Edition) a hozzá tartozó Kártyatervező Kollekcióhoz köti.
 alter table public.products add column if not exists collection_id uuid references public.card_collections(id) on delete set null;
+
+-- =====================================================================
+-- Kártyatervező — 2. fázis: az egyszerű vizuális Kártyaszerkesztő adatai.
+-- Egy kártya "design"-ja (háttérszín, kép/logó pozíció+méret, szöveg
+-- betűméret+igazítás) a collection_cards saját soraiba kerül — a
+-- SZÖVEG maga már ott van (text_hu/text_de/text_en, 1. fázis), ez csak
+-- azt írja le, HOGYAN jelenjen meg. A hátlap-design egy közös,
+-- kollekció-szintű mező (lásd a founderrel egyeztetett döntést: egy
+-- hátlap az egész kollekcióhoz, kártyánkénti felülírás nélkül egyelőre)
+-- — nincs saját szövege, csak háttér+kép, ezért a card_collections
+-- táblán él, nem egy külön táblában.
+-- =====================================================================
+alter table public.collection_cards add column if not exists background_color text;
+alter table public.collection_cards add column if not exists text_font_size integer not null default 48;
+alter table public.collection_cards add column if not exists text_align text not null default 'center';
+alter table public.collection_cards add column if not exists image_url text;
+-- Kép közép-pontjának pozíciója a vászon (bleed terület) arányában,
+-- 0-1 között (0.5/0.5 = középre) — nem abszolút pixel, hogy a sablon
+-- méretének változtatása ne törje el a már elmentett pozíciókat.
+alter table public.collection_cards add column if not exists image_x numeric not null default 0.5;
+alter table public.collection_cards add column if not exists image_y numeric not null default 0.5;
+-- A kép szélessége a vászon szélességének arányában (1 = a vászon
+-- teljes szélessége) — a magasság ebből az eredeti képarány alapján
+-- számolódik ki app-oldalon.
+alter table public.collection_cards add column if not exists image_scale numeric not null default 0.3;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'collection_cards_text_align_check'
+  ) then
+    alter table public.collection_cards
+      add constraint collection_cards_text_align_check
+      check (text_align in ('left', 'center', 'right'));
+  end if;
+end $$;
+
+alter table public.card_collections add column if not exists back_background_color text;
+alter table public.card_collections add column if not exists back_image_url text;
+alter table public.card_collections add column if not exists back_image_x numeric not null default 0.5;
+alter table public.card_collections add column if not exists back_image_y numeric not null default 0.5;
+alter table public.card_collections add column if not exists back_image_scale numeric not null default 0.3;
+
+-- Storage — bucket for a Kártyaszerkesztőben feltöltött kép/logó fájlok
+insert into storage.buckets (id, name, public)
+values ('card-designer', 'card-designer', true)
+on conflict (id) do nothing;
+
+update storage.buckets set public = false where id = 'card-designer';
+
+drop policy if exists "card-designer bucket anon read" on storage.objects;
+drop policy if exists "card-designer bucket authenticated read" on storage.objects;
+create policy "card-designer bucket authenticated read"
+  on storage.objects for select
+  using (bucket_id = 'card-designer' and auth.uid() is not null);
+
+drop policy if exists "card-designer bucket anon write" on storage.objects;
+drop policy if exists "card-designer bucket authenticated write" on storage.objects;
+create policy "card-designer bucket authenticated write"
+  on storage.objects for insert
+  with check (bucket_id = 'card-designer' and auth.uid() is not null);

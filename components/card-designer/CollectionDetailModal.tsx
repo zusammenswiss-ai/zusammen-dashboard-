@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Trash2, Plus, Pencil, Wand2, Check } from "lucide-react";
+import { X, Trash2, Plus, Pencil, Wand2, Check, Palette } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type {
   CardCollection,
@@ -13,6 +13,7 @@ import type {
 import BackButton from "@/components/BackButton";
 import EmptyState from "@/components/EmptyState";
 import StickyFormActions from "@/components/StickyFormActions";
+import CardCanvasEditor, { type CardDesign } from "@/components/card-designer/CardCanvasEditor";
 import { errorMessage } from "@/lib/errors";
 import { suggestCardNumber } from "@/lib/card-template";
 import { CARD_COLLECTION_STATUSES, CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES, LANGUAGE_OPTIONS } from "@/lib/labels";
@@ -54,6 +55,11 @@ export default function CollectionDetailModal({
   const [metaError, setMetaError] = useState<string | null>(null);
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [designCardId, setDesignCardId] = useState<string | null>(null);
+  const [showBackEditor, setShowBackEditor] = useState(false);
+
+  const selectedTemplate = templates.find((t) => t.id === meta.template_id) ?? null;
+  const designCard = designCardId ? cards.find((c) => c.id === designCardId) ?? null : null;
 
   function toggleLanguage(lang: string) {
     setMeta((f) => ({
@@ -93,6 +99,46 @@ export default function CollectionDetailModal({
       setMetaError(errorMessage(error, "Nem sikerült menteni a kollekciót."));
       return;
     }
+    if (data) onCollectionSaved(data);
+  }
+
+  async function saveCardDesign(card: CollectionCard, design: CardDesign) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("collection_cards")
+      .update({
+        background_color: design.background_color,
+        image_url: design.image_url,
+        image_x: design.image_x,
+        image_y: design.image_y,
+        image_scale: design.image_scale,
+        text_font_size: design.text_font_size,
+        text_align: design.text_align,
+      })
+      .eq("id", card.id)
+      .select()
+      .single();
+    if (error) throw error;
+    if (data) onCardsChange(cards.map((x) => (x.id === data.id ? data : x)));
+  }
+
+  async function saveBackDesign(design: CardDesign) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("card_collections")
+      .update({
+        back_background_color: design.background_color,
+        back_image_url: design.image_url,
+        back_image_x: design.image_x,
+        back_image_y: design.image_y,
+        back_image_scale: design.image_scale,
+      })
+      .eq("id", collection.id)
+      .select()
+      .single();
+    if (error) throw error;
     if (data) onCollectionSaved(data);
   }
 
@@ -231,14 +277,20 @@ export default function CollectionDetailModal({
               </div>
             </div>
             {metaError && <p className="mt-3 text-xs text-red-600">{metaError}</p>}
-            <button
-              type="button"
-              onClick={() => void saveMeta()}
-              disabled={metaSaving}
-              className="btn btn-primary mt-3"
-            >
-              <Check size={14} /> {metaSaving ? "Mentés…" : "Adatok mentése"}
-            </button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => void saveMeta()} disabled={metaSaving} className="btn btn-primary">
+                <Check size={14} /> {metaSaving ? "Mentés…" : "Adatok mentése"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBackEditor(true)}
+                disabled={!selectedTemplate}
+                title={selectedTemplate ? undefined : "Előbb válassz sablont"}
+                className="btn btn-ghost"
+              >
+                <Palette size={14} /> Hátlap szerkesztése
+              </button>
+            </div>
           </div>
 
           <div className="mb-3 flex items-center justify-between">
@@ -292,10 +344,12 @@ export default function CollectionDetailModal({
                   <CardRow
                     key={c.id}
                     card={c}
+                    canDesign={Boolean(selectedTemplate)}
                     onEdit={() => {
                       setShowCardForm(false);
                       setEditingCardId(c.id);
                     }}
+                    onDesign={() => setDesignCardId(c.id)}
                     onDelete={() => deleteCard(c)}
                   />
                 )
@@ -313,11 +367,76 @@ export default function CollectionDetailModal({
           </button>
         </div>
       </div>
+
+      {designCard && selectedTemplate && (
+        <CardCanvasEditor
+          template={selectedTemplate}
+          title={`Kártya tervezése — ${designCard.card_number}`}
+          showText
+          previewTexts={
+            meta.languages.length > 0
+              ? meta.languages
+                  .filter((lang) => lang === "HU" || lang === "DE" || lang === "EN")
+                  .map((lang) => ({ code: lang, text: textForLanguage(designCard, lang) }))
+              : [{ code: "Szöveg", text: designCard.text_hu ?? "" }]
+          }
+          design={{
+            background_color: designCard.background_color,
+            image_url: designCard.image_url,
+            image_x: designCard.image_x,
+            image_y: designCard.image_y,
+            image_scale: designCard.image_scale,
+            text_font_size: designCard.text_font_size,
+            text_align: designCard.text_align,
+          }}
+          onSave={(design) => saveCardDesign(designCard, design)}
+          onClose={() => setDesignCardId(null)}
+        />
+      )}
+
+      {showBackEditor && selectedTemplate && (
+        <CardCanvasEditor
+          template={selectedTemplate}
+          title="Hátlap tervezése"
+          showText={false}
+          previewTexts={[]}
+          design={{
+            background_color: collection.back_background_color,
+            image_url: collection.back_image_url,
+            image_x: collection.back_image_x,
+            image_y: collection.back_image_y,
+            image_scale: collection.back_image_scale,
+            text_font_size: 48,
+            text_align: "center",
+          }}
+          onSave={saveBackDesign}
+          onClose={() => setShowBackEditor(false)}
+        />
+      )}
     </div>
   );
 }
 
-function CardRow({ card, onEdit, onDelete }: { card: CollectionCard; onEdit: () => void; onDelete: () => void }) {
+function textForLanguage(card: CollectionCard, lang: string): string {
+  if (lang === "HU") return card.text_hu ?? "";
+  if (lang === "DE") return card.text_de ?? "";
+  if (lang === "EN") return card.text_en ?? "";
+  return "";
+}
+
+function CardRow({
+  card,
+  canDesign,
+  onEdit,
+  onDesign,
+  onDelete,
+}: {
+  card: CollectionCard;
+  canDesign: boolean;
+  onEdit: () => void;
+  onDesign: () => void;
+  onDelete: () => void;
+}) {
   const firstText = card.text_hu || card.text_de || card.text_en || "";
   return (
     <div
@@ -329,10 +448,29 @@ function CardRow({ card, onEdit, onDelete }: { card: CollectionCard; onEdit: () 
           <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
           <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
           {card.suit && <span className="badge bg-ivory-dim text-walnut">{card.suit}</span>}
+          {card.background_color && (
+            <span
+              className="inline-block h-3 w-3 rounded-full border border-border"
+              style={{ backgroundColor: card.background_color }}
+              title="Design elmentve"
+            />
+          )}
         </div>
         {firstText && <p className="mt-1 line-clamp-1 text-xs text-muted">{firstText}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDesign();
+          }}
+          disabled={!canDesign}
+          title={canDesign ? "Vizuális tervezés" : "Előbb válassz sablont a kollekciónak"}
+          className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest disabled:opacity-30"
+          aria-label="Vizuális tervezés"
+        >
+          <Palette size={13} />
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
