@@ -56,6 +56,7 @@ function product(overrides: Partial<Product>): Product {
     edition: null,
     status: "Élő",
     card_asset_id: null,
+    collection_id: null,
     supplier_id: null,
     cogs: 10,
     cogs_currency: "CHF",

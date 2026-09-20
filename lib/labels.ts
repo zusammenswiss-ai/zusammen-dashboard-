@@ -17,6 +17,8 @@ import type {
   BudgetPeriod,
   InvoiceStatus,
   ContentStatus,
+  CardCollectionStatus,
+  CollectionCardType,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -198,6 +200,32 @@ export const CONTENT_STATUS_STYLES: Record<ContentStatus, string> = {
   published: "bg-forest/10 text-forest",
   archived: "bg-ivory-dim text-muted",
 };
+
+// Kártyatervező (/card-designer) — same "draft → in progress → advanced
+// → done" brand progression as every other 4/5-stage status badge in
+// this file (Archivált reuses the neutral ivory-dim background with
+// muted text, same convention as Kártyák/Rituálék archived status).
+export const CARD_COLLECTION_STATUSES: CardCollectionStatus[] = [
+  "Tervezés",
+  "Gyártásra kész",
+  "Gyártásban",
+  "Élő",
+  "Archivált",
+];
+export const CARD_COLLECTION_STATUS_STYLES: Record<CardCollectionStatus, string> = {
+  Tervezés: "bg-ivory-dim text-walnut",
+  "Gyártásra kész": "bg-bronze/15 text-walnut",
+  Gyártásban: "bg-forest-light/15 text-forest",
+  Élő: "bg-forest/10 text-forest",
+  Archivált: "bg-ivory-dim text-muted",
+};
+
+export const COLLECTION_CARD_TYPES: CollectionCardType[] = ["Kérdés", "Wild Card", "Gold Card", "Egyéb"];
+
+// Starting list of nyelv-kódok a Kollekció nyelv-választójához — szabad
+// szöveg a séma szintjén (lásd schema.sql), ez csak a form kezdő
+// opciói, egy jövőbeli nyelv kézzel is beírható.
+export const LANGUAGE_OPTIONS = ["HU", "DE", "EN"];
 
 // Starting suggestions only — every one of these fields is free text
 // (a founder can type anything), these just seed the datalist so the

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import JSZip from "jszip";
 import { Plus, Trash2, Archive, Download, ExternalLink, FolderUp, ImageOff, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -368,9 +369,14 @@ export default function CardAssetsPage() {
         title="Kártya-fájlok"
         subtitle="Nyomdakész kártya-fájlok, verziózva és nyelvenként csoportosítva."
         action={
-          <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> Új verzió feltöltése
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/card-designer" className="btn btn-ghost">
+              Kártyatervező megnyitása
+            </Link>
+            <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
+              <Plus size={16} /> Új verzió feltöltése
+            </button>
+          </div>
         }
       />
 
