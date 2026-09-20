@@ -33,6 +33,7 @@ export default function TaskDetailModal({
   // form below, "Rögzítés" saves the patch and re-closes it, so a stray
   // click on the card never edits a task by accident.
   const [locked, setLocked] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
     title: task.title,
     category: task.category ?? "",
@@ -64,6 +65,8 @@ export default function TaskDetailModal({
   }
 
   function save() {
+    if (saving) return;
+    setSaving(true);
     onSave({
       title: draft.title.trim() || task.title,
       category: draft.category.trim() || null,
@@ -283,18 +286,18 @@ export default function TaskDetailModal({
             <Trash2 size={15} /> Törlés
           </button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="btn btn-ghost">
-              Mégse
-            </button>
             {locked ? (
               <button onClick={unlock} className="btn btn-primary">
-                <Lock size={15} /> Feloldás
+                <Unlock size={15} /> Feloldás
               </button>
             ) : (
-              <button onClick={save} className="btn btn-primary">
-                <Unlock size={15} /> Rögzítés
+              <button onClick={save} className="btn btn-primary" disabled={saving}>
+                <Lock size={15} /> {saving ? "Rögzítés…" : "Rögzítés"}
               </button>
             )}
+            <button onClick={onClose} className="btn btn-ghost" disabled={saving}>
+              Mégse
+            </button>
           </div>
         </div>
       </div>

@@ -134,11 +134,11 @@ export default function EmailComposeModal({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-          <button onClick={onClose} className="btn btn-ghost" disabled={sending}>
-            Mégse
-          </button>
           <button onClick={send} className="btn btn-primary" disabled={sending || !to || !subject || !body.trim()}>
             <Send size={15} /> {sending ? "Küldés…" : "Küldés"}
+          </button>
+          <button onClick={onClose} className="btn btn-ghost" disabled={sending}>
+            Mégse
           </button>
         </div>
       </div>

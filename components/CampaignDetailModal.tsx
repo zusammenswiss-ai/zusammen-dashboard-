@@ -51,6 +51,7 @@ export default function CampaignDetailModal({
     description: campaign.description ?? "",
   });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [lightboxAsset, setLightboxAsset] = useState<MarketingAsset | null>(null);
 
   function unlock() {
@@ -64,6 +65,8 @@ export default function CampaignDetailModal({
   }
 
   function commitAndLock() {
+    if (saving) return;
+    setSaving(true);
     onUpdate({
       status: draft.status,
       start_date: draft.start_date || null,
@@ -73,6 +76,7 @@ export default function CampaignDetailModal({
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
     setLocked(true);
+    setSaving(false);
   }
 
   // Every marketing_content row this kampány owns, resolved down to its
@@ -151,7 +155,7 @@ export default function CampaignDetailModal({
                 </div>
                 <div className="mt-3 flex justify-end">
                   <button onClick={unlock} className="btn btn-ghost text-xs">
-                    <Lock size={13} /> Feloldás szerkesztéshez
+                    <Unlock size={13} /> Feloldás szerkesztéshez
                   </button>
                 </div>
               </>
@@ -201,11 +205,11 @@ export default function CampaignDetailModal({
                   />
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button onClick={() => setLocked(true)} className="btn btn-ghost text-xs">
-                    Mégse
+                  <button onClick={commitAndLock} className="btn btn-bronze text-xs" disabled={saving}>
+                    <Lock size={13} /> {saving ? "Rögzítés…" : "Rögzítés"}
                   </button>
-                  <button onClick={commitAndLock} className="btn btn-bronze text-xs">
-                    <Unlock size={13} /> Rögzítés
+                  <button onClick={() => setLocked(true)} className="btn btn-ghost text-xs" disabled={saving}>
+                    Mégse
                   </button>
                 </div>
               </>
