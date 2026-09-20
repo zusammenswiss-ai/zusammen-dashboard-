@@ -56,10 +56,10 @@ export default function CampaignFormModal({
       onClick={onClose}
     >
       <div
-        className="animate-fade-in card flex w-full max-w-sm flex-col gap-3 p-5"
+        className="animate-fade-in card flex max-h-full w-full max-w-sm flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between p-5 pb-0">
           <h2 className="font-serif text-lg text-forest">Új kampány</h2>
           <button
             onClick={onClose}
@@ -69,32 +69,34 @@ export default function CampaignFormModal({
             <X size={18} />
           </button>
         </div>
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <BackButton onClick={onClose} label="Vissza" />
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Kampány neve *</label>
-            <input
-              className="input"
-              required
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder='pl. "ZUSAMMEN FIRST 20"'
-            />
+        <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5">
+            <BackButton onClick={onClose} label="Vissza" />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Kampány neve *</label>
+              <input
+                className="input"
+                required
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder='pl. "ZUSAMMEN FIRST 20"'
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Évszak</label>
+              <select className="select" value={season} onChange={(e) => setSeason(e.target.value as Season | "")}>
+                <option value="">Nincs</option>
+                {SEASON_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {SEASON_HU[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Évszak</label>
-            <select className="select" value={season} onChange={(e) => setSeason(e.target.value as Season | "")}>
-              <option value="">Nincs</option>
-              {SEASON_ORDER.map((s) => (
-                <option key={s} value={s}>
-                  {SEASON_HU[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
-          <div className="flex gap-2">
+          <div className="flex gap-2 border-t border-border p-4">
             <button type="submit" disabled={saving} className="btn btn-primary">
               {saving ? "Mentés…" : "Kampány létrehozása"}
             </button>

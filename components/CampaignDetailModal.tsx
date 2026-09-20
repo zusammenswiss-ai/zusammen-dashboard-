@@ -204,14 +204,6 @@ export default function CampaignDetailModal({
                     placeholder="Rövid összefoglaló, mi ez a kampány…"
                   />
                 </div>
-                <div className="mt-3 flex justify-end gap-2">
-                  <button onClick={commitAndLock} className="btn btn-bronze text-xs" disabled={saving}>
-                    <Lock size={13} /> {saving ? "Rögzítés…" : "Rögzítés"}
-                  </button>
-                  <button onClick={() => setLocked(true)} className="btn btn-ghost text-xs" disabled={saving}>
-                    Mégse
-                  </button>
-                </div>
               </>
             )}
           </div>
@@ -300,6 +292,17 @@ export default function CampaignDetailModal({
             </div>
           )}
         </div>
+
+        {!locked && (
+          <div className="flex justify-end gap-2 border-t border-border p-4">
+            <button onClick={commitAndLock} className="btn btn-bronze text-xs" disabled={saving}>
+              <Lock size={13} /> {saving ? "Rögzítés…" : "Rögzítés"}
+            </button>
+            <button onClick={() => setLocked(true)} className="btn btn-ghost text-xs" disabled={saving}>
+              Mégse
+            </button>
+          </div>
+        )}
       </div>
 
       {lightboxAsset?.image_url && signedUrls.get(lightboxAsset.image_url) && (

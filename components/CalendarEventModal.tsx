@@ -73,40 +73,42 @@ export default function CalendarEventModal({
           </button>
         </div>
 
-        <form onSubmit={save} className="flex flex-col gap-3 p-5">
-          <BackButton onClick={onClose} label="Vissza a naptárhoz" />
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
-            <input
-              className="input"
-              required
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="pl. Ügyfél megbeszélés"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={save} className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5">
+            <BackButton onClick={onClose} label="Vissza a naptárhoz" />
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Dátum *</label>
-              <input type="date" className="input" required value={date} onChange={(e) => setDate(e.target.value)} />
+              <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
+              <input
+                className="input"
+                required
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="pl. Ügyfél megbeszélés"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">Dátum *</label>
+                <input type="date" className="input" required value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">Időpont</label>
+                <input className="input" value={time} onChange={(e) => setTime(e.target.value)} placeholder="pl. 14:00" />
+              </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Időpont</label>
-              <input className="input" value={time} onChange={(e) => setTime(e.target.value)} placeholder="pl. 14:00" />
+              <label className="mb-1 block text-xs font-medium text-muted">Jegyzet</label>
+              <textarea
+                className="textarea min-h-16"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Opcionális…"
+              />
             </div>
+            {error && <ErrorBanner message={error} />}
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Jegyzet</label>
-            <textarea
-              className="textarea min-h-16"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Opcionális…"
-            />
-          </div>
-          {error && <ErrorBanner message={error} />}
-          <div className="flex gap-2">
+          <div className="flex gap-2 border-t border-border p-4">
             <button type="submit" disabled={saving} className="btn btn-primary">
               {saving ? "Mentés…" : "Mentés"}
             </button>

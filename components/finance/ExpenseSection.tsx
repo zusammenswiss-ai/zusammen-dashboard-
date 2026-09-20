@@ -16,6 +16,7 @@ import EmptyState from "@/components/EmptyState";
 import LockControls from "@/components/finance/LockControls";
 import UndoToast from "@/components/UndoToast";
 import SearchBar from "@/components/SearchBar";
+import StickyFormActions from "@/components/StickyFormActions";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
@@ -643,14 +644,14 @@ function ExpenseForm({
         />
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
+      <StickyFormActions>
         <button type="submit" disabled={saving} className="btn btn-primary">
           {saving ? "Mentés…" : "Költség mentése"}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Mégse
         </button>
-      </div>
+      </StickyFormActions>
     </form>
   );
 }

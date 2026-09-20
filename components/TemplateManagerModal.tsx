@@ -358,16 +358,10 @@ export default function TemplateManagerModal({
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? "Mentés…" : editingId ? "Mentés" : "Sablon létrehozása"}
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={resetForm}>
-          Mégse
-        </button>
-      </div>
     </>
   );
+
+  const showingForm = Boolean(editingId) || showForm;
 
   return (
     <>
@@ -393,7 +387,7 @@ export default function TemplateManagerModal({
           <div className="flex-1 overflow-y-auto p-5">
             <BackButton onClick={onClose} label="Vissza a feladatokhoz" />
             {editingId && (
-              <form onSubmit={saveEdit} className="card mb-5 flex flex-col gap-3 p-4">
+              <form id="template-form" onSubmit={saveEdit} className="card mb-5 flex flex-col gap-3 p-4">
                 <p className="text-xs font-medium text-bronze">Sablon szerkesztése</p>
                 {formFields}
               </form>
@@ -401,7 +395,7 @@ export default function TemplateManagerModal({
 
             {!editingId &&
               (showForm ? (
-                <form onSubmit={createTemplate} className="card mb-5 flex flex-col gap-3 p-4">
+                <form id="template-form" onSubmit={createTemplate} className="card mb-5 flex flex-col gap-3 p-4">
                   {formFields}
                 </form>
               ) : (
@@ -469,6 +463,17 @@ export default function TemplateManagerModal({
               </div>
             )}
           </div>
+
+          {showingForm && (
+            <div className="flex gap-2 border-t border-border p-4">
+              <button type="submit" form="template-form" disabled={saving} className="btn btn-primary">
+                {saving ? "Mentés…" : editingId ? "Mentés" : "Sablon létrehozása"}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={resetForm}>
+                Mégse
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
