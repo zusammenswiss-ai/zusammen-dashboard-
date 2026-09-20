@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
-import { Plus, Trash2, Archive, Download, FolderUp, ImageOff, Search } from "lucide-react";
+import { Plus, Trash2, Archive, Download, ExternalLink, FolderUp, ImageOff, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CardAsset, PriceQuote, PrintStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -16,7 +16,7 @@ import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
-import { openFileLabel } from "@/lib/file-open";
+import { openFileLabel, isPreviewableInBrowser } from "@/lib/file-open";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
 import { PRINT_STATUSES, PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 import { errorMessage } from "@/lib/errors";
@@ -710,7 +710,7 @@ function CardAssetLanguageGroup({
                   aria-label={openFileLabel(asset.file_url)}
                   title={openFileLabel(asset.file_url)}
                 >
-                  <Download size={15} />
+                  {isPreviewableInBrowser(asset.file_url) ? <ExternalLink size={15} /> : <Download size={15} />}
                 </a>
                 <button
                   onClick={(e) => {

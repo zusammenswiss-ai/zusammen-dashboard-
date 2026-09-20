@@ -6,6 +6,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type { LegalDocument, UnlockHistoryEntry } from "@/lib/supabase/types";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import CollapsibleSection from "@/components/CollapsibleSection";
+import BackButton from "@/components/BackButton";
 import LockControls from "@/components/finance/LockControls";
 import { formatDate } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
@@ -159,7 +160,7 @@ function LegalDocumentRow({
           )}
         </div>
       </button>
-      {isOpen && <LegalDocumentEditor doc={doc} onLock={onLock} onUnlock={onUnlock} onSave={onSave} />}
+      {isOpen && <LegalDocumentEditor doc={doc} onLock={onLock} onUnlock={onUnlock} onSave={onSave} onBack={onToggle} />}
     </div>
   );
 }
@@ -169,11 +170,13 @@ function LegalDocumentEditor({
   onLock,
   onUnlock,
   onSave,
+  onBack,
 }: {
   doc: LegalDocument;
   onLock: () => Promise<void>;
   onUnlock: (reason: string | null) => Promise<void>;
   onSave: (title: string, content: string) => Promise<void>;
+  onBack: () => void;
 }) {
   const [title, setTitle] = useState(doc.title);
   const [content, setContent] = useState(doc.content);
@@ -195,6 +198,7 @@ function LegalDocumentEditor({
 
   return (
     <div className="flex flex-col gap-3 border-t border-border p-4">
+      <BackButton onClick={onBack} label="Vissza a listához" />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted">
           Publikus URL: <code className="rounded bg-ivory-dim px-1 py-0.5">/{doc.slug}</code>

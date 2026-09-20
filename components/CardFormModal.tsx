@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Check, Rocket, QrCode } from "lucide-react";
 import type { ContentCard, ContentStatus } from "@/lib/supabase/types";
+import BackButton from "@/components/BackButton";
 import {
   CONTENT_STATUSES,
   CONTENT_STATUS_HU,
@@ -164,6 +165,7 @@ export default function CardFormModal({
           </button>
         </div>
         <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+          <BackButton onClick={onClose} label="Vissza a listához" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>

@@ -6,6 +6,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type { EmailTemplate, EmailTemplateUpdate } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
 import CollapsibleSection from "@/components/CollapsibleSection";
+import ShowMoreButton from "@/components/ShowMoreButton";
+import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 
@@ -35,6 +37,7 @@ export default function EmailTemplatesSection({
   onUseInCampaign: (id: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(templates, 8);
 
   return (
     <div className="card p-5">
@@ -62,7 +65,7 @@ export default function EmailTemplatesSection({
         <EmptyState icon={FileCode} title="Még nincs feltöltött sablon" description="Tölts fel egy HTML email sablont a kampányokhoz." />
       ) : (
         <div className="flex flex-col gap-2">
-          {templates.map((t) => (
+          {visible.map((t) => (
             <TemplateRow
               key={t.id}
               template={t}
@@ -72,6 +75,9 @@ export default function EmailTemplatesSection({
             />
           ))}
         </div>
+      )}
+      {templates.length > 8 && (
+        <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
       )}
     </div>
   );

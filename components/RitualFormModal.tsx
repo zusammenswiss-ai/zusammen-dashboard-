@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Check, Rocket } from "lucide-react";
 import type { Ritual, ContentStatus } from "@/lib/supabase/types";
+import BackButton from "@/components/BackButton";
 import { CONTENT_STATUSES, CONTENT_STATUS_HU, RITUAL_CATEGORY_SUGGESTIONS } from "@/lib/labels";
 import { bumpVersion } from "@/lib/content-version";
 import RitualStepsEditor from "@/components/RitualStepsEditor";
@@ -97,6 +98,7 @@ export default function RitualFormModal({
           </button>
         </div>
         <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+          <BackButton onClick={onClose} label="Vissza a listához" />
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Név *</label>
             <input
