@@ -394,11 +394,11 @@ export default function SupplierProfileModal({
             <span />
           )}
           <div className="flex gap-2">
-            <button onClick={onClose} className="btn btn-ghost" disabled={saving}>
-              Mégse
-            </button>
             <button onClick={save} className="btn btn-primary" disabled={saving}>
               {saving ? "Mentés…" : "Mentés"}
+            </button>
+            <button onClick={onClose} className="btn btn-ghost" disabled={saving}>
+              Mégse
             </button>
           </div>
         </div>

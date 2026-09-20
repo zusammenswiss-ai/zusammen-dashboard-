@@ -90,7 +90,9 @@ export default function InvoicingTab({
           </span>
           {!billingComplete && <span className="badge bg-yellow-100 text-yellow-800">Hiányos</span>}
         </button>
-        {showSettings && <BillingSettingsForm settings={settings} onSaved={onSettingsSaved} />}
+        {showSettings && (
+          <BillingSettingsForm settings={settings} onSaved={onSettingsSaved} onCancel={() => setShowSettings(false)} />
+        )}
         {!billingComplete && !showSettings && (
           <p className="mt-2 text-xs text-muted">
             Az IBAN és a kiállítói cím nélkül nem generálható QR-számla PDF — kattints a fenti sorra a kitöltéshez.
@@ -165,9 +167,11 @@ export default function InvoicingTab({
 function BillingSettingsForm({
   settings,
   onSaved,
+  onCancel,
 }: {
   settings: CompanySettings | null;
   onSaved: (patch: Partial<CompanySettings>) => void;
+  onCancel: () => void;
 }) {
   const [form, setForm] = useState({
     iban: settings?.iban ?? "",
@@ -177,27 +181,40 @@ function BillingSettingsForm({
     billing_country: settings?.billing_country ?? "CH",
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const supabase = getSupabaseClient();
     if (!supabase) return;
     setSaving(true);
-    if (settings) {
-      await supabase.from("company_settings").update(form).eq("id", settings.id);
-    } else {
-      await supabase.from("company_settings").insert(form);
+    setError(null);
+    try {
+      if (settings) {
+        const { error: updateError } = await supabase.from("company_settings").update(form).eq("id", settings.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase.from("company_settings").insert(form);
+        if (insertError) throw insertError;
+      }
+      onSaved(form);
+    } catch (err) {
+      setError(errorMessage(err, "Nem sikerült menteni a számlázási adatokat."));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    onSaved(form);
   }
 
   return (
     <form onSubmit={save} className="mt-4 grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
+      {error && (
+        <p className="lg:col-span-4 text-xs text-red-600">{error}</p>
+      )}
       <div className="lg:col-span-2">
         <label className="mb-1 block text-xs font-medium text-muted">IBAN *</label>
         <input
           className="input"
+          required
           value={form.iban}
           onChange={(e) => setForm((f) => ({ ...f, iban: e.target.value }))}
           placeholder="CH44 3199 9123 0008 8901 2"
@@ -207,17 +224,28 @@ function BillingSettingsForm({
         <label className="mb-1 block text-xs font-medium text-muted">Utca, házszám *</label>
         <input
           className="input"
+          required
           value={form.billing_street}
           onChange={(e) => setForm((f) => ({ ...f, billing_street: e.target.value }))}
         />
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">Irányítószám *</label>
-        <input className="input" value={form.billing_zip} onChange={(e) => setForm((f) => ({ ...f, billing_zip: e.target.value }))} />
+        <input
+          className="input"
+          required
+          value={form.billing_zip}
+          onChange={(e) => setForm((f) => ({ ...f, billing_zip: e.target.value }))}
+        />
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">Város *</label>
-        <input className="input" value={form.billing_city} onChange={(e) => setForm((f) => ({ ...f, billing_city: e.target.value }))} />
+        <input
+          className="input"
+          required
+          value={form.billing_city}
+          onChange={(e) => setForm((f) => ({ ...f, billing_city: e.target.value }))}
+        />
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">Ország</label>
@@ -228,9 +256,12 @@ function BillingSettingsForm({
           onChange={(e) => setForm((f) => ({ ...f, billing_country: e.target.value.toUpperCase() }))}
         />
       </div>
-      <div className="flex items-end">
+      <div className="flex items-end gap-2">
         <button type="submit" disabled={saving} className="btn btn-primary">
           {saving ? "Mentés…" : "Mentés"}
+        </button>
+        <button type="button" onClick={onCancel} disabled={saving} className="btn btn-ghost">
+          Mégse
         </button>
       </div>
     </form>
