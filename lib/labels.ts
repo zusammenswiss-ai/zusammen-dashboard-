@@ -25,6 +25,19 @@ export const PRIORITY_HU: Record<TaskPriority, string> = {
   High: "Magas",
 };
 
+// Priority/urgency badges — deliberately NOT on the brand ivory-dim→
+// bronze→forest progression used for status-stage badges elsewhere in
+// this file: red for "High"/overdue is a real urgency signal, not a
+// stage, so it stays legible as a warning rather than blending into the
+// brand palette. Shared by Feladatok (Kanban cards) and
+// TemplatePickerModal — was previously duplicated in both, now a single
+// source so the two can't drift out of sync.
+export const PRIORITY_STYLES: Record<TaskPriority, string> = {
+  Low: "bg-forest/10 text-forest",
+  Medium: "bg-bronze/15 text-walnut",
+  High: "bg-red-100 text-red-700",
+};
+
 // task_type is already stored in Hungarian (see the schema check
 // constraint on tasks) — display order, badge color, and an icon prefix
 // for the card badge, same convention as print_status/product status.
