@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Pencil, History, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Trash2, Pencil, History, Sparkles, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Ritual, RitualSnapshot, ContentStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -10,6 +10,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import SearchBar from "@/components/SearchBar";
 import ContentVersionHistoryModal from "@/components/ContentVersionHistoryModal";
 import RitualFormModal, { type RitualFormValues } from "@/components/RitualFormModal";
 import { useUndoAction } from "@/lib/useUndoAction";
@@ -38,6 +39,7 @@ export default function RitualsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingRitual, setEditingRitual] = useState<Ritual | null>(null);
   const [historyRitual, setHistoryRitual] = useState<Ritual | null>(null);
+  const [query, setQuery] = useState("");
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -123,9 +125,15 @@ export default function RitualsPage() {
     );
   }
 
+  const filteredRituals = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rituals;
+    return rituals.filter((r) => r.name.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q));
+  }, [rituals, query]);
+
   const groups = CONTENT_STATUSES.map((status) => ({
     status,
-    items: rituals.filter((r) => r.status === status),
+    items: filteredRituals.filter((r) => r.status === status),
   })).filter((g) => g.items.length > 0);
 
   if (!isSupabaseConfigured) {
@@ -157,6 +165,15 @@ export default function RitualsPage() {
 
       {error && <ErrorBanner message={error} />}
 
+      {!loading && rituals.length > 0 && (
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Rituálék keresése…"
+          className="relative mb-4 w-full max-w-xs"
+        />
+      )}
+
       {loading ? (
         <Spinner />
       ) : rituals.length === 0 ? (
@@ -165,6 +182,8 @@ export default function RitualsPage() {
           title="Még nincs rituálé"
           description="Építs egy lépésről lépésre haladó rituálét, amit aztán kártyákhoz köthetsz."
         />
+      ) : filteredRituals.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ status, items }) => (

@@ -12,6 +12,7 @@ import UndoToast from "@/components/UndoToast";
 import CardAssetDetailModal from "@/components/CardAssetDetailModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
+import SearchBar from "@/components/SearchBar";
 import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
@@ -546,15 +547,12 @@ export default function CardAssetsPage() {
       )}
 
       {!loading && assets.length > 0 && (
-        <div className="relative mb-4 w-full max-w-xs">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            className="input pl-9"
-            placeholder="Kártya-fájlok keresése…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Kártya-fájlok keresése…"
+          className="relative mb-4 w-full max-w-xs"
+        />
       )}
 
       {loading ? (

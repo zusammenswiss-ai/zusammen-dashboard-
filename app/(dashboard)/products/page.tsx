@@ -25,6 +25,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import Lightbox from "@/components/Lightbox";
 import BackButton from "@/components/BackButton";
+import SearchBar from "@/components/SearchBar";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
 import { useUndoAction } from "@/lib/useUndoAction";
@@ -477,12 +478,9 @@ export default function ProductsPage() {
         title="Termékek"
         subtitle="A teljes termékkatalógus — összekötve a Kártya-fájlokkal, a Beszállítókkal és a Pénzügyek kalkulátorral."
         action={
-          !showForm &&
-          !editingId && (
-            <button className="btn btn-bronze" onClick={startCreate}>
-              <Plus size={16} /> Új termék hozzáadása
-            </button>
-          )
+          <button className="btn btn-bronze" onClick={startCreate}>
+            <Plus size={16} /> Új termék hozzáadása
+          </button>
         }
       />
 
@@ -497,18 +495,15 @@ export default function ProductsPage() {
         </form>
       )}
 
-      {!showForm && !editingId && error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} />}
 
-      {!showForm && !editingId && !loading && products.length > 0 && (
-        <div className="relative mb-4 w-full max-w-xs">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            className="input pl-9"
-            placeholder="Termékek keresése…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+      {!loading && products.length > 0 && (
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Termékek keresése…"
+          className="relative mb-4 w-full max-w-xs"
+        />
       )}
 
       {loading ? (
