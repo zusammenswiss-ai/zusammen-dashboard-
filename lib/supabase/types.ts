@@ -174,6 +174,9 @@ export interface Product {
   production_note: string | null;
   image_url: string | null;
   planned_units: number;
+  // Which Kártyatervező Kollekció (if any) this termék tartozik hozzá —
+  // e.g. the Pear Edition product links to its Pear Edition kollekció.
+  collection_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -182,6 +185,70 @@ export type ProductInsert = Partial<Omit<Product, "id" | "created_at" | "updated
 };
 export type ProductUpdate = Partial<Omit<Product, "id" | "created_at">>;
 export type FinanceProductUpdate = Partial<Omit<FinanceProduct, "id" | "created_at">>;
+
+// Kártyatervező (/card-designer) — see the schema.sql comment on
+// card_templates/card_collections/collection_cards for why this is a
+// separate concept from public.cards (the szöveges tartalom-könyvtár).
+export type CardCollectionStatus = "Tervezés" | "Gyártásra kész" | "Gyártásban" | "Élő" | "Archivált";
+export type CollectionCardType = "Kérdés" | "Wild Card" | "Gold Card" | "Egyéb";
+
+export interface CardTemplate {
+  id: string;
+  name: string;
+  manufacturer: string | null;
+  cut_width_in: number;
+  cut_height_in: number;
+  safe_width_in: number;
+  safe_height_in: number;
+  bleed_width_in: number;
+  bleed_height_in: number;
+  dpi: number;
+  created_at: string;
+}
+export type CardTemplateInsert = Partial<Omit<CardTemplate, "id" | "created_at">> & {
+  name: string;
+  cut_width_in: number;
+  cut_height_in: number;
+  safe_width_in: number;
+  safe_height_in: number;
+  bleed_width_in: number;
+  bleed_height_in: number;
+};
+export type CardTemplateUpdate = Partial<Omit<CardTemplate, "id" | "created_at">>;
+
+export interface CardCollection {
+  id: string;
+  name: string;
+  description: string | null;
+  status: CardCollectionStatus;
+  template_id: string | null;
+  languages: string[];
+  created_at: string;
+  updated_at: string;
+}
+export type CardCollectionInsert = Partial<Omit<CardCollection, "id" | "created_at" | "updated_at">> & {
+  name: string;
+};
+export type CardCollectionUpdate = Partial<Omit<CardCollection, "id" | "created_at">>;
+
+export interface CollectionCard {
+  id: string;
+  collection_id: string;
+  card_number: string;
+  suit: string | null;
+  card_type: CollectionCardType;
+  text_hu: string | null;
+  text_de: string | null;
+  text_en: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+export type CollectionCardInsert = Partial<Omit<CollectionCard, "id" | "created_at" | "updated_at">> & {
+  collection_id: string;
+  card_number: string;
+};
+export type CollectionCardUpdate = Partial<Omit<CollectionCard, "id" | "created_at">>;
 
 export type ExpenseType = "Fix költség" | "Változó költség";
 export type PaymentMethod = "Bankkártya" | "Banki átutalás" | "Készpénz" | "Egyéb";
@@ -1077,6 +1144,24 @@ export interface Database {
         Update: ProductUpdate;
         Relationships: [];
       };
+      card_templates: {
+        Row: CardTemplate;
+        Insert: CardTemplateInsert;
+        Update: CardTemplateUpdate;
+        Relationships: [];
+      };
+      card_collections: {
+        Row: CardCollection;
+        Insert: CardCollectionInsert;
+        Update: CardCollectionUpdate;
+        Relationships: [];
+      };
+      collection_cards: {
+        Row: CollectionCard;
+        Insert: CollectionCardInsert;
+        Update: CollectionCardUpdate;
+        Relationships: [];
+      };
       expenses: {
         Row: Expense;
         Insert: ExpenseInsert;
@@ -1175,6 +1260,9 @@ export const ANON_TABLE_NAMES = [
   "demand_link_shares",
   "calendar_events",
   "products",
+  "card_templates",
+  "card_collections",
+  "collection_cards",
   "expenses",
   "revenue",
   "budgets",

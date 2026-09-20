@@ -21,6 +21,7 @@ import {
   Rocket,
   CreditCard,
   Sparkles,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/cards", label: "Kártyák", icon: CreditCard },
       { href: "/rituals", label: "Rituálék", icon: Sparkles },
+      { href: "/card-designer", label: "Kártyatervező", icon: Palette },
       { href: "/card-assets", label: "Kártya-fájlok", icon: Layers },
       { href: "/products", label: "Termékek", icon: Tag },
       { href: "/marketing", label: "Marketing", icon: Megaphone },

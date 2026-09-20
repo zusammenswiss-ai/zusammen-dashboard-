@@ -1976,3 +1976,102 @@ Bármikor jogod van:
 
 Ehhez egyszerűen fordulj hozzánk: [TÖLTSD KI: kontakt@zusammenswiss.ch]. Mivel a leveleket/ígéreteket anonim módon tároljuk, további adatok (pl. hozzávetőleges dátum és szövegrészlet) nélkül sajnos nem tudjuk senkihez sem hozzárendelni őket.'
 where not exists (select 1 from public.legal_documents where type = 'Adatvédelem');
+
+-- =====================================================================
+-- Kártyatervező (/card-designer) — 1. fázis: adatmodell + CRUD.
+-- Deliberately separate from public.cards (a completely different
+-- concept: the tartalom-könyvtár's szöveges kérdés-kártyák, kérdés/mély
+-- kérdés/rituálé-kapcsolat/NFC/QR) — Kártyatervező is the *visual print
+-- design* side: gyártói sablonok (pontos vágott/safe/bleed méret + DPI,
+-- pl. QPMN Skat Size), kollekciók (egymástól független kártyacsomagok,
+-- pl. "Pear Edition") és az egyes kártyák nyelvenkénti szövege. A
+-- vizuális szerkesztő (háttérszín/szövegdoboz/kép pozíció, közös
+-- hátlap-design) és az exportálás/verziókezelés mezői egy későbbi
+-- fázisban, külön migrációban jönnek — nincs értelme most felvenni
+-- olyan oszlopokat, amiket még semmilyen UI nem használ.
+-- =====================================================================
+create table if not exists public.card_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  manufacturer text,
+  cut_width_in numeric(6, 3) not null,
+  cut_height_in numeric(6, 3) not null,
+  safe_width_in numeric(6, 3) not null,
+  safe_height_in numeric(6, 3) not null,
+  bleed_width_in numeric(6, 3) not null,
+  bleed_height_in numeric(6, 3) not null,
+  dpi integer not null default 300,
+  created_at timestamptz not null default now()
+);
+
+alter table public.card_templates enable row level security;
+
+drop policy if exists "anon full access" on public.card_templates;
+drop policy if exists "authenticated full access" on public.card_templates;
+create policy "authenticated full access" on public.card_templates for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Seed the founder's one real-world sablon so Kollekciók has valid
+-- adatot rögtön — idempotent by name, safe to re-run this file.
+insert into public.card_templates
+  (name, manufacturer, cut_width_in, cut_height_in, safe_width_in, safe_height_in, bleed_width_in, bleed_height_in, dpi)
+select 'QPMN Skat Size', 'QPMN', 2.32, 3.58, 2.08, 3.34, 2.56, 3.82, 300
+where not exists (select 1 from public.card_templates where name = 'QPMN Skat Size');
+
+create table if not exists public.card_collections (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text,
+  status text not null default 'Tervezés'
+    check (status in ('Tervezés', 'Gyártásra kész', 'Gyártásban', 'Élő', 'Archivált')),
+  template_id uuid references public.card_templates(id) on delete set null,
+  -- Szabad szöveges nyelv-kódok (pl. 'HU', 'DE', 'EN') — bővíthető,
+  -- nincs fix enum, hogy egy jövőbeli nyelv ne igényeljen migrációt.
+  languages text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.card_collections enable row level security;
+
+drop policy if exists "anon full access" on public.card_collections;
+drop policy if exists "authenticated full access" on public.card_collections;
+create policy "authenticated full access" on public.card_collections for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.card_collections;
+create trigger set_updated_at before update on public.card_collections
+  for each row execute function public.set_updated_at();
+
+create table if not exists public.collection_cards (
+  id uuid primary key default gen_random_uuid(),
+  collection_id uuid not null references public.card_collections(id) on delete cascade,
+  -- Szabad szöveg, nem sorszám-identity — a founder saját formátumot
+  -- használ kártyatípusonként ("A", "2", "Wild Card 1", "Gold Card"),
+  -- az app ad hozzá egy "Automatikus azonosító" javaslat-gombot.
+  card_number text not null,
+  suit text,
+  card_type text not null default 'Kérdés'
+    check (card_type in ('Kérdés', 'Wild Card', 'Gold Card', 'Egyéb')),
+  text_hu text,
+  text_de text,
+  text_en text,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.collection_cards enable row level security;
+
+drop policy if exists "anon full access" on public.collection_cards;
+drop policy if exists "authenticated full access" on public.collection_cards;
+create policy "authenticated full access" on public.collection_cards for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.collection_cards;
+create trigger set_updated_at before update on public.collection_cards
+  for each row execute function public.set_updated_at();
+
+-- products.collection_id — a Termékek egy bejegyzését (pl. Pear
+-- Edition) a hozzá tartozó Kártyatervező Kollekcióhoz köti.
+alter table public.products add column if not exists collection_id uuid references public.card_collections(id) on delete set null;

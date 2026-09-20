@@ -16,9 +16,10 @@ import {
   Truck,
   ArrowRight,
   Search,
+  Palette,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { CardAsset, Product, ProductStatus, Supplier } from "@/lib/supabase/types";
+import type { CardAsset, CardCollection, Product, ProductStatus, Supplier } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -46,6 +47,7 @@ const EMPTY_FORM = {
   edition: "",
   status: PRODUCT_STATUSES[0] as ProductStatus,
   card_asset_id: "",
+  collection_id: "",
   supplier_id: "",
   cogs: "",
   cogs_currency: "CHF",
@@ -62,6 +64,7 @@ function byRecency(a: Product, b: Product) {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cardAssets, setCardAssets] = useState<Pick<CardAsset, "id" | "language" | "version">[]>([]);
+  const [collections, setCollections] = useState<Pick<CardCollection, "id" | "name">[]>([]);
   const [suppliers, setSuppliers] = useState<Pick<Supplier, "id" | "name">[]>([]);
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
   const [loading, setLoading] = useState(isSupabaseConfigured);
@@ -106,15 +109,17 @@ export default function ProductsPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [productsRes, cardAssetsRes, suppliersRes, companySettingsRes] = await Promise.all([
+    const [productsRes, cardAssetsRes, collectionsRes, suppliersRes, companySettingsRes] = await Promise.all([
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("card_assets").select("id, language, version"),
+      supabase.from("card_collections").select("id, name"),
       supabase.from("suppliers").select("id, name"),
       supabase.from("company_settings").select("currency").maybeSingle(),
     ]);
     if (productsRes.error) setError(productsRes.error.message);
     else setProducts(productsRes.data ?? []);
     if (!cardAssetsRes.error) setCardAssets(cardAssetsRes.data ?? []);
+    if (!collectionsRes.error) setCollections(collectionsRes.data ?? []);
     if (!suppliersRes.error) setSuppliers(suppliersRes.data ?? []);
     setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
     const imageUrls = (productsRes.data ?? []).map((p) => p.image_url);
@@ -151,6 +156,7 @@ export default function ProductsPage() {
       edition: p.edition ?? "",
       status: p.status,
       card_asset_id: p.card_asset_id ?? "",
+      collection_id: p.collection_id ?? "",
       supplier_id: p.supplier_id ?? "",
       cogs: p.cogs != null ? String(p.cogs) : "",
       cogs_currency: p.cogs_currency ?? "CHF",
@@ -176,6 +182,7 @@ export default function ProductsPage() {
       edition: form.edition.trim() || null,
       status: form.status,
       card_asset_id: form.card_asset_id || null,
+      collection_id: form.collection_id || null,
       supplier_id: form.supplier_id || null,
       cogs: form.cogs.trim() ? Number(form.cogs) : null,
       cogs_currency: form.cogs_currency || null,
@@ -260,6 +267,7 @@ export default function ProductsPage() {
   }
 
   const cardAssetById = new Map(cardAssets.map((c) => [c.id, c]));
+  const collectionById = new Map(collections.map((c) => [c.id, c]));
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
 
   // Név, edition, leírás, gyártási megjegyzés, összekapcsolt beszállító és
@@ -349,7 +357,21 @@ export default function ProductsPage() {
             ))}
           </select>
         </div>
-        <div />
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted">Kártyatervező kollekció</label>
+          <select
+            className="select"
+            value={form.collection_id}
+            onChange={(e) => setForm((f) => ({ ...f, collection_id: e.target.value }))}
+          >
+            <option value="">— Nincs —</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted">Egységköltség (COGS)</label>
           <div className="flex gap-2">
@@ -523,6 +545,7 @@ export default function ProductsPage() {
               currency={currency}
               rates={rates}
               cardAssetById={cardAssetById}
+              collectionById={collectionById}
               supplierById={supplierById}
               signedUrls={signedUrls}
               expandedId={expandedId}
@@ -545,6 +568,7 @@ function ProductStatusGroup({
   currency,
   rates,
   cardAssetById,
+  collectionById,
   supplierById,
   signedUrls,
   expandedId,
@@ -557,6 +581,7 @@ function ProductStatusGroup({
   currency: CurrencyCode;
   rates: ExchangeRates | null;
   cardAssetById: Map<string, Pick<CardAsset, "id" | "language" | "version">>;
+  collectionById: Map<string, Pick<CardCollection, "id" | "name">>;
   supplierById: Map<string, Pick<Supplier, "id" | "name">>;
   signedUrls: Map<string, string>;
   expandedId: string | null;
@@ -581,6 +606,7 @@ function ProductStatusGroup({
               currency={currency}
               rates={rates}
               cardAsset={product.card_asset_id ? cardAssetById.get(product.card_asset_id) : undefined}
+              collection={product.collection_id ? collectionById.get(product.collection_id) : undefined}
               supplier={product.supplier_id ? supplierById.get(product.supplier_id) : undefined}
               imageUrl={product.image_url ? signedUrls.get(product.image_url) ?? null : null}
               expanded={expandedId === product.id}
@@ -603,6 +629,7 @@ function ProductCard({
   currency,
   rates,
   cardAsset,
+  collection,
   supplier,
   imageUrl,
   expanded,
@@ -614,6 +641,7 @@ function ProductCard({
   currency: CurrencyCode;
   rates: ExchangeRates | null;
   cardAsset?: Pick<CardAsset, "id" | "language" | "version">;
+  collection?: Pick<CardCollection, "id" | "name">;
   supplier?: Pick<Supplier, "id" | "name">;
   imageUrl: string | null;
   expanded: boolean;
@@ -708,6 +736,16 @@ function ProductCard({
               {cardAsset ? (
                 <Link href="/card-assets" className="mt-1 flex items-center gap-1.5 text-sm text-forest hover:text-bronze">
                   <Layers size={14} /> {cardAsset.language} · {cardAsset.version} <ArrowRight size={13} />
+                </Link>
+              ) : (
+                <p className="mt-1 text-sm text-muted">— Nincs összekapcsolva —</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">Kártyatervező kollekció</p>
+              {collection ? (
+                <Link href="/card-designer" className="mt-1 flex items-center gap-1.5 text-sm text-forest hover:text-bronze">
+                  <Palette size={14} /> {collection.name} <ArrowRight size={13} />
                 </Link>
               ) : (
                 <p className="mt-1 text-sm text-muted">— Nincs összekapcsolva —</p>
