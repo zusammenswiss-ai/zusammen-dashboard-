@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X, Download, Trash2, ListPlus, ImageOff, ArrowRight, Plus, ChevronDown } from "lucide-react";
+import { X, Download, ExternalLink, Trash2, ListPlus, ImageOff, ArrowRight, Plus, ChevronDown } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardAsset, PriceQuote } from "@/lib/supabase/types";
 import { PRINT_STATUS_STYLES, CARD_ASSET_THUMB_SLOTS } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
-import { openFileLabel } from "@/lib/file-open";
+import { openFileLabel, isPreviewableInBrowser } from "@/lib/file-open";
 import PriceQuoteForm from "@/components/PriceQuoteForm";
 import PriceQuoteList from "@/components/PriceQuoteList";
 import Lightbox from "@/components/Lightbox";
@@ -263,7 +263,8 @@ export default function CardAssetDetailModal({
             className="btn btn-primary"
             title={openFileLabel(asset.file_url)}
           >
-            <Download size={15} /> {openFileLabel(asset.file_url)}
+            {isPreviewableInBrowser(asset.file_url) ? <ExternalLink size={15} /> : <Download size={15} />}{" "}
+            {openFileLabel(asset.file_url)}
           </a>
         </div>
       </div>

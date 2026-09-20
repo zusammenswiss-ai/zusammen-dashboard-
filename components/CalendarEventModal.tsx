@@ -5,6 +5,7 @@ import { X, CalendarPlus } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CalendarEvent } from "@/lib/supabase/types";
 import { ErrorBanner } from "@/components/Feedback";
+import BackButton from "@/components/BackButton";
 
 /** Create/edit modal for a hand-added Naptár event (calendar_events) —
  * the one event source on the Naptár page that isn't aggregated from
@@ -73,6 +74,7 @@ export default function CalendarEventModal({
         </div>
 
         <form onSubmit={save} className="flex flex-col gap-3 p-5">
+          <BackButton onClick={onClose} label="Vissza a naptárhoz" />
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Cím *</label>
             <input
