@@ -6,6 +6,7 @@ import { Inbox, Search, AlertTriangle, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import BackButton from "@/components/BackButton";
 import { timeAgo } from "@/lib/format";
 
 // Postaláda — a read-only view of the connected Gmail account's inbox
@@ -213,6 +214,13 @@ export default function InboxPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
+              <BackButton
+                onClick={() => {
+                  setSelected(null);
+                  setDetailError(null);
+                }}
+                label="Vissza a postaládához"
+              />
               {detailLoading && <Spinner />}
               {detailError && <ErrorBanner message={detailError} />}
               {selected && (

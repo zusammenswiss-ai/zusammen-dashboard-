@@ -14,6 +14,7 @@ import {
 } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 import UndoToast from "@/components/UndoToast";
+import BackButton from "@/components/BackButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 
 const PRIORITIES: TaskPriority[] = ["Low", "Medium", "High"];
@@ -390,6 +391,7 @@ export default function TemplateManagerModal({
           </div>
 
           <div className="flex-1 overflow-y-auto p-5">
+            <BackButton onClick={onClose} label="Vissza a feladatokhoz" />
             {editingId && (
               <form onSubmit={saveEdit} className="card mb-5 flex flex-col gap-3 p-4">
                 <p className="text-xs font-medium text-bronze">Sablon szerkesztése</p>

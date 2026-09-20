@@ -23,6 +23,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CalendarEventModal from "@/components/CalendarEventModal";
 import { CategoryIcon, CATEGORY_DOT } from "@/components/CalendarCategoryBadge";
+import BackButton from "@/components/BackButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { CALENDAR_CATEGORIES, type CalendarCategory } from "@/lib/labels";
 import { fetchAllCalendarEvents, type CalendarEventItem } from "@/lib/calendar-events";
@@ -518,6 +519,7 @@ function DayEventsModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <BackButton onClick={onClose} label="Vissza a naptárhoz" />
           {events.length === 0 ? (
             <p className="text-sm text-muted">Ezen a napon nincs esemény.</p>
           ) : (

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Stamp, Lock, History, X } from "lucide-react";
 import type { UnlockHistoryEntry } from "@/lib/supabase/types";
 import { formatDate } from "@/lib/format";
+import BackButton from "@/components/BackButton";
 
 /**
  * "Rögzítés lezárása" / "Zárolás feloldása" — shared between Fix/Változó
@@ -121,7 +122,8 @@ export default function LockControls({
                 <X size={16} />
               </button>
             </div>
-            <p className="mt-2 text-sm text-muted">
+            <BackButton onClick={() => setShowUnlockConfirm(false)} label="Vissza" />
+            <p className="text-sm text-muted">
               Biztosan feloldod ezt a rögzített tételt? Ez a módosítás nyoma megmarad.
             </p>
             <label className="mt-3 block text-xs font-medium text-muted">Miért oldod fel? (opcionális)</label>
@@ -168,7 +170,8 @@ export default function LockControls({
                 <X size={16} />
               </button>
             </div>
-            <ul className="mt-3 flex flex-col gap-2 text-sm">
+            <BackButton onClick={() => setShowHistory(false)} label="Vissza" />
+            <ul className="flex flex-col gap-2 text-sm">
               {[...unlockHistory].reverse().map((entry, i) => (
                 <li key={i} className="rounded-md bg-ivory-dim px-3 py-2">
                   <p className="text-xs text-muted">{formatDate(entry.unlocked_at)}</p>

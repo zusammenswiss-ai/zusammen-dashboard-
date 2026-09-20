@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Campaign, Season } from "@/lib/supabase/types";
 import { SEASON_HU } from "@/lib/labels";
+import BackButton from "@/components/BackButton";
 
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
 
@@ -69,6 +70,7 @@ export default function CampaignFormModal({
           </button>
         </div>
         <form onSubmit={submit} className="flex flex-col gap-3">
+          <BackButton onClick={onClose} label="Vissza" />
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Kampány neve *</label>
             <input

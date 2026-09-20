@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Send, Eye, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { EmailTemplate, MarketingContent } from "@/lib/supabase/types";
 import { errorMessage } from "@/lib/errors";
+import BackButton from "@/components/BackButton";
 
 type Audience = "demand" | "newsletter";
 
@@ -231,6 +232,9 @@ function PreviewModal({ preview, onClose }: { preview: PreviewData; onClose: () 
           <button onClick={onClose} className="btn btn-ghost !px-2">
             <X size={16} />
           </button>
+        </div>
+        <div className="px-4 pt-3">
+          <BackButton onClick={onClose} label="Vissza" />
         </div>
         <iframe title="Sablon előnézet" srcDoc={preview.html} className="min-h-[50vh] w-full flex-1" sandbox="" />
       </div>
