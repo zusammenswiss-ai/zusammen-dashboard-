@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Pencil, History, CreditCard, Radio, QrCode } from "lucide-react";
+import { Plus, Trash2, Pencil, History, CreditCard, Radio, QrCode, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { ContentCard, CardSnapshot, ContentStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -11,6 +11,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import SearchBar from "@/components/SearchBar";
 import ContentVersionHistoryModal from "@/components/ContentVersionHistoryModal";
 import CardFormModal, { type CardFormValues } from "@/components/CardFormModal";
 import { useUndoAction } from "@/lib/useUndoAction";
@@ -49,6 +50,7 @@ export default function CardsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingCard, setEditingCard] = useState<ContentCard | null>(null);
   const [historyCard, setHistoryCard] = useState<ContentCard | null>(null);
+  const [query, setQuery] = useState("");
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -149,9 +151,20 @@ export default function CardsPage() {
     );
   }
 
+  const filteredCards = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return cards;
+    return cards.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        c.question?.toLowerCase().includes(q) ||
+        c.category?.toLowerCase().includes(q)
+    );
+  }, [cards, query]);
+
   const groups = CONTENT_STATUSES.map((status) => ({
     status,
-    items: cards.filter((c) => c.status === status),
+    items: filteredCards.filter((c) => c.status === status),
   })).filter((g) => g.items.length > 0);
 
   if (!isSupabaseConfigured) {
@@ -183,6 +196,15 @@ export default function CardsPage() {
 
       {error && <ErrorBanner message={error} />}
 
+      {!loading && cards.length > 0 && (
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Kártyák keresése…"
+          className="relative mb-4 w-full max-w-xs"
+        />
+      )}
+
       {loading ? (
         <Spinner />
       ) : cards.length === 0 ? (
@@ -191,6 +213,8 @@ export default function CardsPage() {
           title="Még nincs kártya"
           description="Hozd létre az első kártya-tartalmat — kérdés, mély kérdés, és opcionálisan egy hozzá kötött rituálé."
         />
+      ) : filteredCards.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ status, items }) => (

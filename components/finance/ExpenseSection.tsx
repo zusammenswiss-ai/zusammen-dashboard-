@@ -15,6 +15,7 @@ import type {
 import EmptyState from "@/components/EmptyState";
 import LockControls from "@/components/finance/LockControls";
 import UndoToast from "@/components/UndoToast";
+import SearchBar from "@/components/SearchBar";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
@@ -219,15 +220,7 @@ export default function ExpenseSection({
 
       {showFilters && typed.length > 0 && (
         <div className="mb-4 flex flex-wrap items-end gap-2">
-          <div className="relative w-full max-w-xs">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              className="input pl-8 !py-1.5 text-xs"
-              placeholder="Keresés…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+          <SearchBar value={query} onChange={setQuery} placeholder="Keresés…" compact />
           <div>
             <label className="mb-1 block text-[11px] font-medium text-muted">Kategória</label>
             <select className="select !py-1.5 text-xs" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>

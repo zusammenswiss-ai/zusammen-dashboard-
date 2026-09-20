@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash, Mail, Search, Download } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Package, CalendarDays, Hash, Mail, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CurrencyCode, Order, OrderStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import SearchBar from "@/components/SearchBar";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
@@ -340,15 +341,12 @@ export default function OrdersPage() {
       )}
 
       {!loading && orders.length > 0 && (
-        <div className="relative mb-4 max-w-xs">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            className="input pl-9"
-            placeholder="Megrendelések keresése…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Megrendelések keresése…"
+          className="relative mb-4 max-w-xs"
+        />
       )}
 
       {!loading && orders.length > 0 && (

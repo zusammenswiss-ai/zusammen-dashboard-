@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Lightbulb } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Trash2, Lightbulb, Search } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { FuturePlan, PlanStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -10,6 +10,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import SearchBar from "@/components/SearchBar";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { PLAN_STATUS_HU } from "@/lib/labels";
@@ -35,6 +36,7 @@ export default function FuturePlansPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
 
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
@@ -103,9 +105,20 @@ export default function FuturePlansPage() {
     );
   }
 
+  const filteredPlans = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return plans;
+    return plans.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.category?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q)
+    );
+  }, [plans, query]);
+
   const groups = STATUSES.map((status) => ({
     status,
-    items: plans.filter((p) => p.status === status),
+    items: filteredPlans.filter((p) => p.status === status),
   })).filter((g) => g.items.length > 0);
 
   if (!isSupabaseConfigured) {
@@ -194,6 +207,15 @@ export default function FuturePlansPage() {
         </form>
       )}
 
+      {!loading && plans.length > 0 && (
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Ötletek keresése…"
+          className="relative mb-4 w-full max-w-xs"
+        />
+      )}
+
       {loading ? (
         <Spinner />
       ) : plans.length === 0 ? (
@@ -202,6 +224,8 @@ export default function FuturePlansPage() {
           title="Még nincs rögzített ötlet"
           description="Gyűjts össze mindent, amit érdemes lehet újragondolni az indulás után — új termékek, csatornák, partnerségek."
         />
+      ) : filteredPlans.length === 0 ? (
+        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
       ) : (
         <div className="flex flex-col gap-6">
           {groups.map(({ status, items }) => (

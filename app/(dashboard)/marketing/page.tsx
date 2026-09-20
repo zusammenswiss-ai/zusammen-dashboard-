@@ -53,6 +53,7 @@ import CampaignDetailModal from "@/components/CampaignDetailModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import SearchBar from "@/components/SearchBar";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { SEASON_HU, CAMPAIGN_STATUS_STYLES } from "@/lib/labels";
@@ -813,15 +814,7 @@ function ContentCalendarSection({
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
-          <div className="relative w-full max-w-xs">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              className="input pl-9"
-              placeholder="Tartalom keresése…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+          <SearchBar value={query} onChange={setQuery} placeholder="Tartalom keresése…" />
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Hónap</label>
             <input
@@ -1395,15 +1388,7 @@ function AssetLibrarySection({
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         {assets.length > 0 ? (
-          <div className="relative w-full max-w-xs">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              className="input pl-9"
-              placeholder="Marketing anyagok keresése…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+          <SearchBar value={query} onChange={setQuery} placeholder="Marketing anyagok keresése…" />
         ) : (
           <div />
         )}

@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Mail, Users, Search, Upload, Download } from "lucide-react";
+import { Plus, Trash2, Mail, Users, Upload, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { Supplier, SupplierInsert, PriceQuote } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
+import SearchBar from "@/components/SearchBar";
 import EmailComposeModal from "@/components/EmailComposeModal";
 import SupplierProfileModal, { type SupplierDraft } from "@/components/SupplierProfileModal";
 import CollapsibleSection from "@/components/CollapsibleSection";
@@ -418,15 +419,12 @@ export default function SuppliersPage() {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {!loading && suppliers.length > 0 && (
-          <div className="relative max-w-xs flex-1">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              className="input pl-9"
-              placeholder="Beszállítók keresése…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+          <SearchBar
+            value={query}
+            onChange={setQuery}
+            placeholder="Beszállítók keresése…"
+            className="relative max-w-xs flex-1"
+          />
         )}
         <button onClick={downloadCsvTemplate} className="text-xs font-medium text-bronze hover:underline">
           Minta CSV letöltése

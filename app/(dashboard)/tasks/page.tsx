@@ -30,6 +30,7 @@ import TemplateManagerModal from "@/components/TemplateManagerModal";
 import CampaignFormModal from "@/components/CampaignFormModal";
 import ShowMoreButton from "@/components/ShowMoreButton";
 import BackButton from "@/components/BackButton";
+import SearchBar from "@/components/SearchBar";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
@@ -383,15 +384,7 @@ export default function TasksPage() {
       {!loading && tasks.length > 0 && (
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-wrap items-end gap-2">
-            <div className="relative w-full max-w-xs">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input
-                className="input pl-9"
-                placeholder="Feladatok keresése…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+            <SearchBar value={query} onChange={setQuery} placeholder="Feladatok keresése…" />
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Típus</label>
               <select
