@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Campaign, TaskItem, TaskTemplate, TaskType } from "@/lib/supabase/types";
 import { PRIORITY_HU, TEMPLATE_CATEGORY_ORDER, TASK_TYPES, groupByCategory } from "@/lib/labels";
+import BackButton from "@/components/BackButton";
 
 const PRIORITY_STYLES: Record<string, string> = {
   Low: "bg-forest/10 text-forest",
@@ -105,6 +106,7 @@ export default function TemplatePickerModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <BackButton onClick={onClose} label="Vissza a feladatokhoz" />
           {templates.length === 0 ? (
             <p className="text-sm text-muted">
               Még nincs egy sablon sem. Hozz létre egyet a &quot;Sablonok kezelése&quot; nézetben.

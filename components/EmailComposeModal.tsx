@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, Mail, Send, AlertTriangle } from "lucide-react";
 import { ErrorBanner } from "@/components/Feedback";
+import BackButton from "@/components/BackButton";
 import { errorMessage } from "@/lib/errors";
 
 /** Shared "Email küldése" modal — posts to /api/send-email, which sends
@@ -85,6 +86,7 @@ export default function EmailComposeModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <BackButton onClick={onClose} label="Vissza" />
           {gmailNotConnected && (
             <Link
               href="/settings"

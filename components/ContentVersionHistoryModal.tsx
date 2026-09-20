@@ -5,6 +5,7 @@ import { X, History } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { CONTENT_STATUS_HU, CONTENT_STATUS_STYLES } from "@/lib/labels";
 import type { VersionEntry } from "@/lib/content-version";
+import BackButton from "@/components/BackButton";
 
 /**
  * Read-only version-history viewer shared by Kártyák and Rituálék —
@@ -46,6 +47,7 @@ export default function ContentVersionHistoryModal<TSnapshot>({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
+          <BackButton onClick={onClose} label="Vissza" />
           {entries.length === 0 ? (
             <p className="text-sm text-muted">Még nincs korábbi verzió.</p>
           ) : (

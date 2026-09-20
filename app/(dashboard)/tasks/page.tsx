@@ -29,6 +29,7 @@ import TemplatePickerModal from "@/components/TemplatePickerModal";
 import TemplateManagerModal from "@/components/TemplateManagerModal";
 import CampaignFormModal from "@/components/CampaignFormModal";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import BackButton from "@/components/BackButton";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
@@ -986,6 +987,7 @@ function ArchiveModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <BackButton onClick={onClose} label="Vissza a táblához" />
           {tasks.length === 0 ? (
             <p className="text-sm text-muted">Még nincs archivált feladat.</p>
           ) : (
