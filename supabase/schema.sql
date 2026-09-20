@@ -1842,3 +1842,137 @@ create policy "authenticated full access" on public.cards for all
 drop trigger if exists set_updated_at on public.cards;
 create trigger set_updated_at before update on public.cards
   for each row execute function public.set_updated_at();
+
+-- =====================================================================
+-- Legal documents — database-backed, lockable Impresszum/Adatvédelem
+-- content, editable from Beállítások instead of being hardcoded JSX
+-- (see app/impresszum/page.tsx, app/adatvedelem/page.tsx). Same
+-- is_locked/locked_at/unlock_history lock convention as expenses/
+-- revenue above (components/finance/LockControls.tsx is reused as-is —
+-- it was already generic, not Finance-specific). `slug` drives what
+-- OTHER parts of the app link to this document with (campaign emails'
+-- {{privacy_link}}, the /landing footer) — see lib/legal-links.ts — but
+-- the public page's own route (a literal Next.js folder, not a DB-
+-- driven catch-all) stays fixed at /impresszum and /adatvedelem
+-- regardless of what `slug` is edited to, so seed it to match.
+create table if not exists public.legal_documents (
+  id uuid primary key default gen_random_uuid(),
+  type text not null unique check (type in ('Impresszum', 'Adatvédelem')),
+  title text not null,
+  slug text not null unique,
+  content text not null default '',
+  last_updated date not null default current_date,
+  is_locked boolean not null default false,
+  locked_at timestamptz,
+  unlock_history jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.legal_documents enable row level security;
+
+-- Fourth narrow anon exception (see the RLS overview comment further up
+-- this file): unauthenticated visitors on /impresszum and /adatvedelem
+-- need to SELECT this table — the mirror image of landing_letters
+-- (anon INSERT, authenticated SELECT) above. Two policies, OR'd by
+-- Postgres for the same command: "public read" only ever widens SELECT,
+-- it can't loosen INSERT/UPDATE/DELETE, which "authenticated manage"
+-- still restricts to a signed-in founder session.
+drop policy if exists "public read" on public.legal_documents;
+create policy "public read" on public.legal_documents for select using (true);
+
+drop policy if exists "authenticated manage" on public.legal_documents;
+create policy "authenticated manage" on public.legal_documents for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.legal_documents;
+create trigger set_updated_at before update on public.legal_documents
+  for each row execute function public.set_updated_at();
+
+-- Seed the two starting documents, idempotent by `type` — content is a
+-- Hungarian placeholder structure (section headings + "TÖLTSD KI"
+-- markers for founder-specific facts: legal name, address, VAT/company
+-- register number, hosting region) since no finished legal copy exists
+-- in this repo to seed verbatim. Edit the real text in Beállítások →
+-- Jogi dokumentumok once — this insert only ever runs if the row is
+-- still missing, so re-running this file never clobbers an edit.
+insert into public.legal_documents (type, title, slug, content)
+select
+  'Impresszum',
+  'Impresszum',
+  'impresszum',
+  '## Szolgáltató
+
+[TÖLTSD KI: cégnév / teljes név]
+[TÖLTSD KI: utca és házszám]
+[TÖLTSD KI: irányítószám és helység]
+[TÖLTSD KI: ország]
+
+## Kapcsolat
+
+E-mail: [TÖLTSD KI: kontakt@zusammenswiss.ch]
+Telefon (opcionális): [TÖLTSD KI vagy töröld ezt a sort]
+
+## Cégjegyzékszám / UID (ha van)
+
+Handelsregister-szám: [TÖLTSD KI vagy töröld ezt a sort]
+UID / ÁFA-szám: [TÖLTSD KI vagy töröld ezt a sort]
+
+## Felelős a tartalomért
+
+[TÖLTSD KI: a felelős személy neve], cím mint fent.
+
+## Felelősségkizárás
+
+Ez a weboldal a ZUSAMMEN bemutatását és visszajelzések gyűjtését szolgálja a termékfejlesztés keretében. Gondos tartalmi ellenőrzés ellenére nem vállalunk felelősséget külső linkek tartalmáért; a hivatkozott oldalak tartalmáért kizárólag azok üzemeltetői felelősek.'
+where not exists (select 1 from public.legal_documents where type = 'Impresszum');
+
+insert into public.legal_documents (type, title, slug, content)
+select
+  'Adatvédelem',
+  'Adatvédelmi tájékoztató',
+  'adatvedelem',
+  '## 1. Adatkezelő
+
+[TÖLTSD KI: cégnév / teljes név]
+[TÖLTSD KI: cím]
+E-mail: [TÖLTSD KI: kontakt@zusammenswiss.ch]
+
+## 2. Milyen adatokat gyűjtünk
+
+Ez az oldal kizárólag olyan adatokat gyűjt, amelyeket te magad adsz meg aktívan:
+
+- Rövid kérdőív: a válaszaid (pl. vásárlási szándék, árelképzelés, kívánt doboztartalom, egy opcionális szabadszöveges mező) és — ha megadod — az e-mail címed.
+- Levél/ígéret (Gold Card gyakorlat): az általad írt szöveget tároljuk, hogy anonim módon megmutassuk más látogatóknak — név, e-mail vagy egyéb azonosító adat nélkül. Ezt a szöveget nem tudjuk senkihez sem hozzárendelni.
+- „Küldd el magadnak e-mailben”: a saját e-mail-kliensedet nyitja meg (mailto-link) előre kitöltött szöveggel — ez nem megy át a szervereinken, ezt az e-mailt nem látjuk és nem tároljuk.
+
+Cookie-kat és nyomkövetést/analitikát nem használunk ezen az oldalon.
+
+## 3. Az adatkezelés célja
+
+Az adatok kizárólag a ZUSAMMEN termékfejlesztését szolgálják (piaci érdeklődés, árazás, csomagtartalom), és — ha kéred — a termékhírekkel kapcsolatos kapcsolatfelvételt. A jogalap az önkéntes megadásod (hozzájárulás).
+
+## 4. Tárhely és adatfeldolgozás
+
+Az adatokat a Supabase (szerverhely: [TÖLTSD KI: pl. EU/Frankfurt]) tárolja. A Supabase az adatokat kizárólag a megbízásunkból dolgozza fel, saját hozzáférése nincs a tartalmakhoz.
+
+## 5. Harmadik felek részére történő továbbítás
+
+Az adataidat nem adjuk tovább harmadik feleknek, a 4. pontban említett tárhelyszolgáltatót kivéve.
+
+## 6. Tárolási idő
+
+Az adatokat addig tároljuk, amíg a termékfejlesztéshez szükségesek, vagy amíg a törlésüket nem kéred.
+
+## 7. Jogaid
+
+Bármikor jogod van:
+
+- tájékoztatást kérni a rólad tárolt adatokról
+- a pontatlan adatok helyesbítését kérni
+- az adataid törlését kérni
+- az adatkezelés korlátozását kérni
+- tiltakozni az adatkezelés ellen
+
+Ehhez egyszerűen fordulj hozzánk: [TÖLTSD KI: kontakt@zusammenswiss.ch]. Mivel a leveleket/ígéreteket anonim módon tároljuk, további adatok (pl. hozzávetőleges dátum és szövegrészlet) nélkül sajnos nem tudjuk senkihez sem hozzárendelni őket.'
+where not exists (select 1 from public.legal_documents where type = 'Adatvédelem');

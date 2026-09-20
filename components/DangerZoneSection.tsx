@@ -20,8 +20,11 @@ const CONFIRM_WORD = "TÖRLÉS";
 // founder-entered business content — wiping it would risk re-emailing
 // someone who deliberately unsubscribed, even though Brevo's own
 // account-wide suppression (see lib/email-campaign.ts) backstops actual
-// delivery regardless.
-const KEPT_TABLES = new Set(["together_settings", "company_settings", "email_unsubscribes"]);
+// delivery regardless. legal_documents is kept too: the Impresszum/
+// Adatvédelem text is site configuration the public pages depend on
+// (app/impresszum, app/adatvedelem) — wiping it would break both pages
+// instead of just resetting "my business data".
+const KEPT_TABLES = new Set(["together_settings", "company_settings", "email_unsubscribes", "legal_documents"]);
 const WIPE_TABLES = ANON_TABLE_NAMES.filter((t) => !KEPT_TABLES.has(t));
 
 /**

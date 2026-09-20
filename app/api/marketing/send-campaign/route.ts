@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   }
 
   const ritualLink = await ritualLinkFor(supabase);
-  const privacy = privacyLink();
+  const privacy = await privacyLink(supabase);
 
   let sent = 0;
   const errors: string[] = [];

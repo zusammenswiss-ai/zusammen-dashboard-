@@ -190,14 +190,21 @@ API (filtered noise bursts, no external audio file), so it's
 dependency-free — swap `playNoiseBurst` in that file for real recorded
 clips later if you'd rather use those.
 
-A matching pair of standalone legal pages ships alongside the funnel,
-linked from a small footer bottom-left: `/landing/impressum` and
-`/landing/datenschutz` (German-only, as is standard for DE/CH sites).
-Every value only the founder can know (business name/address, contact
-email, Supabase hosting region, …) is a highlighted "BITTE AUSFÜLLEN"
-placeholder in the page itself — **fill these in before sharing the
-`/landing` link publicly**, since the funnel collects an optional email
-address and Swiss/EU sites need a real Impressum + Datenschutzerklärung.
+A matching pair of legal pages ships alongside the funnel, linked from
+a small footer bottom-left: `/impresszum` and `/adatvedelem`. Unlike the
+rest of `/landing`, these are **database-backed**, not hardcoded JSX —
+their content lives in the `legal_documents` table and is editable
+(with the same lock/unlock-with-history flow as Fix/Változó
+költségek) from Beállítások → Jogi dokumentumok, so a founder can fix a
+typo or add a section without a code change or redeploy. schema.sql
+seeds both rows with a Hungarian placeholder structure and `[TÖLTSD KI:
+…]` markers for every founder-specific value (business name/address,
+contact email, Supabase hosting region, VAT/company register number) —
+**fill these in via the Settings editor before sharing the `/landing`
+link publicly**, since the funnel collects an optional email address
+and Swiss/EU sites need a real legal notice + privacy policy. The old
+`/landing/impressum` and `/landing/datenschutz` URLs still work — they
+just redirect to the two pages above now.
 
 **Social previews** (`og:*` / `twitter:*` tags, so the link looks right
 when pasted into WhatsApp, iMessage, Slack, etc.): defined in
@@ -223,9 +230,10 @@ and the preview card match.
    `// TODO before launch` comment above the `story` block in both the
    `de` and `en` sections; it reads fine as-is, but swap in your own
    real story if you have one.
-3. **Fill in the legal pages** — open `/landing/impressum` and
-   `/landing/datenschutz` (or their source under `app/landing/`) and
-   replace every "BITTE AUSFÜLLEN" placeholder with your real details.
+3. **Fill in the legal pages** — Beállítások → Jogi dokumentumok, open
+   Impresszum and Adatvédelem, and replace every "TÖLTSD KI" placeholder
+   with your real details (or open `/impresszum` / `/adatvedelem`
+   directly to see what's currently live).
 4. **Set `SITE_URL`** to your real production domain once you have one
    (see the env var comment in `.env.example`) — without it, the social
    preview image/canonical URLs point at the default Vercel preview
@@ -573,7 +581,7 @@ the two can never drift apart):
 |---|---|
 | `{{first_name}}` | the recipient's name (hírlevél feliratkozók), or a capitalized guess from their email address if none is on file |
 | `{{ritual_link}}` | the live `/together` (Közös tér) link — same `?code=` format as Beállítások → "Közös tér linkje" |
-| `{{privacy_link}}` | the existing public `/landing/datenschutz` page |
+| `{{privacy_link}}` | the live Adatvédelem page's URL, read from `legal_documents.slug` (Beállítások → Jogi dokumentumok) |
 | `{{unsubscribe_link}}` (or the older `{{unsubscribe_url}}`) | Brevo's own `{unsubscribe}` merge tag — **not** a link this app builds. Brevo swaps it for a real, working link at send time and enforces that suppression account-wide (transactional and campaign sends alike) the instant it's clicked — no webhook needed to sync it back into Supabase |
 
 If a template has no unsubscribe placeholder at all, a footer line with
@@ -703,8 +711,10 @@ app/api/cron/check-date-digest/  Daily cron route — Várakozás check_date dig
 app/api/og/              Generates the /landing social-preview image (?lang=de|en|hu)
 app/landing/page.tsx     Server wrapper: generateMetadata (og:/twitter: tags) + initial lang
 app/landing/LandingClient.tsx  The actual interactive funnel (moved out so page.tsx can be a Server Component)
-app/landing/impressum/   Standalone legal notice for /landing — fill in before launch
-app/landing/datenschutz/ Standalone privacy notice for /landing — fill in before launch
+app/landing/impressum/   Redirects to /impresszum (old URL kept working)
+app/landing/datenschutz/ Redirects to /adatvedelem (old URL kept working)
+app/impresszum/          Public legal notice — content read live from legal_documents
+app/adatvedelem/         Public privacy notice — content read live from legal_documents
 components/              Shared UI (nav, cards, empty states, feedback)
 lib/supabase/client.ts   Browser Supabase client
 lib/supabase/types.ts    Hand-written types matching supabase/schema.sql

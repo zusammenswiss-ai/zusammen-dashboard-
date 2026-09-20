@@ -38,7 +38,19 @@ const EMPTY_SURVEY: SurveyState = { wouldBuy: null, price: null, idea: "", email
 // English here and gets its own English OG/Twitter preview) while this,
 // the actual interactive funnel, stays a Client Component as it always
 // was — motion, sound, local nav history, none of that works server-side.
-export default function LandingClient({ initialLang }: { initialLang: LandingLang }) {
+export default function LandingClient({
+  initialLang,
+  impressumHref = "/impresszum",
+  datenschutzHref = "/adatvedelem",
+}: {
+  initialLang: LandingLang;
+  /** Read from legal_documents.slug server-side (see page.tsx) so this
+   * link always points wherever the founder last set it in Beállítások
+   * → Jogi dokumentumok — defaults cover Supabase-not-configured/fetch-
+   * failed cases, not the normal path. */
+  impressumHref?: string;
+  datenschutzHref?: string;
+}) {
   const [lang, setLang] = useState<LandingLang>(initialLang);
   // Browser-style back/forward: `history` is every screen navigated
   // *into* so far, `pointer` is where in that list we currently are.
@@ -221,7 +233,7 @@ export default function LandingClient({ initialLang }: { initialLang: LandingLan
         {screen === "thanks" && <ThanksScreen t={t} />}
       </div>
 
-      <LegalFooter />
+      <LegalFooter impressumHref={impressumHref} datenschutzHref={datenschutzHref} />
     </div>
   );
 }
@@ -230,12 +242,12 @@ export default function LandingClient({ initialLang }: { initialLang: LandingLan
 // alongside the survey/letter forms since they collect an optional
 // email address. Deliberately plain (no i18n) since Impressum/
 // Datenschutzerklärung are DE/CH legal terms regardless of UI language.
-function LegalFooter() {
+function LegalFooter({ impressumHref, datenschutzHref }: { impressumHref: string; datenschutzHref: string }) {
   return (
     <div className="legalfooter">
-      <Link href="/landing/impressum">Impressum</Link>
+      <Link href={impressumHref}>Impressum</Link>
       <span aria-hidden="true">·</span>
-      <Link href="/landing/datenschutz">Datenschutz</Link>
+      <Link href={datenschutzHref}>Datenschutz</Link>
     </div>
   );
 }

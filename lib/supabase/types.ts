@@ -771,6 +771,31 @@ export type ServiceAccountInsert = Partial<Omit<ServiceAccount, "id" | "created_
 };
 export type ServiceAccountUpdate = Partial<Omit<ServiceAccount, "id" | "created_at">>;
 
+// Beállítások → Jogi dokumentumok — see the "Legal documents" block in
+// schema.sql for the full story. Reuses UnlockHistoryEntry (same shape,
+// same lock convention as Expense/Revenue above).
+export type LegalDocumentType = "Impresszum" | "Adatvédelem";
+
+export interface LegalDocument {
+  id: string;
+  type: LegalDocumentType;
+  title: string;
+  slug: string;
+  content: string;
+  last_updated: string;
+  is_locked: boolean;
+  locked_at: string | null;
+  unlock_history: UnlockHistoryEntry[];
+  created_at: string;
+  updated_at: string;
+}
+export type LegalDocumentInsert = Partial<Omit<LegalDocument, "id" | "created_at" | "updated_at">> & {
+  type: LegalDocumentType;
+  title: string;
+  slug: string;
+};
+export type LegalDocumentUpdate = Partial<Omit<LegalDocument, "id" | "created_at" | "updated_at">>;
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -1022,6 +1047,12 @@ export interface Database {
         Update: ServiceAccountUpdate;
         Relationships: [];
       };
+      legal_documents: {
+        Row: LegalDocument;
+        Insert: LegalDocumentInsert;
+        Update: LegalDocumentUpdate;
+        Relationships: [];
+      };
       rituals: {
         Row: Ritual;
         Insert: RitualInsert;
@@ -1157,4 +1188,5 @@ export const ANON_TABLE_NAMES = [
   "service_accounts",
   "rituals",
   "cards",
+  "legal_documents",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { LandingLang } from "@/lib/landing-i18n";
 import { OG_TITLE, OG_DESCRIPTION, OG_LOCALE, isOgLang, OG_LANGS, type OgLang } from "@/lib/landing-og";
 import { SITE_URL } from "@/lib/site-url";
+import { getSupabasePublicClient } from "@/lib/supabase/publicClient";
 import LandingClient from "./LandingClient";
 
 // generateMetadata only lives here — not in a shared app/landing/layout.tsx
@@ -66,6 +67,22 @@ export async function generateMetadata({
   };
 }
 
+// Legal-footer hrefs read live from legal_documents.slug (Beállítások →
+// Jogi dokumentumok) instead of the hardcoded /landing/impressum and
+// /landing/datenschutz paths this used to link to — falls back to the
+// current default slugs if Supabase isn't configured or the seed rows
+// aren't there yet, so the footer links never break outright.
+async function legalFooterHrefs(): Promise<{ impressumHref: string; datenschutzHref: string }> {
+  const supabase = getSupabasePublicClient();
+  if (!supabase) return { impressumHref: "/impresszum", datenschutzHref: "/adatvedelem" };
+  const { data } = await supabase.from("legal_documents").select("type, slug");
+  const slugByType = new Map((data ?? []).map((row) => [row.type, row.slug]));
+  return {
+    impressumHref: `/${slugByType.get("Impresszum") ?? "impresszum"}`,
+    datenschutzHref: `/${slugByType.get("Adatvédelem") ?? "adatvedelem"}`,
+  };
+}
+
 export default async function LandingPage({
   searchParams,
 }: {
@@ -75,5 +92,6 @@ export default async function LandingPage({
   // Only "de"/"en" are real on-page languages (see landing-i18n.ts) — a
   // ?lang=hu OG-preview link still opens the actual funnel in German.
   const initialLang: LandingLang = langParam === "en" ? "en" : "de";
-  return <LandingClient initialLang={initialLang} />;
+  const { impressumHref, datenschutzHref } = await legalFooterHrefs();
+  return <LandingClient initialLang={initialLang} impressumHref={impressumHref} datenschutzHref={datenschutzHref} />;
 }

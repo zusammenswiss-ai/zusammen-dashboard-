@@ -11,6 +11,12 @@ import { createServerClient } from "@supabase/ssr";
 // the matcher below — so it (and the fonts/images it loads) stays reachable
 // by visitors even when the dashboard itself is locked down.
 //
+// /impresszum and /adatvedelem are excluded the same way — the public
+// legal pages (app/impresszum, app/adatvedelem), content read live from
+// legal_documents. Without this, a signed-out visitor (or a crawler)
+// hitting either URL would get bounced to /login instead of the notice
+// they're legally supposed to be able to read.
+//
 // /api/reminder-email is also excluded: it's called by Vercel Cron with an
 // `Authorization: Bearer <CRON_SECRET>` header (its own auth, checked inside
 // the route itself), not Basic Auth — without this exclusion, turning on
@@ -147,5 +153,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher:
-    "/((?!_next/static|_next/image|favicon.ico|landing|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe).*)",
+    "/((?!_next/static|_next/image|favicon.ico|landing|impresszum|adatvedelem|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe).*)",
 };

@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   }
 
   const ritualLink = await ritualLinkFor(supabase);
-  const privacy = privacyLink();
+  const privacy = await privacyLink(supabase);
   const firstName = firstNameFor(recipient);
   const html = personalizeTemplate(template.html_content, { firstName, ritualLink, privacyLink: privacy });
 
