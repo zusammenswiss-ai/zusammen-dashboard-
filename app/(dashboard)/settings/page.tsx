@@ -10,6 +10,7 @@ import type { TogetherSettings } from "@/lib/supabase/types";
 import { generateAccessCode } from "@/lib/together";
 import CompanySettingsSection from "@/components/CompanySettingsSection";
 import ServiceAccountsSection from "@/components/ServiceAccountsSection";
+import LegalDocumentsSection from "@/components/LegalDocumentsSection";
 import DataExportSection from "@/components/DataExportSection";
 import DangerZoneSection from "@/components/DangerZoneSection";
 
@@ -28,6 +29,7 @@ export default function SettingsPage() {
             <TogetherAccessCard />
             <CompanySettingsSection />
             <ServiceAccountsSection />
+            <LegalDocumentsSection />
             <DataExportSection />
             <DangerZoneSection />
             <AccountCard />

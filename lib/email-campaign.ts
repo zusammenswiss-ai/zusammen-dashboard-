@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { SITE_URL } from "@/lib/site-url";
+import { legalDocumentUrl } from "@/lib/legal-links";
 
 export type CampaignAudience = "demand" | "newsletter";
 
@@ -89,11 +90,12 @@ export async function ritualLinkFor(supabase: SupabaseClient<Database>): Promise
   return data?.access_code ? `${SITE_URL}/together?code=${data.access_code}` : `${SITE_URL}/together`;
 }
 
-/** {{privacy_link}} — the existing public Datenschutz page from the
- * /landing funnel (app/landing/datenschutz), reused as-is rather than
- * standing up a second, redundant privacy page just for campaign emails. */
-export function privacyLink(): string {
-  return `${SITE_URL}/landing/datenschutz`;
+/** {{privacy_link}} — the live Adatvédelem page's URL, read from
+ * legal_documents.slug (Beállítások → Jogi dokumentumok) so a campaign
+ * email always links to wherever that page actually is, even if the
+ * slug is edited later. See lib/legal-links.ts. */
+export async function privacyLink(supabase: SupabaseClient<Database>): Promise<string> {
+  return legalDocumentUrl(supabase, "Adatvédelem");
 }
 
 /**
