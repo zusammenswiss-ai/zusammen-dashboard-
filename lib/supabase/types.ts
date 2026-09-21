@@ -191,6 +191,7 @@ export type FinanceProductUpdate = Partial<Omit<FinanceProduct, "id" | "created_
 // separate concept from public.cards (the szöveges tartalom-könyvtár).
 export type CardCollectionStatus = "Tervezés" | "Gyártásra kész" | "Gyártásban" | "Élő" | "Archivált";
 export type CollectionCardType = "Kérdés" | "Wild Card" | "Gold Card" | "Egyéb";
+export type CardTextAlign = "left" | "center" | "right";
 
 export interface CardTemplate {
   id: string;
@@ -223,6 +224,13 @@ export interface CardCollection {
   status: CardCollectionStatus;
   template_id: string | null;
   languages: string[];
+  // Közös hátlap-design az egész kollekcióhoz (2. fázis — lásd a
+  // schema.sql-en a card_collections back_* oszlopainak komment-jét).
+  back_background_color: string | null;
+  back_image_url: string | null;
+  back_image_x: number;
+  back_image_y: number;
+  back_image_scale: number;
   created_at: string;
   updated_at: string;
 }
@@ -241,6 +249,15 @@ export interface CollectionCard {
   text_de: string | null;
   text_en: string | null;
   sort_order: number;
+  // Front-design (2. fázis) — lásd a schema.sql-en a komment-et: a
+  // szöveg tartalma fent van, ez csak a MEGJELENÍTÉST írja le.
+  background_color: string | null;
+  text_font_size: number;
+  text_align: CardTextAlign;
+  image_url: string | null;
+  image_x: number;
+  image_y: number;
+  image_scale: number;
   created_at: string;
   updated_at: string;
 }
