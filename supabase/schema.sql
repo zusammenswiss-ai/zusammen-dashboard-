@@ -2136,3 +2136,33 @@ drop policy if exists "card-designer bucket authenticated write" on storage.obje
 create policy "card-designer bucket authenticated write"
   on storage.objects for insert
   with check (bucket_id = 'card-designer' and auth.uid() is not null);
+
+-- =====================================================================
+-- Kártyatervező — 3. fázis: exportálás + verziókezelés. Minden
+-- "Exportálás" egy új sort hoz létre itt — a régebbi exportok fájlja
+-- (a card-designer bucket exports/ mappájában) sosem íródik felül, így
+-- egy korábbi verzió mindig visszakereshető/letölthető marad, még ha a
+-- kollekció designja azóta változott is. template_id egy pillanatfelvétel
+-- (melyik sablonhoz készült az export), nem él FK-referenciaként a
+-- kollekció aktuális sablonjára, mert az később megváltozhat.
+-- =====================================================================
+create table if not exists public.card_export_versions (
+  id uuid primary key default gen_random_uuid(),
+  collection_id uuid not null references public.card_collections(id) on delete cascade,
+  template_id uuid references public.card_templates(id) on delete set null,
+  language text not null,
+  kind text not null check (kind in ('fronts_only', 'front_back_pairs')),
+  format text not null check (format in ('png', 'pdf')),
+  card_count integer not null,
+  file_url text not null,
+  sent_to_manufacturer boolean not null default false,
+  sent_at date,
+  created_at timestamptz not null default now()
+);
+
+alter table public.card_export_versions enable row level security;
+
+drop policy if exists "anon full access" on public.card_export_versions;
+drop policy if exists "authenticated full access" on public.card_export_versions;
+create policy "authenticated full access" on public.card_export_versions for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);

@@ -267,6 +267,35 @@ export type CollectionCardInsert = Partial<Omit<CollectionCard, "id" | "created_
 };
 export type CollectionCardUpdate = Partial<Omit<CollectionCard, "id" | "created_at">>;
 
+export type CardExportKind = "fronts_only" | "front_back_pairs";
+export type CardExportFormat = "png" | "pdf";
+
+// Kártyatervező — 3. fázis: minden "Exportálás" egy új, dátumozott sort
+// hoz létre itt (lásd a schema.sql-en a komment-et) — a régebbi exportok
+// sosem vesznek el, egy verzió-előzmény listában maradnak elérhetők.
+export interface CardExportVersion {
+  id: string;
+  collection_id: string;
+  template_id: string | null;
+  language: string;
+  kind: CardExportKind;
+  format: CardExportFormat;
+  card_count: number;
+  file_url: string;
+  sent_to_manufacturer: boolean;
+  sent_at: string | null;
+  created_at: string;
+}
+export type CardExportVersionInsert = Partial<Omit<CardExportVersion, "id" | "created_at">> & {
+  collection_id: string;
+  language: string;
+  kind: CardExportKind;
+  format: CardExportFormat;
+  card_count: number;
+  file_url: string;
+};
+export type CardExportVersionUpdate = Partial<Omit<CardExportVersion, "id" | "created_at">>;
+
 export type ExpenseType = "Fix költség" | "Változó költség";
 export type PaymentMethod = "Bankkártya" | "Banki átutalás" | "Készpénz" | "Egyéb";
 export type RevenueStatus = "Kiállítva" | "Kifizetve";
@@ -1179,6 +1208,12 @@ export interface Database {
         Update: CollectionCardUpdate;
         Relationships: [];
       };
+      card_export_versions: {
+        Row: CardExportVersion;
+        Insert: CardExportVersionInsert;
+        Update: CardExportVersionUpdate;
+        Relationships: [];
+      };
       expenses: {
         Row: Expense;
         Insert: ExpenseInsert;
@@ -1280,6 +1315,7 @@ export const ANON_TABLE_NAMES = [
   "card_templates",
   "card_collections",
   "collection_cards",
+  "card_export_versions",
   "expenses",
   "revenue",
   "budgets",

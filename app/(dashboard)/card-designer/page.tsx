@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Palette } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { CardCollection, CardTemplate, CollectionCard } from "@/lib/supabase/types";
+import type { CardCollection, CardExportVersion, CardTemplate, CollectionCard } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -26,6 +26,7 @@ export default function CardDesignerPage() {
   const [templates, setTemplates] = useState<CardTemplate[]>([]);
   const [collections, setCollections] = useState<CardCollection[]>([]);
   const [cards, setCards] = useState<CollectionCard[]>([]);
+  const [exportVersions, setExportVersions] = useState<CardExportVersion[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,16 +36,18 @@ export default function CardDesignerPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [templatesRes, collectionsRes, cardsRes] = await Promise.all([
+    const [templatesRes, collectionsRes, cardsRes, exportVersionsRes] = await Promise.all([
       supabase.from("card_templates").select("*").order("name"),
       supabase.from("card_collections").select("*").order("created_at", { ascending: false }),
       supabase.from("collection_cards").select("*").order("sort_order"),
+      supabase.from("card_export_versions").select("*").order("created_at", { ascending: false }),
     ]);
     if (templatesRes.error) setError(errorMessage(templatesRes.error, "Nem sikerült betölteni a sablonokat."));
     else setTemplates(templatesRes.data ?? []);
     if (collectionsRes.error) setError(errorMessage(collectionsRes.error, "Nem sikerült betölteni a kollekciókat."));
     else setCollections(collectionsRes.data ?? []);
     if (!cardsRes.error) setCards(cardsRes.data ?? []);
+    if (!exportVersionsRes.error) setExportVersions(exportVersionsRes.data ?? []);
     setLoading(false);
   }, [supabase]);
 
@@ -95,8 +98,10 @@ export default function CardDesignerPage() {
           collections={collections}
           templates={templates}
           cards={cards}
+          exportVersions={exportVersions}
           onCollectionsChange={setCollections}
           onCardsChange={setCards}
+          onExportVersionsChange={setExportVersions}
         />
       ) : (
         <TemplatesSection templates={templates} onChange={setTemplates} />

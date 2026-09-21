@@ -5,6 +5,7 @@ import { X, Trash2, Plus, Pencil, Wand2, Check, Palette } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type {
   CardCollection,
+  CardExportVersion,
   CardTemplate,
   CollectionCard,
   CollectionCardInsert,
@@ -14,8 +15,10 @@ import BackButton from "@/components/BackButton";
 import EmptyState from "@/components/EmptyState";
 import StickyFormActions from "@/components/StickyFormActions";
 import CardCanvasEditor, { type CardDesign } from "@/components/card-designer/CardCanvasEditor";
+import ExportPanel from "@/components/card-designer/ExportPanel";
+import VersionHistoryList from "@/components/card-designer/VersionHistoryList";
 import { errorMessage } from "@/lib/errors";
-import { suggestCardNumber } from "@/lib/card-template";
+import { suggestCardNumber, textForLanguage } from "@/lib/card-template";
 import { CARD_COLLECTION_STATUSES, CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES, LANGUAGE_OPTIONS } from "@/lib/labels";
 
 function bySortOrder(a: CollectionCard, b: CollectionCard) {
@@ -30,17 +33,21 @@ export default function CollectionDetailModal({
   collection,
   templates,
   cards,
+  exportVersions,
   onClose,
   onCollectionSaved,
   onCardsChange,
+  onExportVersionsChange,
   onDelete,
 }: {
   collection: CardCollection;
   templates: CardTemplate[];
   cards: CollectionCard[];
+  exportVersions: CardExportVersion[];
   onClose: () => void;
   onCollectionSaved: (c: CardCollection) => void;
   onCardsChange: (nextForCollection: CollectionCard[]) => void;
+  onExportVersionsChange: (nextForCollection: CardExportVersion[]) => void;
   onDelete: () => void;
 }) {
   const [meta, setMeta] = useState({
@@ -356,6 +363,21 @@ export default function CollectionDetailModal({
               )}
             </div>
           )}
+
+          {selectedTemplate && (
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="mb-3 font-serif text-lg text-forest">Exportálás &amp; verziók</p>
+              <ExportPanel
+                collection={collection}
+                template={selectedTemplate}
+                cards={cards}
+                onVersionCreated={(v) => onExportVersionsChange([...exportVersions, v])}
+              />
+              <div className="mt-4">
+                <VersionHistoryList versions={exportVersions} onVersionsChange={onExportVersionsChange} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-border p-4">
@@ -415,13 +437,6 @@ export default function CollectionDetailModal({
       )}
     </div>
   );
-}
-
-function textForLanguage(card: CollectionCard, lang: string): string {
-  if (lang === "HU") return card.text_hu ?? "";
-  if (lang === "DE") return card.text_de ?? "";
-  if (lang === "EN") return card.text_en ?? "";
-  return "";
 }
 
 function CardRow({

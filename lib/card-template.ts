@@ -1,4 +1,4 @@
-import type { CardTemplate, CollectionCardType } from "./supabase/types";
+import type { CardTemplate, CollectionCard, CollectionCardType } from "./supabase/types";
 
 /**
  * A gyártói sablon (bleed/cut/safe méretek hüvelykben + DPI) belőle
@@ -48,4 +48,16 @@ export function suggestCardNumber(
     .map((c) => (/^\d+$/.test(c.card_number) ? Number(c.card_number) : null))
     .filter((n): n is number => n != null);
   return String(nums.length > 0 ? Math.max(...nums) + 1 : 1);
+}
+
+/** Egy kártya nyelvenkénti szövege — csak HU/DE/EN oszlop létezik
+ * (lásd a collection_cards sémáját), egy tetszőleges egyéni nyelv-kód
+ * (Kollekció adatai → Nyelvek) így nem kap saját szöveg-mezőt; ugyanez
+ * a korlát, mint a kártya-form (CollectionDetailModal cardFormFields)
+ * nyelvenkénti textarea-inál. */
+export function textForLanguage(card: Pick<CollectionCard, "text_hu" | "text_de" | "text_en">, lang: string): string {
+  if (lang === "HU") return card.text_hu ?? "";
+  if (lang === "DE") return card.text_de ?? "";
+  if (lang === "EN") return card.text_en ?? "";
+  return "";
 }
