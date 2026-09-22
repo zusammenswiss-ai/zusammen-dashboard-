@@ -2206,3 +2206,15 @@ alter table public.card_assets add column if not exists collection_id uuid refer
 -- =====================================================================
 alter table public.collection_cards add column if not exists mockup_images jsonb not null default '{}'::jsonb;
 alter table public.card_collections add column if not exists back_mockup_images jsonb not null default '{}'::jsonb;
+
+-- =====================================================================
+-- Kártyatervező — 7. fázis: "Feladat létrehozása" egy kártyából vagy a
+-- teljes kollekcióból — ugyanaz a valódi-FK minta, mint a
+-- tasks.content_id a Marketing tartalom-naptárnál (nem szabad-szöveges
+-- notes-egyeztetés). Csak az egyik szokott ki legyen töltve egy adott
+-- feladaton: collection_card_id egy konkrét kártyához, card_collection_id
+-- egy egész kollekcióhoz (a kártyalista fölötti "Feladat létrehozása"
+-- gombból) köti a feladatot.
+-- =====================================================================
+alter table public.tasks add column if not exists collection_card_id uuid references public.collection_cards(id) on delete set null;
+alter table public.tasks add column if not exists card_collection_id uuid references public.card_collections(id) on delete set null;

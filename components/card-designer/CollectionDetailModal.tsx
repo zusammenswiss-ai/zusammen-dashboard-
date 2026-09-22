@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { X, Trash2, Plus, Pencil, Wand2, Check, Palette } from "lucide-react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { X, Trash2, Plus, Pencil, Wand2, Check, Palette, ListPlus, ArrowRight } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type {
   CardCollection,
@@ -10,6 +11,7 @@ import type {
   CollectionCard,
   CollectionCardInsert,
   CollectionCardType,
+  TaskItem,
 } from "@/lib/supabase/types";
 import BackButton from "@/components/BackButton";
 import EmptyState from "@/components/EmptyState";
@@ -19,6 +21,7 @@ import ExportPanel from "@/components/card-designer/ExportPanel";
 import VersionHistoryList from "@/components/card-designer/VersionHistoryList";
 import CollectionGallery from "@/components/card-designer/CollectionGallery";
 import ManualVersionUpload from "@/components/card-designer/ManualVersionUpload";
+import CardNumberAudit from "@/components/card-designer/CardNumberAudit";
 import { errorMessage } from "@/lib/errors";
 import { suggestCardNumber, textForLanguage } from "@/lib/card-template";
 import { CARD_COLLECTION_STATUSES, CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES, LANGUAGE_OPTIONS } from "@/lib/labels";
@@ -72,9 +75,83 @@ export default function CollectionDetailModal({
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [designCardId, setDesignCardId] = useState<string | null>(initialDesignCardId ?? null);
   const [showBackEditor, setShowBackEditor] = useState(initialShowBackEditor ?? false);
+  const [relatedTasks, setRelatedTasks] = useState<TaskItem[]>([]);
+  const [taskFormCardId, setTaskFormCardId] = useState<string | null>(null);
+  const [showCollectionTaskForm, setShowCollectionTaskForm] = useState(false);
 
   const selectedTemplate = templates.find((t) => t.id === meta.template_id) ?? null;
   const designCard = designCardId ? cards.find((c) => c.id === designCardId) ?? null : null;
+
+  // A kártyához/kollekcióhoz kötött feladatok — lásd tasks.collection_card_id
+  // / tasks.card_collection_id a schema.sql-ben (7. fázis). Egyszer
+  // töltődik be a kollekció megnyitásakor.
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    (async () => {
+      const cardIds = cards.map((c) => c.id);
+      const [collectionTasksRes, cardTasksRes] = await Promise.all([
+        supabase.from("tasks").select("*").eq("card_collection_id", collection.id),
+        cardIds.length > 0
+          ? supabase.from("tasks").select("*").in("collection_card_id", cardIds)
+          : Promise.resolve({ data: [] as TaskItem[] }),
+      ]);
+      if (cancelled) return;
+      setRelatedTasks([...(collectionTasksRes.data ?? []), ...(cardTasksRes.data ?? [])]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- csak a kollekció megnyitásakor töltődik be; a `cards` tömb referenciája minden szerkesztésnél megváltozik, az nem ok az újratöltésre
+  }, [collection.id]);
+
+  async function createTaskForCard(card: CollectionCard, title: string) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title,
+        category: "Kártyatervező",
+        status: "Teendő",
+        notes: `Kollekció: ${collection.name}\nKártya: ${card.card_number} (${card.card_type})`,
+        collection_card_id: card.id,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    if (data) setRelatedTasks((prev) => [data, ...prev]);
+    setTaskFormCardId(null);
+  }
+
+  async function createTaskForCollection(title: string) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title,
+        category: "Kártyatervező",
+        status: "Teendő",
+        notes: `Kollekció: ${collection.name}`,
+        card_collection_id: collection.id,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    if (data) setRelatedTasks((prev) => [data, ...prev]);
+    setShowCollectionTaskForm(false);
+  }
+
+  const openCollectionTasks = relatedTasks.filter((t) => t.card_collection_id === collection.id && t.status !== "Kész");
+  const openTasksByCardId = new Map<string, TaskItem[]>();
+  for (const t of relatedTasks) {
+    if (!t.collection_card_id || t.status === "Kész") continue;
+    const list = openTasksByCardId.get(t.collection_card_id) ?? [];
+    list.push(t);
+    openTasksByCardId.set(t.collection_card_id, list);
+  }
 
   function toggleLanguage(lang: string) {
     setMeta((f) => ({
@@ -310,7 +387,18 @@ export default function CollectionDetailModal({
               >
                 <Palette size={14} /> Hátlap szerkesztése
               </button>
+              <button type="button" onClick={() => setShowCollectionTaskForm((v) => !v)} className="btn btn-ghost">
+                <ListPlus size={14} /> Feladat létrehozása
+              </button>
             </div>
+            {showCollectionTaskForm && (
+              <InlineTaskForm
+                defaultTitle={`${collection.name} kollekció felülvizsgálata`}
+                onCreate={createTaskForCollection}
+                onCancel={() => setShowCollectionTaskForm(false)}
+              />
+            )}
+            <OpenTasksList tasks={openCollectionTasks} />
           </div>
 
           <div className="mb-3 flex items-center justify-between">
@@ -326,6 +414,8 @@ export default function CollectionDetailModal({
               <Plus size={14} /> Új kártya
             </button>
           </div>
+
+          <CardNumberAudit cards={cards} />
 
           {showCardForm && (
             <CardForm
@@ -365,12 +455,17 @@ export default function CollectionDetailModal({
                     key={c.id}
                     card={c}
                     canDesign={Boolean(selectedTemplate)}
+                    openTasks={openTasksByCardId.get(c.id) ?? []}
+                    showTaskForm={taskFormCardId === c.id}
                     onEdit={() => {
                       setShowCardForm(false);
                       setEditingCardId(c.id);
                     }}
                     onDesign={() => setDesignCardId(c.id)}
                     onDelete={() => deleteCard(c)}
+                    onToggleTaskForm={() => setTaskFormCardId((id) => (id === c.id ? null : c.id))}
+                    onCreateTask={(title) => createTaskForCard(c, title)}
+                    onCancelTaskForm={() => setTaskFormCardId(null)}
                   />
                 )
               )}
@@ -460,74 +555,180 @@ export default function CollectionDetailModal({
   );
 }
 
+/** Kompakt "Feladat létrehozása" mini-űrlap — kártyához és a teljes
+ * kollekcióhoz is ugyanaz, csak az onCreate célja más (lásd
+ * createTaskForCard/createTaskForCollection). Ugyanaz a minta, mint a
+ * CardAssetDetailModal saját "→ Feladat létrehozása" űrlapja. */
+function InlineTaskForm({
+  defaultTitle,
+  onCreate,
+  onCancel,
+}: {
+  defaultTitle: string;
+  onCreate: (title: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(defaultTitle);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onCreate(title.trim());
+    } catch (err) {
+      setError(errorMessage(err, "Nem sikerült létrehozni a feladatot."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      onClick={(e) => e.stopPropagation()}
+      className="mt-2 flex animate-fade-in flex-col gap-2 rounded-md border border-bronze/30 bg-ivory-dim/40 p-3"
+    >
+      <input
+        className="input text-sm"
+        required
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving} className="btn btn-primary !px-3 !py-1.5 text-xs">
+          {saving ? "Létrehozás…" : "Feladat létrehozása"}
+        </button>
+        <button type="button" onClick={onCancel} className="btn btn-ghost !px-3 !py-1.5 text-xs">
+          Mégse
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function OpenTasksList({ tasks }: { tasks: TaskItem[] }) {
+  if (tasks.length === 0) return null;
+  return (
+    <ul className="mt-1.5 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+      {tasks.map((t) => (
+        <li key={t.id}>
+          <Link
+            href={`/tasks?open=${t.id}`}
+            className="flex items-center gap-1 text-[11px] text-muted underline decoration-dotted hover:text-forest"
+          >
+            🗒 {t.title} <ArrowRight size={10} />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CardRow({
   card,
   canDesign,
+  openTasks,
+  showTaskForm,
   onEdit,
   onDesign,
   onDelete,
+  onToggleTaskForm,
+  onCreateTask,
+  onCancelTaskForm,
 }: {
   card: CollectionCard;
   canDesign: boolean;
+  openTasks: TaskItem[];
+  showTaskForm: boolean;
   onEdit: () => void;
   onDesign: () => void;
   onDelete: () => void;
+  onToggleTaskForm: () => void;
+  onCreateTask: (title: string) => Promise<void>;
+  onCancelTaskForm: () => void;
 }) {
   const firstText = card.text_hu || card.text_de || card.text_en || "";
   return (
     <div
       onClick={onEdit}
-      className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-bronze/40"
+      className="flex cursor-pointer flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm hover:border-bronze/40"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
-          <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
-          {card.suit && <span className="badge bg-ivory-dim text-walnut">{card.suit}</span>}
-          {card.background_color && (
-            <span
-              className="inline-block h-3 w-3 rounded-full border border-border"
-              style={{ backgroundColor: card.background_color }}
-              title="Design elmentve"
-            />
-          )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
+            <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
+            {card.suit && <span className="badge bg-ivory-dim text-walnut">{card.suit}</span>}
+            {card.background_color && (
+              <span
+                className="inline-block h-3 w-3 rounded-full border border-border"
+                style={{ backgroundColor: card.background_color }}
+                title="Design elmentve"
+              />
+            )}
+          </div>
+          {firstText && <p className="mt-1 line-clamp-1 text-xs text-muted">{firstText}</p>}
+          <OpenTasksList tasks={openTasks} />
         </div>
-        {firstText && <p className="mt-1 line-clamp-1 text-xs text-muted">{firstText}</p>}
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDesign();
+            }}
+            disabled={!canDesign}
+            title={canDesign ? "Vizuális tervezés" : "Előbb válassz sablont a kollekciónak"}
+            className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest disabled:opacity-30"
+            aria-label="Vizuális tervezés"
+          >
+            <Palette size={13} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleTaskForm();
+            }}
+            title="Feladat létrehozása"
+            className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest"
+            aria-label="Feladat létrehozása"
+          >
+            <ListPlus size={13} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest"
+            aria-label="Szerkesztés"
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-red-600"
+            aria-label="Törlés"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDesign();
-          }}
-          disabled={!canDesign}
-          title={canDesign ? "Vizuális tervezés" : "Előbb válassz sablont a kollekciónak"}
-          className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest disabled:opacity-30"
-          aria-label="Vizuális tervezés"
-        >
-          <Palette size={13} />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-          className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-forest"
-          aria-label="Szerkesztés"
-        >
-          <Pencil size={13} />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="rounded-md p-1.5 text-muted hover:bg-ivory-dim hover:text-red-600"
-          aria-label="Törlés"
-        >
-          <Trash2 size={13} />
-        </button>
-      </div>
+      {showTaskForm && (
+        <InlineTaskForm
+          defaultTitle={`${card.card_number} kártya felülvizsgálata`}
+          onCreate={onCreateTask}
+          onCancel={onCancelTaskForm}
+        />
+      )}
     </div>
   );
 }

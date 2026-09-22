@@ -146,6 +146,11 @@ export default function TasksPage() {
   // only exists on the Marketing oldal's season cards). TaskDetailModal
   // has its own equivalent, entirely local to that component.
   const [showCampaignForm, setShowCampaignForm] = useState(false);
+  // Kártyatervező — 7. fázis: a Kanban kártyán megmutatja, melyik
+  // kártyához/kollekcióhoz tartozik egy "Feladat létrehozása" gombbal
+  // spawnolt feladat (lásd tasks.collection_card_id/card_collection_id).
+  const [linkedCards, setLinkedCards] = useState<{ id: string; card_number: string; collection_id: string }[]>([]);
+  const [cardCollections, setCardCollections] = useState<{ id: string; name: string }[]>([]);
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
@@ -201,6 +206,21 @@ export default function TasksPage() {
     for (const c of campaigns) map.set(c.id, c);
     return map;
   }, [campaigns]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const [cardsRes, collectionsRes] = await Promise.all([
+        supabase.from("collection_cards").select("id, card_number, collection_id"),
+        supabase.from("card_collections").select("id, name"),
+      ]);
+      setLinkedCards(cardsRes.data ?? []);
+      setCardCollections(collectionsRes.data ?? []);
+    })();
+  }, [supabase]);
+
+  const cardById = useMemo(() => new Map(linkedCards.map((c) => [c.id, c])), [linkedCards]);
+  const collectionNameById = useMemo(() => new Map(cardCollections.map((c) => [c.id, c.name])), [cardCollections]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -607,6 +627,8 @@ export default function TasksPage() {
                 handleDrop={handleDrop}
                 bulkArchive={bulkArchive}
                 campaignById={campaignById}
+                cardById={cardById}
+                collectionNameById={collectionNameById}
                 onDragStart={(id) => {
                   draggedId.current = id;
                 }}
@@ -688,6 +710,8 @@ function KanbanColumn({
   handleDrop,
   bulkArchive,
   campaignById,
+  cardById,
+  collectionNameById,
   onDragStart,
   onOpen,
   onDelete,
@@ -704,6 +728,8 @@ function KanbanColumn({
   handleDrop: (column: TaskStatus | TaskType) => void;
   bulkArchive: (ids: string[]) => void;
   campaignById: Map<string, Campaign>;
+  cardById: Map<string, { id: string; card_number: string; collection_id: string }>;
+  collectionNameById: Map<string, string>;
   onDragStart: (id: string) => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
@@ -747,6 +773,8 @@ function KanbanColumn({
           key={task.id}
           task={task}
           campaignById={campaignById}
+          cardById={cardById}
+          collectionNameById={collectionNameById}
           onDragStart={onDragStart}
           onOpen={() => onOpen(task.id)}
           onDelete={() => onDelete(task.id)}
@@ -766,6 +794,8 @@ function KanbanColumn({
 function TaskCard({
   task,
   campaignById,
+  cardById,
+  collectionNameById,
   onDragStart,
   onOpen,
   onDelete,
@@ -775,6 +805,8 @@ function TaskCard({
 }: {
   task: TaskItem;
   campaignById: Map<string, Campaign>;
+  cardById: Map<string, { id: string; card_number: string; collection_id: string }>;
+  collectionNameById: Map<string, string>;
   onDragStart: (id: string) => void;
   onOpen: () => void;
   onDelete: () => void;
@@ -845,6 +877,24 @@ function TaskCard({
         )}
         {task.task_type === "Kampány" && !task.campaign_id && task.campaign_label && (
           <span className="badge bg-ivory-dim text-walnut">{task.campaign_label}</span>
+        )}
+        {task.collection_card_id && cardById.get(task.collection_card_id) && (
+          <Link
+            href={`/cards?collection=${cardById.get(task.collection_card_id)!.collection_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="badge bg-forest-light/15 text-forest hover:underline"
+          >
+            Kártya: {cardById.get(task.collection_card_id)!.card_number}
+          </Link>
+        )}
+        {!task.collection_card_id && task.card_collection_id && collectionNameById.get(task.card_collection_id) && (
+          <Link
+            href={`/cards?collection=${task.card_collection_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="badge bg-forest-light/15 text-forest hover:underline"
+          >
+            Kollekció: {collectionNameById.get(task.card_collection_id)}
+          </Link>
         )}
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
         {overdue && <span className="badge bg-red-100 text-red-700">Lejárt</span>}

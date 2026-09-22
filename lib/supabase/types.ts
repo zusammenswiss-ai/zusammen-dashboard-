@@ -81,6 +81,11 @@ export interface TaskItem {
   // TaskCard in app/(dashboard)/tasks/page.tsx and
   // app/api/cron/check-date-digest/route.ts.
   check_date: string | null;
+  // Kártyatervező — 7. fázis: "Feladat létrehozása" egy adott kártyából
+  // vagy egy egész kollekcióból, ugyanaz a valódi-FK minta, mint
+  // content_id a Marketingnél. Csak az egyik szokott ki legyen töltve.
+  collection_card_id: string | null;
+  card_collection_id: string | null;
   created_at: string;
   updated_at: string;
 }
