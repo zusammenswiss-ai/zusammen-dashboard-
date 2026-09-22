@@ -6,9 +6,19 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardAsset, CardCollection, CollectionCard } from "@/lib/supabase/types";
 import BackButton from "@/components/BackButton";
 import { loadPdfDocument, renderPdfPage, dataUrlToBlob, HIGH_RES_SCALE, type ExtractedPdfPage, type PdfDocument } from "@/lib/pdf-pages";
+import { createImageLayer } from "@/lib/card-layers";
 import { errorMessage } from "@/lib/errors";
 
-const STORAGE_BUCKET = "card-assets";
+const MOCKUP_BUCKET = "card-assets";
+// A Kártyatervező (LayeredCardEditor/CollectionGallery) a design_layers
+// mezőt olvassa, ami a "card-designer" bucketből oldja fel a kép-
+// rétegeket — ezért ugyanazt a kirenderelt oldalt ide is feltöltjük egy
+// teljes vászon méretű képrétegként, HOGY A CÉLKÁRTYA/HÁTLAP A
+// KÁRTYATERVEZŐBEN IS a valódi tartalmat mutassa, ne csak a Kártyák
+// galériában — de csak akkor, ha a célnak MÉG NINCS saját design_layers
+// beállítása, hogy egy már megkezdett, kézzel szerkesztett design ne
+// vesszen el egy mockup-hozzárendeléskor.
+const DESIGNER_BUCKET = "card-designer";
 
 /**
  * PDF mockup feltöltés → oldalak kézi hozzárendelése (6. fázis) — a
@@ -90,18 +100,32 @@ export default function PdfPageAssignmentModal({
       // szükséges éles, nagy felbontású verzió legyen.
       const highResDataUrl = await renderPdfPage(pdfDoc, page.pageNumber, HIGH_RES_SCALE);
       const blob = dataUrlToBlob(highResDataUrl);
-      const path = `mockup-pages/${asset.id}/${Date.now()}-p${page.pageNumber}.png`;
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(path, blob, { upsert: false, contentType: "image/png" });
-      if (uploadError) throw uploadError;
-      const imageUrl = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+      const filename = `${Date.now()}-p${page.pageNumber}.png`;
+
+      const mockupPath = `mockup-pages/${asset.id}/${filename}`;
+      const { error: mockupError } = await supabase.storage
+        .from(MOCKUP_BUCKET)
+        .upload(mockupPath, blob, { upsert: false, contentType: "image/png" });
+      if (mockupError) throw mockupError;
+      const imageUrl = supabase.storage.from(MOCKUP_BUCKET).getPublicUrl(mockupPath).data.publicUrl;
 
       if (target === "back") {
         const nextImages = { ...collection.back_mockup_images, [lang]: imageUrl };
+        const updatePayload: { back_mockup_images: typeof nextImages; back_design_layers?: ReturnType<typeof createImageLayer>[] } = {
+          back_mockup_images: nextImages,
+        };
+        if (collection.back_design_layers.length === 0) {
+          const designPath = `${crypto.randomUUID()}-${filename}`;
+          const { error: designError } = await supabase.storage
+            .from(DESIGNER_BUCKET)
+            .upload(designPath, blob, { upsert: false, contentType: "image/png" });
+          if (designError) throw designError;
+          const designUrl = supabase.storage.from(DESIGNER_BUCKET).getPublicUrl(designPath).data.publicUrl;
+          updatePayload.back_design_layers = [createImageLayer(designUrl, { x: 0, y: 0, width: 1, height: 1 })];
+        }
         const { data, error } = await supabase
           .from("card_collections")
-          .update({ back_mockup_images: nextImages })
+          .update(updatePayload)
           .eq("id", collection.id)
           .select()
           .single();
@@ -111,9 +135,21 @@ export default function PdfPageAssignmentModal({
         const card = cards.find((c) => c.id === target);
         if (!card) throw new Error("A kiválasztott kártya már nem található.");
         const nextImages = { ...card.mockup_images, [lang]: imageUrl };
+        const updatePayload: { mockup_images: typeof nextImages; design_layers?: ReturnType<typeof createImageLayer>[] } = {
+          mockup_images: nextImages,
+        };
+        if (card.design_layers.length === 0) {
+          const designPath = `${crypto.randomUUID()}-${filename}`;
+          const { error: designError } = await supabase.storage
+            .from(DESIGNER_BUCKET)
+            .upload(designPath, blob, { upsert: false, contentType: "image/png" });
+          if (designError) throw designError;
+          const designUrl = supabase.storage.from(DESIGNER_BUCKET).getPublicUrl(designPath).data.publicUrl;
+          updatePayload.design_layers = [createImageLayer(designUrl, { x: 0, y: 0, width: 1, height: 1 })];
+        }
         const { data, error } = await supabase
           .from("collection_cards")
-          .update({ mockup_images: nextImages })
+          .update(updatePayload)
           .eq("id", card.id)
           .select()
           .single();
