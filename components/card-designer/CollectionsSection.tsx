@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardCollection, CardCollectionInsert, CardExportVersion, CardTemplate, CollectionCard } from "@/lib/supabase/types";
@@ -24,6 +24,7 @@ export default function CollectionsSection({
   onCollectionsChange,
   onCardsChange,
   onExportVersionsChange,
+  deepLink,
 }: {
   collections: CardCollection[];
   templates: CardTemplate[];
@@ -32,10 +33,25 @@ export default function CollectionsSection({
   onCollectionsChange: (next: CardCollection[]) => void;
   onCardsChange: (next: CollectionCard[]) => void;
   onExportVersionsChange: (next: CardExportVersion[]) => void;
+  /** A Kártyák galéria (/cards) egy kattintással ide navigál, pontosan
+   * azzal a kollekcióval/kártyával betöltve, amit szerkeszteni
+   * szeretnél — lásd app/(dashboard)/card-designer/page.tsx. */
+  deepLink?: { collectionId: string; cardId: string | null; back: boolean } | null;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
+
+  useEffect(() => {
+    if (deepLink && collections.some((c) => c.id === deepLink.collectionId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenId(deepLink.collectionId);
+    }
+    // Csak akkor fusson újra, ha maga a deep link változik — a
+    // collections-lista minden betöltéskor új referencia, de az nem ok
+    // az újra-nyitásra (pl. ha a founder közben bezárta a modalt).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLink]);
 
   const sorted = [...collections].sort(byRecency);
   const templateById = new Map(templates.map((t) => [t.id, t]));
@@ -126,6 +142,8 @@ export default function CollectionsSection({
           templates={templates}
           cards={cards.filter((card) => card.collection_id === openCollection.id)}
           exportVersions={exportVersions.filter((v) => v.collection_id === openCollection.id)}
+          initialDesignCardId={deepLink?.collectionId === openCollection.id ? deepLink.cardId : null}
+          initialShowBackEditor={deepLink?.collectionId === openCollection.id ? deepLink.back : false}
           onClose={() => setOpenId(null)}
           onCollectionSaved={(saved) => onCollectionsChange(collections.map((c) => (c.id === saved.id ? saved : c)))}
           onCardsChange={(nextForCollection) =>

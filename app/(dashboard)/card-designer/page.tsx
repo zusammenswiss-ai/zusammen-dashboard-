@@ -29,8 +29,26 @@ export default function CardDesignerPage() {
   const [exportVersions, setExportVersions] = useState<CardExportVersion[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
+  const [deepLink, setDeepLink] = useState<{ collectionId: string; cardId: string | null; back: boolean } | null>(
+    null
+  );
 
   const supabase = getSupabaseClient();
+
+  // Deep link a Kártyák galériából (/cards?collection=…&card=… vagy
+  // &back=1) — ugyanaz a window.location minta, mint /tasks-nál, hogy
+  // ne kelljen useSearchParams + Suspense boundary csak egy egyszeri
+  // ellenőrzéshez.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const collectionId = params.get("collection");
+    if (collectionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDeepLink({ collectionId, cardId: params.get("card"), back: params.get("back") === "1" });
+      setTab("collections");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -102,6 +120,7 @@ export default function CardDesignerPage() {
           onCollectionsChange={setCollections}
           onCardsChange={setCards}
           onExportVersionsChange={setExportVersions}
+          deepLink={deepLink}
         />
       ) : (
         <TemplatesSection templates={templates} onChange={setTemplates} />

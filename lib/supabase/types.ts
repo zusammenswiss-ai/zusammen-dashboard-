@@ -624,6 +624,9 @@ export interface CardAsset {
   order_date: string | null;
   quantity: number | null;
   thumbnails: CardAssetThumbnail[];
+  // Melyik Kártyatervező-kollekció production-fájlja ez — a Kártyák
+  // galéria és a Kártya-fájlok lista kölcsönös hivatkozásához (5. fázis).
+  collection_id: string | null;
   created_at: string;
 }
 export type CardAssetInsert = Partial<Omit<CardAsset, "id" | "created_at">> & {

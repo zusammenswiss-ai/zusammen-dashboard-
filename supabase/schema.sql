@@ -2183,3 +2183,13 @@ drop policy if exists "anon full access" on public.card_export_versions;
 drop policy if exists "authenticated full access" on public.card_export_versions;
 create policy "authenticated full access" on public.card_export_versions for all
   using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- =====================================================================
+-- Kártyatervező — 5. fázis: a "Kártyák" menü mostantól a Kártyatervező
+-- collection_cards vizuális galériája (nem a public.cards tartalom-
+-- könyvtár többé — az a Rituálék "Kártyák" fülére költözött). Ez a
+-- collection_id köti össze egy Kártya-fájlok feltöltést azzal a
+-- kollekcióval, aminek a nyomdakész production-fájlja — hogy a Kártyák
+-- galéria és a Kártya-fájlok lista kölcsönösen hivatkozhasson egymásra.
+-- =====================================================================
+alter table public.card_assets add column if not exists collection_id uuid references public.card_collections(id) on delete set null;

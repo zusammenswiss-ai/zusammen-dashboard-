@@ -2,170 +2,101 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Pencil, History, CreditCard, Radio, QrCode, Search } from "lucide-react";
+import { CreditCard, Palette } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { ContentCard, CardSnapshot, ContentStatus } from "@/lib/supabase/types";
+import type { CardCollection, CardTemplate, CollectionCard, CollectionCardType } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
-import UndoToast from "@/components/UndoToast";
 import CollapsibleSection from "@/components/CollapsibleSection";
-import ShowMoreButton from "@/components/ShowMoreButton";
-import SearchBar from "@/components/SearchBar";
-import ContentVersionHistoryModal from "@/components/ContentVersionHistoryModal";
-import CardFormModal, { type CardFormValues } from "@/components/CardFormModal";
-import { useUndoAction } from "@/lib/useUndoAction";
-import { useShowMore } from "@/lib/useShowMore";
-import { CONTENT_STATUSES, CONTENT_STATUS_HU, CONTENT_STATUS_STYLES } from "@/lib/labels";
-import { buildVersionEntry } from "@/lib/content-version";
-import { errorMessage } from "@/lib/errors";
+import CardVisual from "@/components/card-designer/CardVisual";
+import { resolveSignedUrls } from "@/lib/signed-storage-url";
+import { textForLanguage } from "@/lib/card-template";
+import { CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES } from "@/lib/labels";
 
-function byRecency(a: ContentCard, b: ContentCard) {
-  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-}
+const STORAGE_BUCKET = "card-designer";
+type TypeFilter = "Mind" | CollectionCardType | "Hátlap";
 
-function snapshotOf(card: ContentCard): CardSnapshot {
-  return {
-    title: card.title,
-    category: card.category,
-    question: card.question,
-    short_description: card.short_description,
-    deep_question: card.deep_question,
-    ritual_id: card.ritual_id,
-    duration_minutes: card.duration_minutes,
-    energy: card.energy,
-    depth: card.depth,
-    mode: card.mode,
-    nfc_id: card.nfc_id,
-    qr_url: card.qr_url,
-    journey: card.journey,
-  };
-}
-
+/**
+ * Kártyák — a Kártyatervező kollekcióinak VIZUÁLIS galériája: minden
+ * kártya-bejegyzés úgy jelenik meg, ahogy a nyomtatott kártyán is
+ * kinézne (háttérszín, kép, szöveg a safe-zónában), rács-nézetben,
+ * kollekciónként csoportosítva. Ez korábban a public.cards (rituálé-
+ * kérdés kártyák) tartalom-könyvtára volt — az a Rituálék "Kártyák"
+ * fülére költözött (5. fázis), mert ez a menü a nyomdai kártyák
+ * "főoldalaként" jóval fontosabb: innen nyílik meg egy kattintással a
+ * Kártyatervező, pontosan az adott kártyával betöltve.
+ */
 export default function CardsPage() {
-  const [cards, setCards] = useState<ContentCard[]>([]);
-  const [rituals, setRituals] = useState<{ id: string; name: string }[]>([]);
+  const [collections, setCollections] = useState<CardCollection[]>([]);
+  const [templates, setTemplates] = useState<CardTemplate[]>([]);
+  const [cards, setCards] = useState<CollectionCard[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingCard, setEditingCard] = useState<ContentCard | null>(null);
-  const [historyCard, setHistoryCard] = useState<ContentCard | null>(null);
-  const [query, setQuery] = useState("");
+
+  const [collectionFilter, setCollectionFilter] = useState<string>("");
+  const [languageFilter, setLanguageFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("Mind");
 
   const supabase = getSupabaseClient();
-  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
-  const loadCards = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [cardsRes, ritualsRes] = await Promise.all([
-      supabase.from("cards").select("*").order("card_number", { ascending: false }),
-      supabase.from("rituals").select("id, name").order("name"),
+    const [collectionsRes, templatesRes, cardsRes] = await Promise.all([
+      supabase.from("card_collections").select("*").order("created_at", { ascending: false }),
+      supabase.from("card_templates").select("*").order("name"),
+      supabase.from("collection_cards").select("*").order("sort_order"),
     ]);
-    if (cardsRes.error) setError(cardsRes.error.message);
-    else setCards(cardsRes.data ?? []);
-    if (!ritualsRes.error) setRituals(ritualsRes.data ?? []);
+    if (collectionsRes.error) setError(collectionsRes.error.message);
+    else setCollections(collectionsRes.data ?? []);
+    if (!templatesRes.error) setTemplates(templatesRes.data ?? []);
+    if (!cardsRes.error) setCards(cardsRes.data ?? []);
+
+    const imageUrls = [
+      ...(cardsRes.data ?? []).map((c) => c.image_url),
+      ...(collectionsRes.data ?? []).map((c) => c.back_image_url),
+    ];
+    setSignedUrls(await resolveSignedUrls(supabase, STORAGE_BUCKET, imageUrls));
     setLoading(false);
   }, [supabase]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (supabase) void loadCards();
-  }, [supabase, loadCards]);
+    if (supabase) void load();
+  }, [supabase, load]);
 
-  const ritualNameById = useMemo(() => new Map(rituals.map((r) => [r.id, r.name])), [rituals]);
-
-  async function saveCard(values: CardFormValues) {
-    if (!supabase) return;
-    const newSnapshot: CardSnapshot = {
-      title: values.title,
-      category: values.category || null,
-      question: values.question || null,
-      short_description: values.short_description || null,
-      deep_question: values.deep_question || null,
-      ritual_id: values.ritual_id || null,
-      duration_minutes: values.duration_minutes ? Number(values.duration_minutes) : null,
-      energy: values.energy || null,
-      depth: values.depth || null,
-      mode: values.mode || null,
-      nfc_id: values.nfc_id || null,
-      qr_url: values.qr_url || null,
-      journey: values.journey || null,
-    };
-
-    if (editingCard) {
-      const oldSnapshot = snapshotOf(editingCard);
-      const contentChanged = JSON.stringify(oldSnapshot) !== JSON.stringify(newSnapshot);
-      const statusChanged = editingCard.status !== values.status;
-      let history = editingCard.version_history;
-      if (contentChanged) {
-        history = [...history, buildVersionEntry(editingCard.version, editingCard.status, oldSnapshot)];
-      } else if (statusChanged) {
-        history = [...history, buildVersionEntry(editingCard.version, editingCard.status, null)];
-      }
-      const { data, error } = await supabase
-        .from("cards")
-        .update({ ...newSnapshot, status: values.status, version: values.version, version_history: history })
-        .eq("id", editingCard.id)
-        .select()
-        .single();
-      if (error) throw error;
-      if (data) setCards((prev) => prev.map((c) => (c.id === data.id ? data : c)));
-    } else {
-      const { data, error } = await supabase
-        .from("cards")
-        .insert({ ...newSnapshot, status: values.status, version: values.version })
-        .select()
-        .single();
-      if (error) throw error;
-      if (data) setCards((prev) => [data, ...prev]);
+  // Deep link a Kártya-fájlok "Kollekció" linkjéből (/cards?collection=…).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const collectionId = params.get("collection");
+    if (collectionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollectionFilter(collectionId);
+      window.history.replaceState(null, "", window.location.pathname);
     }
-    setShowForm(false);
-    setEditingCard(null);
-  }
+  }, []);
 
-  async function updateStatus(card: ContentCard, newStatus: ContentStatus) {
-    if (!supabase || newStatus === card.status) return;
-    const history = [...card.version_history, buildVersionEntry(card.version, card.status, null)];
-    setCards((prev) =>
-      prev.map((c) => (c.id === card.id ? { ...c, status: newStatus, version_history: history } : c))
-    );
-    const { error } = await supabase
-      .from("cards")
-      .update({ status: newStatus, version_history: history })
-      .eq("id", card.id);
-    if (error) setError(errorMessage(error, "Nem sikerült frissíteni az állapotot."));
-  }
+  const templateById = useMemo(() => new Map(templates.map((t) => [t.id, t])), [templates]);
 
-  function deleteCard(card: ContentCard) {
-    if (!supabase) return;
-    setCards((prev) => prev.filter((c) => c.id !== card.id));
-    scheduleUndo(
-      `"${card.title}" törölve.`,
-      async () => {
-        const { error } = await supabase.from("cards").delete().eq("id", card.id);
-        if (error) setError(error.message);
-      },
-      () => setCards((prev) => [...prev, card].sort(byRecency))
-    );
-  }
+  const availableLanguages = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of collections) {
+      if (collectionFilter && c.id !== collectionFilter) continue;
+      for (const lang of c.languages) set.add(lang);
+    }
+    return [...set].sort();
+  }, [collections, collectionFilter]);
 
-  const filteredCards = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return cards;
-    return cards.filter(
-      (c) =>
-        c.title.toLowerCase().includes(q) ||
-        c.question?.toLowerCase().includes(q) ||
-        c.category?.toLowerCase().includes(q)
-    );
-  }, [cards, query]);
+  // Ha a jelenlegi nyelv-szűrő már nem elérhető (pl. kollekció-váltás
+  // után), csendben visszaáll az első elérhető nyelvre.
+  const effectiveLanguage = availableLanguages.includes(languageFilter) ? languageFilter : availableLanguages[0] ?? "";
 
-  const groups = CONTENT_STATUSES.map((status) => ({
-    status,
-    items: filteredCards.filter((c) => c.status === status),
-  })).filter((g) => g.items.length > 0);
+  const visibleCollections = collections
+    .filter((c) => !collectionFilter || c.id === collectionFilter)
+    .filter((c) => cards.some((card) => card.collection_id === c.id) || c.back_background_color);
 
   if (!isSupabaseConfigured) {
     return (
@@ -180,192 +111,191 @@ export default function CardsPage() {
     <>
       <PageHeader
         title="Kártyák"
-        subtitle="Kártya-tartalmak: kérdések, rituálék, NFC/QR adatok — verziózva."
+        subtitle="A kollekciók nyomdakész kártyáinak vizuális áttekintése — kattints egy kártyára a szerkesztéshez."
         action={
-          <button
-            className="btn btn-bronze"
-            onClick={() => {
-              setEditingCard(null);
-              setShowForm(true);
-            }}
-          >
-            <Plus size={16} /> Új kártya
-          </button>
+          <Link href="/card-designer" className="btn btn-ghost">
+            <Palette size={16} /> Kártyatervező megnyitása
+          </Link>
         }
       />
 
       {error && <ErrorBanner message={error} />}
 
-      {!loading && cards.length > 0 && (
-        <SearchBar
-          value={query}
-          onChange={setQuery}
-          placeholder="Kártyák keresése…"
-          className="relative mb-4 w-full max-w-xs"
-        />
+      {!loading && collections.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <select
+            className="select w-auto"
+            value={collectionFilter}
+            onChange={(e) => {
+              setCollectionFilter(e.target.value);
+              setLanguageFilter("");
+            }}
+          >
+            <option value="">Összes kollekció</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          {availableLanguages.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              {availableLanguages.map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setLanguageFilter(lang)}
+                  className={`badge cursor-pointer border ${
+                    effectiveLanguage === lang ? "border-bronze bg-bronze text-white" : "border-border bg-white text-muted"
+                  }`}
+                >
+                  {lang}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <select
+            className="select w-auto"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+          >
+            <option value="Mind">Minden típus</option>
+            {COLLECTION_CARD_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+            <option value="Hátlap">Hátlap</option>
+          </select>
+        </div>
       )}
 
       {loading ? (
         <Spinner />
-      ) : cards.length === 0 ? (
+      ) : collections.length === 0 ? (
         <EmptyState
           icon={CreditCard}
-          title="Még nincs kártya"
-          description="Hozd létre az első kártya-tartalmat — kérdés, mély kérdés, és opcionálisan egy hozzá kötött rituálé."
+          title="Még nincs kollekció"
+          description="Hozz létre egy kollekciót a Kártyatervezőben, majd add hozzá a kártyáit — itt fognak vizuálisan megjelenni."
         />
-      ) : filteredCards.length === 0 ? (
-        <EmptyState icon={Search} title="Nincs találat" description="Próbálj más keresőszót." />
+      ) : visibleCollections.length === 0 ? (
+        <EmptyState icon={CreditCard} title="Nincs megjeleníthető kártya" description="Próbálj más szűrőt." />
       ) : (
-        <div className="flex flex-col gap-6">
-          {groups.map(({ status, items }) => (
-            <CardStatusGroup
-              key={status}
-              status={status}
-              items={items}
-              ritualNameById={ritualNameById}
-              onEdit={(c) => {
-                setEditingCard(c);
-                setShowForm(true);
-              }}
-              onDelete={deleteCard}
-              onUpdateStatus={updateStatus}
-              onShowHistory={setHistoryCard}
+        <div className="flex flex-col gap-8">
+          {visibleCollections.map((collection) => (
+            <CollectionCardGrid
+              key={collection.id}
+              collection={collection}
+              template={collection.template_id ? templateById.get(collection.template_id) ?? null : null}
+              cards={cards.filter((c) => c.collection_id === collection.id)}
+              language={effectiveLanguage}
+              typeFilter={typeFilter}
+              signedUrls={signedUrls}
             />
           ))}
         </div>
-      )}
-
-      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
-
-      {showForm && (
-        <CardFormModal
-          card={editingCard}
-          rituals={rituals}
-          onSave={saveCard}
-          onClose={() => {
-            setShowForm(false);
-            setEditingCard(null);
-          }}
-        />
-      )}
-
-      {historyCard && (
-        <ContentVersionHistoryModal
-          title={`Előzmények — #${String(historyCard.card_number).padStart(2, "0")} ${historyCard.title}`}
-          entries={historyCard.version_history}
-          onClose={() => setHistoryCard(null)}
-          renderSnapshot={(snap: CardSnapshot) => (
-            <div className="flex flex-col gap-0.5">
-              <p className="text-forest">{snap.title}</p>
-              {snap.question && <p>Kérdés: {snap.question}</p>}
-              {snap.category && <p>Kategória: {snap.category}</p>}
-              {snap.ritual_id && ritualNameById.get(snap.ritual_id) && (
-                <p>Rituálé: {ritualNameById.get(snap.ritual_id)}</p>
-              )}
-            </div>
-          )}
-        />
       )}
     </>
   );
 }
 
-function CardStatusGroup({
-  status,
-  items,
-  ritualNameById,
-  onEdit,
-  onDelete,
-  onUpdateStatus,
-  onShowHistory,
+function CollectionCardGrid({
+  collection,
+  template,
+  cards,
+  language,
+  typeFilter,
+  signedUrls,
 }: {
-  status: ContentStatus;
-  items: ContentCard[];
-  ritualNameById: Map<string, string>;
-  onEdit: (card: ContentCard) => void;
-  onDelete: (card: ContentCard) => void;
-  onUpdateStatus: (card: ContentCard, status: ContentStatus) => void;
-  onShowHistory: (card: ContentCard) => void;
+  collection: CardCollection;
+  template: CardTemplate | null;
+  cards: CollectionCard[];
+  language: string;
+  typeFilter: TypeFilter;
+  signedUrls: Map<string, string>;
 }) {
-  const { visible, hiddenCount, showAll, setShowAll } = useShowMore(items, 8);
+  const filteredCards = cards.filter((c) => typeFilter === "Mind" || typeFilter === c.card_type);
+  const showBack = (typeFilter === "Mind" || typeFilter === "Hátlap") && Boolean(collection.back_background_color);
+
   return (
     <div>
       <CollapsibleSection
-        title={<h2 className="font-serif text-lg text-forest">{CONTENT_STATUS_HU[status]}</h2>}
-        right={<span className="badge bg-ivory-dim text-walnut">{items.length}</span>}
-        storageKey={`zusammen-collapsed-cards-status-${status}`}
+        title={
+          <span className="flex items-center gap-2">
+            <h2 className="font-serif text-lg text-forest">{collection.name}</h2>
+            <span className={`badge ${CARD_COLLECTION_STATUS_STYLES[collection.status]}`}>{collection.status}</span>
+          </span>
+        }
+        right={<span className="badge bg-ivory-dim text-walnut">{filteredCards.length} kártya</span>}
+        actions={
+          <Link
+            href={`/card-assets?collection=${collection.id}`}
+            className="shrink-0 text-xs text-muted underline decoration-dotted hover:text-forest"
+          >
+            Kapcsolódó fájlok
+          </Link>
+        }
+        storageKey={`zusammen-collapsed-cards-collection-${collection.id}`}
         headerClassName="mb-3"
       >
-        <div className="flex flex-col gap-3">
-          {visible.map((card) => (
-            <div key={card.id} className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="badge bg-ivory-dim text-walnut">#{String(card.card_number).padStart(2, "0")}</span>
-                  <p className="font-medium text-forest">{card.title}</p>
-                  {card.category && <span className="badge bg-ivory-dim text-walnut">{card.category}</span>}
-                  <span className="badge bg-bronze/10 text-walnut">{card.version}</span>
-                  {card.nfc_id && (
-                    <span className="badge bg-forest-light/15 text-forest" title={`NFC ID: ${card.nfc_id}`}>
-                      <Radio size={10} className="mr-0.5 inline" /> NFC
-                    </span>
-                  )}
-                  {card.qr_url && (
-                    <span className="badge bg-forest-light/15 text-forest" title={card.qr_url}>
-                      <QrCode size={10} className="mr-0.5 inline" /> QR
-                    </span>
-                  )}
+        {!template ? (
+          <p className="text-xs text-muted">
+            Ehhez a kollekcióhoz még nincs sablon kiválasztva —{" "}
+            <Link href={`/card-designer?collection=${collection.id}`} className="underline hover:text-forest">
+              válassz egyet a Kártyatervezőben
+            </Link>{" "}
+            a vizuális előnézethez.
+          </p>
+        ) : filteredCards.length === 0 && !showBack ? (
+          <p className="text-xs text-muted">Nincs a szűrőnek megfelelő kártya ebben a kollekcióban.</p>
+        ) : (
+          <div className="flex flex-wrap gap-4">
+            {showBack && (
+              <Link
+                href={`/card-designer?collection=${collection.id}&back=1`}
+                className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
+              >
+                <CardVisual
+                  template={template}
+                  design={{
+                    background_color: collection.back_background_color,
+                    image_url: collection.back_image_url ? signedUrls.get(collection.back_image_url) ?? null : null,
+                    image_x: collection.back_image_x,
+                    image_y: collection.back_image_y,
+                    image_scale: collection.back_image_scale,
+                  }}
+                />
+                <span className="badge bg-ivory-dim text-walnut">Hátlap</span>
+              </Link>
+            )}
+            {filteredCards.map((card) => (
+              <Link
+                key={card.id}
+                href={`/card-designer?collection=${collection.id}&card=${card.id}`}
+                className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
+              >
+                <CardVisual
+                  template={template}
+                  design={{
+                    background_color: card.background_color,
+                    image_url: card.image_url ? signedUrls.get(card.image_url) ?? null : null,
+                    image_x: card.image_x,
+                    image_y: card.image_y,
+                    image_scale: card.image_scale,
+                  }}
+                  text={language ? textForLanguage(card, language) : card.text_hu || card.text_de || card.text_en || ""}
+                  textFontSize={card.text_font_size}
+                  textAlign={card.text_align}
+                />
+                <div className="flex items-center gap-1">
+                  <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
+                  <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
                 </div>
-                {card.question && <p className="mt-1 line-clamp-2 text-sm text-muted">{card.question}</p>}
-                <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted">
-                  {card.ritual_id && ritualNameById.get(card.ritual_id) && (
-                    <Link href="/rituals" className="hover:underline">
-                      Rituálé: {ritualNameById.get(card.ritual_id)}
-                    </Link>
-                  )}
-                  {card.energy && <span>Energia: {card.energy}</span>}
-                  {card.depth && <span>Mélység: {card.depth}</span>}
-                  {card.mode && <span>Mód: {card.mode}</span>}
-                </p>
-                {card.version_history.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => onShowHistory(card)}
-                    className="mt-1 flex items-center gap-1 text-[11px] text-muted underline decoration-dotted hover:text-forest"
-                  >
-                    <History size={11} /> Előzmények ({card.version_history.length})
-                  </button>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <select
-                  className={`select w-auto text-xs ${CONTENT_STATUS_STYLES[card.status]}`}
-                  value={card.status}
-                  onChange={(e) => onUpdateStatus(card, e.target.value as ContentStatus)}
-                >
-                  {CONTENT_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {CONTENT_STATUS_HU[s]}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => onEdit(card)}
-                  className="btn btn-ghost !px-2"
-                  aria-label="Szerkesztés"
-                  title="Szerkesztés"
-                >
-                  <Pencil size={15} />
-                </button>
-                <button onClick={() => onDelete(card)} className="btn btn-danger !px-2" aria-label="Törlés">
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        {items.length > 8 && (
-          <ShowMoreButton hiddenCount={hiddenCount} showAll={showAll} onToggle={() => setShowAll((v) => !v)} />
+              </Link>
+            ))}
+          </div>
         )}
       </CollapsibleSection>
     </div>
