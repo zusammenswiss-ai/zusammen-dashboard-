@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CreditCard, Palette } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { CardCollection, CardTemplate, CollectionCard, CollectionCardType } from "@/lib/supabase/types";
+import type { CardCollection, CardTemplate, CollectionCard, CollectionCardType, DesignLayer, ImageDesignLayer } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -61,9 +61,15 @@ export default function CardsPage() {
     if (!templatesRes.error) setTemplates(templatesRes.data ?? []);
     if (!cardsRes.error) setCards(cardsRes.data ?? []);
 
-    const imageUrls = [
+    const imageUrls: (string | null)[] = [
       ...(cardsRes.data ?? []).map((c) => c.image_url),
       ...(collectionsRes.data ?? []).map((c) => c.back_image_url),
+      ...(cardsRes.data ?? []).flatMap((c: CollectionCard): string[] =>
+        c.design_layers.filter((l): l is ImageDesignLayer => l.type === "image").map((l) => l.url)
+      ),
+      ...(collectionsRes.data ?? []).flatMap((c: CardCollection): string[] =>
+        c.back_design_layers.filter((l): l is ImageDesignLayer => l.type === "image").map((l) => l.url)
+      ),
     ];
     setSignedUrls(await resolveSignedUrls(supabase, STORAGE_BUCKET, imageUrls));
 
@@ -231,6 +237,10 @@ function CollectionCardGrid({
   signedUrls: Map<string, string>;
   mockupSignedUrls: Map<string, string>;
 }) {
+  function resolveLayers(layers: DesignLayer[]): DesignLayer[] {
+    return layers.map((l) => (l.type === "image" ? { ...l, url: signedUrls.get(l.url) ?? l.url } : l));
+  }
+
   const filteredCards = cards.filter((c) => typeFilter === "Mind" || typeFilter === c.card_type);
   const backMockupRaw = language ? collection.back_mockup_images[language] : undefined;
   const backMockup = backMockupRaw ? mockupSignedUrls.get(backMockupRaw) : undefined;
@@ -298,6 +308,7 @@ function CollectionCardGrid({
                         image_y: collection.back_image_y,
                         image_scale: collection.back_image_scale,
                       }}
+                      layers={resolveLayers(collection.back_design_layers)}
                     />
                   )
                 )}
@@ -336,6 +347,7 @@ function CollectionCardGrid({
                         }
                         textFontSize={card.text_font_size}
                         textAlign={card.text_align}
+                        layers={resolveLayers(card.design_layers)}
                       />
                     )
                   )}

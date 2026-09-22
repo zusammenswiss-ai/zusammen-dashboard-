@@ -2229,3 +2229,38 @@ alter table public.tasks add column if not exists card_collection_id uuid refere
 -- =====================================================================
 alter table public.card_collections add column if not exists supplier_id uuid references public.suppliers(id) on delete set null;
 alter table public.card_export_versions add column if not exists supplier_id uuid references public.suppliers(id) on delete set null;
+
+-- =====================================================================
+-- Kártyatervező — 9. fázis: réteg-alapú, szabad pozicionálású
+-- vizuális szerkesztő — a korábbi fix "egy kép + egy szövegblokk"
+-- modell (image_url/image_x/y/scale, text_font_size/align) helyett/
+-- mellett tetszőleges számú, egymás fölötti, szabadon mozgatható és
+-- átméretezhető réteg (kép, szövegdoboz, alakzat/csík). A design_layers
+-- egy JSON tömb, elem = { id, type: 'image'|'text'|'shape', x, y,
+-- width, height (mind 0-1 közötti tört a vászonhoz képest), + típus-
+-- specifikus mezők — lásd lib/card-layers.ts a pontos alakért.
+-- A RÉGI mezők (image_url stb.) szándékosan megmaradnak: egy még nem
+-- ebben az új szerkesztőben átdolgozott kártya/hátlap változatlanul a
+-- régi, fix modell szerint jelenik meg — csak amikor a founder
+-- ténylegesen elmenti az új szerkesztőben, akkor vált design_layers-re
+-- (lásd LayeredCardEditor + CardVisual/lib/card-render.ts komment-jét).
+-- =====================================================================
+alter table public.collection_cards add column if not exists design_layers jsonb not null default '[]'::jsonb;
+alter table public.card_collections add column if not exists back_design_layers jsonb not null default '[]'::jsonb;
+
+-- "Mentés sablonként" — egy elkészült réteg-elrendezés elmenthető és
+-- új kártyáknál újrafelhasználható (pl. "kérdéskártya alap layout"),
+-- hogy ne kelljen nulláról kezdeni minden kártyánál.
+create table if not exists public.card_layout_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  layers jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.card_layout_templates enable row level security;
+
+drop policy if exists "anon full access" on public.card_layout_templates;
+drop policy if exists "authenticated full access" on public.card_layout_templates;
+create policy "authenticated full access" on public.card_layout_templates for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);

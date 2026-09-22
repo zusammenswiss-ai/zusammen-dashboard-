@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Palette } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { CardCollection, CardExportVersion, CardTemplate, CollectionCard } from "@/lib/supabase/types";
+import type { CardCollection, CardExportVersion, CardLayoutTemplate, CardTemplate, CollectionCard } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -28,6 +28,7 @@ export default function CardDesignerPage() {
   const [cards, setCards] = useState<CollectionCard[]>([]);
   const [exportVersions, setExportVersions] = useState<CardExportVersion[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [layoutTemplates, setLayoutTemplates] = useState<CardLayoutTemplate[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<{ collectionId: string; cardId: string | null; back: boolean } | null>(
@@ -55,12 +56,13 @@ export default function CardDesignerPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [templatesRes, collectionsRes, cardsRes, exportVersionsRes, suppliersRes] = await Promise.all([
+    const [templatesRes, collectionsRes, cardsRes, exportVersionsRes, suppliersRes, layoutTemplatesRes] = await Promise.all([
       supabase.from("card_templates").select("*").order("name"),
       supabase.from("card_collections").select("*").order("created_at", { ascending: false }),
       supabase.from("collection_cards").select("*").order("sort_order"),
       supabase.from("card_export_versions").select("*").order("created_at", { ascending: false }),
       supabase.from("suppliers").select("id, name").order("name"),
+      supabase.from("card_layout_templates").select("*").order("name"),
     ]);
     if (templatesRes.error) setError(errorMessage(templatesRes.error, "Nem sikerült betölteni a sablonokat."));
     else setTemplates(templatesRes.data ?? []);
@@ -69,6 +71,7 @@ export default function CardDesignerPage() {
     if (!cardsRes.error) setCards(cardsRes.data ?? []);
     if (!exportVersionsRes.error) setExportVersions(exportVersionsRes.data ?? []);
     if (!suppliersRes.error) setSuppliers(suppliersRes.data ?? []);
+    if (!layoutTemplatesRes.error) setLayoutTemplates(layoutTemplatesRes.data ?? []);
     setLoading(false);
   }, [supabase]);
 
@@ -121,9 +124,11 @@ export default function CardDesignerPage() {
           cards={cards}
           exportVersions={exportVersions}
           suppliers={suppliers}
+          layoutTemplates={layoutTemplates}
           onCollectionsChange={setCollections}
           onCardsChange={setCards}
           onExportVersionsChange={setExportVersions}
+          onLayoutTemplateCreated={(t) => setLayoutTemplates((prev) => [...prev, t])}
           deepLink={deepLink}
         />
       ) : (

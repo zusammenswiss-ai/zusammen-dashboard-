@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { CardCollection, CardCollectionInsert, CardExportVersion, CardTemplate, CollectionCard } from "@/lib/supabase/types";
+import type { CardCollection, CardCollectionInsert, CardExportVersion, CardLayoutTemplate, CardTemplate, CollectionCard } from "@/lib/supabase/types";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CollectionDetailModal from "@/components/card-designer/CollectionDetailModal";
@@ -22,9 +22,11 @@ export default function CollectionsSection({
   cards,
   exportVersions,
   suppliers,
+  layoutTemplates,
   onCollectionsChange,
   onCardsChange,
   onExportVersionsChange,
+  onLayoutTemplateCreated,
   deepLink,
 }: {
   collections: CardCollection[];
@@ -32,9 +34,11 @@ export default function CollectionsSection({
   cards: CollectionCard[];
   exportVersions: CardExportVersion[];
   suppliers: { id: string; name: string }[];
+  layoutTemplates: CardLayoutTemplate[];
   onCollectionsChange: (next: CardCollection[]) => void;
   onCardsChange: (next: CollectionCard[]) => void;
   onExportVersionsChange: (next: CardExportVersion[]) => void;
+  onLayoutTemplateCreated: (t: CardLayoutTemplate) => void;
   /** A Kártyák galéria (/cards) egy kattintással ide navigál, pontosan
    * azzal a kollekcióval/kártyával betöltve, amit szerkeszteni
    * szeretnél — lásd app/(dashboard)/card-designer/page.tsx. */
@@ -149,6 +153,7 @@ export default function CollectionsSection({
           cards={cards.filter((card) => card.collection_id === openCollection.id)}
           exportVersions={exportVersions.filter((v) => v.collection_id === openCollection.id)}
           suppliers={suppliers}
+          layoutTemplates={layoutTemplates}
           initialDesignCardId={deepLink?.collectionId === openCollection.id ? deepLink.cardId : null}
           initialShowBackEditor={deepLink?.collectionId === openCollection.id ? deepLink.back : false}
           onClose={() => setOpenId(null)}
@@ -162,6 +167,7 @@ export default function CollectionsSection({
               ...nextForCollection,
             ])
           }
+          onLayoutTemplateCreated={onLayoutTemplateCreated}
           onDelete={() => handleDelete(openCollection)}
         />
       )}

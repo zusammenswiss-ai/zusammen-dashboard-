@@ -1,6 +1,22 @@
-import type { CardTemplate, CardTextAlign } from "./supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CardTemplate, CardTextAlign, Database, DesignLayer } from "./supabase/types";
 import { computeGuideRects, readableTextColor } from "./card-canvas";
 import { templatePixelDims } from "./card-template";
+import { resolveSignedUrls } from "./signed-storage-url";
+
+const STORAGE_BUCKET = "card-designer";
+
+/** A réteg-alapú modellnél (9. fázis) minden kép-réteg url-jét aláírt
+ * URL-re kell cserélni renderelés előtt — ugyanaz a minta, mint a régi
+ * fix image_url mezőnél, csak rétegenként. Hívja meg a caller a
+ * renderCardCanvas layers paramétere elé (lásd ExportPanel/
+ * CollectionGallery). */
+export async function resolveLayerImages(supabase: SupabaseClient<Database>, layers: DesignLayer[]): Promise<DesignLayer[]> {
+  const urls = layers.filter((l) => l.type === "image").map((l) => l.url);
+  if (urls.length === 0) return layers;
+  const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, urls);
+  return layers.map((l) => (l.type === "image" ? { ...l, url: resolved.get(l.url) ?? l.url } : l));
+}
 
 export type RenderableDesign = {
   background_color: string | null;
@@ -48,12 +64,69 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
+type PxBox = { x: number; y: number; width: number; height: number };
+
+function drawTextInBox(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  box: PxBox,
+  fontSizePx: number,
+  color: string,
+  align: CardTextAlign,
+  fontFamily: string
+) {
+  if (!text.trim()) return;
+  ctx.fillStyle = color;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = align as CanvasTextAlign;
+  ctx.font = `${fontSizePx}px ${fontFamily}`;
+
+  const lines = wrapText(ctx, text.trim(), box.width);
+  const lineHeight = fontSizePx * 1.3;
+  const totalHeight = lines.length * lineHeight;
+  const textX = align === "left" ? box.x : align === "right" ? box.x + box.width : box.x + box.width / 2;
+  let y = box.y + box.height / 2 - totalHeight / 2 + lineHeight / 2;
+
+  for (const line of lines) {
+    ctx.fillText(line, textX, y);
+    y += lineHeight;
+  }
+}
+
+/**
+ * Egy réteget rajzol a canvasra a saját (0-1 törtben megadott)
+ * x/y/width/height doboza szerint. Kép rétegnél a `layer.url`-nek MÁR
+ * feloldott (pl. aláírt) URL-nek kell lennie — a hívó felelőssége,
+ * ugyanaz a minta, mint a RenderableDesign.image_url-nél. `text` a
+ * 'question' forrású szövegréteghez tartozó, már az aktuális nyelvre
+ * feloldott szöveg (lásd renderCardCanvas language paramétere).
+ */
+async function drawLayer(ctx: CanvasRenderingContext2D, layer: DesignLayer, width: number, height: number, questionText: string) {
+  const box: PxBox = { x: layer.x * width, y: layer.y * height, width: layer.width * width, height: layer.height * height };
+  if (layer.type === "image") {
+    const img = await loadImage(layer.url);
+    ctx.drawImage(img, box.x, box.y, box.width, box.height);
+  } else if (layer.type === "shape") {
+    ctx.fillStyle = layer.color;
+    ctx.fillRect(box.x, box.y, box.width, box.height);
+  } else {
+    const content = layer.source === "question" ? questionText : "";
+    drawTextInBox(ctx, content, box, layer.fontSize, layer.color, layer.align, layer.fontFamily);
+  }
+}
+
 /**
  * Egy kártya-design pontos pixelméretű, végleges (segédvonalak
  * NÉLKÜLI) renderelése — ugyanazt a geometriát használja, mint a
- * CardCanvasEditor élő előnézete (computeGuideRects a safe area
+ * LayeredCardEditor élő előnézete (computeGuideRects a safe area
  * pozíciójához, readableTextColor a szövegszínhez), csak DOM/CSS
  * helyett valódi `<canvas>`-ra rajzolva, a sablon bleed pixelméretében.
+ *
+ * Ha `layers` nem üres, a réteg-alapú modell szerint rajzol (9. fázis)
+ * — a `design`/`text` paraméterek ekkor csak a háttérszínhez, illetve
+ * a 'question' forrású szövegrétegek tartalmához kellenek. Ha `layers`
+ * üres/hiányzik, a régi, fix "egy kép + egy szövegblokk" modellt
+ * rajzolja (visszamenőleg még nem migrált kártyák/hátlapok).
  */
 export async function renderCardCanvas(
   template: Pick<
@@ -61,7 +134,8 @@ export async function renderCardCanvas(
     "cut_width_in" | "cut_height_in" | "safe_width_in" | "safe_height_in" | "bleed_width_in" | "bleed_height_in" | "dpi"
   >,
   design: RenderableDesign,
-  text: string
+  text: string,
+  layers: DesignLayer[] = []
 ): Promise<HTMLCanvasElement> {
   const { width, height } = templatePixelDims(template);
   const canvas = document.createElement("canvas");
@@ -73,6 +147,13 @@ export async function renderCardCanvas(
   ctx.fillStyle = design.background_color ?? "#F3EFE7";
   ctx.fillRect(0, 0, width, height);
 
+  if (layers.length > 0) {
+    for (const layer of layers) {
+      await drawLayer(ctx, layer, width, height, text);
+    }
+    return canvas;
+  }
+
   if (design.image_url) {
     const img = await loadImage(design.image_url);
     const imgWidth = design.image_scale * width;
@@ -82,26 +163,21 @@ export async function renderCardCanvas(
 
   if (text.trim()) {
     const guides = computeGuideRects(template);
-    const safeLeft = (guides.safe.insetXPct / 100) * width;
-    const safeTop = (guides.safe.insetYPct / 100) * height;
-    const safeWidth = width - 2 * safeLeft;
-    const safeHeight = height - 2 * safeTop;
-
-    ctx.fillStyle = readableTextColor(design.background_color);
-    ctx.textBaseline = "middle";
-    ctx.textAlign = design.text_align as CanvasTextAlign;
-    ctx.font = `${design.text_font_size}px "Inter", "Helvetica Neue", Arial, sans-serif`;
-
-    const lines = wrapText(ctx, text.trim(), safeWidth);
-    const lineHeight = design.text_font_size * 1.3;
-    const totalHeight = lines.length * lineHeight;
-    const textX = design.text_align === "left" ? safeLeft : design.text_align === "right" ? safeLeft + safeWidth : safeLeft + safeWidth / 2;
-    let y = safeTop + safeHeight / 2 - totalHeight / 2 + lineHeight / 2;
-
-    for (const line of lines) {
-      ctx.fillText(line, textX, y);
-      y += lineHeight;
-    }
+    const safeBox: PxBox = {
+      x: (guides.safe.insetXPct / 100) * width,
+      y: (guides.safe.insetYPct / 100) * height,
+      width: width - 2 * (guides.safe.insetXPct / 100) * width,
+      height: height - 2 * (guides.safe.insetYPct / 100) * height,
+    };
+    drawTextInBox(
+      ctx,
+      text,
+      safeBox,
+      design.text_font_size,
+      readableTextColor(design.background_color),
+      design.text_align,
+      '"Inter", "Helvetica Neue", Arial, sans-serif'
+    );
   }
 
   return canvas;

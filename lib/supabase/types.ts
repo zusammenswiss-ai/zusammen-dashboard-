@@ -222,6 +222,55 @@ export type CardTemplateInsert = Partial<Omit<CardTemplate, "id" | "created_at">
 };
 export type CardTemplateUpdate = Partial<Omit<CardTemplate, "id" | "created_at">>;
 
+// Kártyatervező — 9. fázis: réteg-alapú vizuális szerkesztő. Lásd a
+// schema.sql collection_cards.design_layers komment-jét — ez a JÓ
+// alakja a jsonb oszlopnak, amit az régi mezők (image_url stb.)
+// MELLETT tárolunk, nem helyette. x/y a bal-felső sarok, width/height
+// a méret, mind a vászon (bleed) szélességéhez/magasságához viszonyított
+// 0-1 közötti tört. Forgatás szándékosan nincs — "reális keretek
+// között" tartja a szerkesztőt.
+export type DesignLayerType = "image" | "text" | "shape";
+interface DesignLayerBase {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+export interface ImageDesignLayer extends DesignLayerBase {
+  type: "image";
+  url: string;
+}
+export interface TextDesignLayer extends DesignLayerBase {
+  type: "text";
+  // 'question' — a kártya saját text_hu/de/en szövegét mutatja élőben
+  // (a renderelő oldja fel az aktuális nyelvre), nem tárol saját
+  // tartalmat, hogy a szöveg-tartalom központilag (CardForm) maradjon
+  // szerkeszthető. 'custom' — szabad, réteg-saját tartalom nyelvenként.
+  source: "question" | "custom";
+  content: Record<string, string>;
+  fontSize: number;
+  color: string;
+  align: CardTextAlign;
+  fontFamily: string;
+}
+export interface ShapeDesignLayer extends DesignLayerBase {
+  type: "shape";
+  color: string;
+}
+export type DesignLayer = ImageDesignLayer | TextDesignLayer | ShapeDesignLayer;
+
+export interface CardLayoutTemplate {
+  id: string;
+  name: string;
+  layers: DesignLayer[];
+  created_at: string;
+}
+export type CardLayoutTemplateInsert = Partial<Omit<CardLayoutTemplate, "id" | "created_at">> & {
+  name: string;
+};
+export type CardLayoutTemplateUpdate = Partial<Omit<CardLayoutTemplate, "id" | "created_at">>;
+
 export interface CardCollection {
   id: string;
   name: string;
@@ -242,6 +291,10 @@ export interface CardCollection {
   // Melyik beszállítóhoz (a Beszállítók modul suppliers táblájából)
   // tartozik ez a kollekció (8. fázis).
   supplier_id: string | null;
+  // Réteg-alapú hátlap-elrendezés (9. fázis) — ha nem üres, ez
+  // felülírja a fenti back_image_*/back_background_color fix modellt a
+  // megjelenítésben/exportban. Lásd DesignLayer komment-jét.
+  back_design_layers: DesignLayer[];
   created_at: string;
   updated_at: string;
 }
@@ -273,6 +326,10 @@ export interface CollectionCard {
   // (6. fázis) — ha van, a Kártyák galéria ezt mutatja a designer élő
   // rendere helyett. Lásd PdfPageAssignmentModal.
   mockup_images: Record<string, string>;
+  // Réteg-alapú kártya-elrendezés (9. fázis) — ha nem üres, ez
+  // felülírja a fenti image_*/text_font_size/text_align fix modellt a
+  // megjelenítésben/exportban. Lásd DesignLayer komment-jét.
+  design_layers: DesignLayer[];
   created_at: string;
   updated_at: string;
 }
@@ -1241,6 +1298,12 @@ export interface Database {
         Update: CardExportVersionUpdate;
         Relationships: [];
       };
+      card_layout_templates: {
+        Row: CardLayoutTemplate;
+        Insert: CardLayoutTemplateInsert;
+        Update: CardLayoutTemplateUpdate;
+        Relationships: [];
+      };
       expenses: {
         Row: Expense;
         Insert: ExpenseInsert;
@@ -1343,6 +1406,7 @@ export const ANON_TABLE_NAMES = [
   "card_collections",
   "collection_cards",
   "card_export_versions",
+  "card_layout_templates",
   "expenses",
   "revenue",
   "budgets",
