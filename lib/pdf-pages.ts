@@ -1,7 +1,8 @@
 // Kliens-oldali PDF-oldal-kinyerés — egy feltöltött production mockup
 // (pl. a 116 oldalas Pear Edition front+back fájl) minden oldalát
 // PNG-vé rendereli a böngészőben, szerver round-trip nélkül. Lásd
-// PdfPageAssignmentModal, ahol ezek az oldalak kártyákhoz rendelhetők.
+// PdfPageAssignmentModal / PdfBulkImportModal / LoadFromFilesModal, ahol
+// ezek az oldalak kártyákhoz rendelhetők, ill. kártyaként importálhatók.
 // Dinamikus import — a pdfjs-dist csak akkor töltődik be, amikor
 // ténylegesen szükség van rá, így nem terheli a build SSR/prerender
 // lépését (Node.js-ben nem a böngésző-build a célja) sem a kezdeti
@@ -16,29 +17,57 @@ async function loadPdfjs() {
   return pdfjsLib;
 }
 
+export type PdfDocument = Awaited<ReturnType<typeof loadPdfDocument>>;
+
+/** A PDF egyszeri betöltése/feldolgozása — a hívó megtartja a
+ * visszaadott dokumentumot, hogy utána tetszőleges oldalt tetszőleges
+ * felbontásban újra ki tudjon rendereltetni (lásd renderPdfPage), a
+ * teljes fájl újra-letöltése/-parse-olása nélkül. */
+export async function loadPdfDocument(data: ArrayBuffer) {
+  if (!pdfjsLibPromise) pdfjsLibPromise = loadPdfjs();
+  const pdfjsLib = await pdfjsLibPromise;
+  return pdfjsLib.getDocument({ data }).promise;
+}
+
+/** Egyetlen oldal kirenderelése a kért felbontásban. `scale=1` a PDF
+ * saját (72 DPI) pontméretének felel meg — a nyomdai minőségű mentéshez
+ * HIGH_RES_SCALE-t kell használni, a gyors böngészéshez/bélyegképekhez
+ * ennél jóval kisebbet. */
+export async function renderPdfPage(pdf: PdfDocument, pageNumber: number, scale: number): Promise<string> {
+  const page = await pdf.getPage(pageNumber);
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("A böngésző nem támogatja a canvas renderelést.");
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+  return canvas.toDataURL("image/png");
+}
+
+/** ~288 DPI (4× a PDF 72 DPI pontméretéhez képest) — elég éles ahhoz,
+ * hogy a végleges nyomtatott kártyát ellenőrizni lehessen rajta (finom
+ * szövegek, szín-árnyalatok), de még egyetlen oldalra korlátozva (lásd
+ * renderPdfPage) nem terheli túl a böngésző memóriáját, ha sok tucat
+ * oldalas a PDF. */
+export const HIGH_RES_SCALE = 4;
+/** Gyors, alacsony felbontású előnézet — lapozáshoz/kiválasztáshoz, ahol
+ * akár száz oldalt is egyszerre ki kell rendereltetni. */
+export const PREVIEW_SCALE = 1;
+
 export interface ExtractedPdfPage {
   pageNumber: number;
   dataUrl: string;
 }
 
-/** A PDF minden oldalát kirendereli egy-egy PNG data URL-lé. `scale=1.5`
- * elég felbontást ad egy kártya-oldal átnézéséhez anélkül, hogy sok
- * tucat oldalnál a böngésző memóriáját túlterhelné. */
-export async function extractPdfPages(data: ArrayBuffer, scale = 1.5): Promise<ExtractedPdfPage[]> {
-  if (!pdfjsLibPromise) pdfjsLibPromise = loadPdfjs();
-  const pdfjsLib = await pdfjsLibPromise;
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
+/** A PDF minden oldalát kirendereli egy-egy PNG data URL-lé — a
+ * lapozható előnézethez/kiválasztáshoz, nem a végleges mentéshez (lásd
+ * HIGH_RES_SCALE + renderPdfPage a ténylegesen elmentett oldalhoz). */
+export async function extractPdfPages(data: ArrayBuffer, scale = PREVIEW_SCALE): Promise<ExtractedPdfPage[]> {
+  const pdf = await loadPdfDocument(data);
   const pages: ExtractedPdfPage[] = [];
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    pages.push({ pageNumber, dataUrl: canvas.toDataURL("image/png") });
+    pages.push({ pageNumber, dataUrl: await renderPdfPage(pdf, pageNumber, scale) });
   }
   return pages;
 }

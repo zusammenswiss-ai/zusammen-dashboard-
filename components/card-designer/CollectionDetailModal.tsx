@@ -568,6 +568,7 @@ export default function CollectionDetailModal({
             (meta.languages.length > 0 ? meta.languages : ["HU"]).map((lang) => [lang, textForLanguage(designCard, lang)])
           )}
           layoutTemplates={layoutTemplates}
+          collectionId={collection.id}
           onSave={(layers, backgroundColor) => saveCardDesign(designCard, layers, backgroundColor)}
           onLayoutTemplateCreated={onLayoutTemplateCreated}
           onClose={() => setDesignCardId(null)}
@@ -593,6 +594,7 @@ export default function CollectionDetailModal({
           languageCodes={meta.languages.length > 0 ? meta.languages : ["HU"]}
           questionTextByLang={null}
           layoutTemplates={layoutTemplates}
+          collectionId={collection.id}
           onSave={saveBackDesign}
           onLayoutTemplateCreated={onLayoutTemplateCreated}
           onClose={() => setShowBackEditor(false)}

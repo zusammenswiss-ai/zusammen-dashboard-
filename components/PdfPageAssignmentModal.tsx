@@ -5,7 +5,7 @@ import { X, Check, Loader2 } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardAsset, CardCollection, CollectionCard } from "@/lib/supabase/types";
 import BackButton from "@/components/BackButton";
-import { extractPdfPages, dataUrlToBlob, type ExtractedPdfPage } from "@/lib/pdf-pages";
+import { loadPdfDocument, renderPdfPage, dataUrlToBlob, HIGH_RES_SCALE, type ExtractedPdfPage, type PdfDocument } from "@/lib/pdf-pages";
 import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "card-assets";
@@ -35,6 +35,7 @@ export default function PdfPageAssignmentModal({
   onCardUpdated: (card: CollectionCard) => void;
   onCollectionUpdated: (collection: CardCollection) => void;
 }) {
+  const [pdfDoc, setPdfDoc] = useState<PdfDocument | null>(null);
   const [pages, setPages] = useState<ExtractedPdfPage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [targets, setTargets] = useState<Record<number, string>>({});
@@ -54,7 +55,13 @@ export default function PdfPageAssignmentModal({
       try {
         const res = await fetch(fileUrl);
         const buf = await res.arrayBuffer();
-        const extracted = await extractPdfPages(buf);
+        const doc = await loadPdfDocument(buf);
+        if (cancelled) return;
+        setPdfDoc(doc);
+        const extracted: ExtractedPdfPage[] = [];
+        for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+          extracted.push({ pageNumber, dataUrl: await renderPdfPage(doc, pageNumber, 1) });
+        }
         if (!cancelled) setPages(extracted);
       } catch (err) {
         if (!cancelled) setLoadError(errorMessage(err, "Nem sikerült feldolgozni a PDF-et."));
@@ -69,7 +76,7 @@ export default function PdfPageAssignmentModal({
     const supabase = getSupabaseClient();
     const target = targets[page.pageNumber];
     const lang = languages[page.pageNumber] ?? defaultLanguage;
-    if (!supabase || !target) return;
+    if (!supabase || !target || !pdfDoc) return;
     setSavingPage(page.pageNumber);
     setRowError((prev) => {
       const next = { ...prev };
@@ -77,7 +84,12 @@ export default function PdfPageAssignmentModal({
       return next;
     });
     try {
-      const blob = dataUrlToBlob(page.dataUrl);
+      // A lapozáshoz betöltött page.dataUrl csak gyors előnézeti
+      // felbontású (lásd lib/pdf-pages.ts PREVIEW_SCALE) — a ténylegesen
+      // elmentett/mockup-ként megjelenő kép a nyomdai ellenőrzéshez
+      // szükséges éles, nagy felbontású verzió legyen.
+      const highResDataUrl = await renderPdfPage(pdfDoc, page.pageNumber, HIGH_RES_SCALE);
+      const blob = dataUrlToBlob(highResDataUrl);
       const path = `mockup-pages/${asset.id}/${Date.now()}-p${page.pageNumber}.png`;
       const { error: uploadError } = await supabase.storage
         .from(STORAGE_BUCKET)

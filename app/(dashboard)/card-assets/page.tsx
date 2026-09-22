@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import JSZip from "jszip";
-import { Plus, Trash2, Archive, Download, ExternalLink, FolderUp, ImageOff, Search, FileStack } from "lucide-react";
+import { Plus, Trash2, Archive, Download, ExternalLink, FolderUp, ImageOff, Search, FileStack, Layers } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CardAsset, CardCollection, CollectionCard, PriceQuote, PrintStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -12,6 +12,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CardAssetDetailModal from "@/components/CardAssetDetailModal";
 import PdfPageAssignmentModal from "@/components/PdfPageAssignmentModal";
+import PdfBulkImportModal from "@/components/PdfBulkImportModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import SearchBar from "@/components/SearchBar";
@@ -109,6 +110,15 @@ export default function CardAssetsPage() {
   const [assignmentCards, setAssignmentCards] = useState<CollectionCard[]>([]);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  // "Kártyák importálása" — egyszerre több PDF-oldal → egyszerre több ÚJ
+  // kártya a Kártyák modulba, ugyanazzal a kollekció+kártyalista
+  // betöltéssel, mint az "Oldalak hozzárendelése" fent, csak külön
+  // állapotban, hogy a két modal ne zavarja egymást.
+  const [bulkImportAsset, setBulkImportAsset] = useState<CardAsset | null>(null);
+  const [bulkImportCollection, setBulkImportCollection] = useState<CardCollection | null>(null);
+  const [bulkImportCards, setBulkImportCards] = useState<CollectionCard[]>([]);
+  const [bulkImportLoading, setBulkImportLoading] = useState(false);
+  const [bulkImportError, setBulkImportError] = useState<string | null>(null);
   // Deep link a Kártyák galéria "Kapcsolódó fájlok" gombjából
   // (/card-assets?collection=…) — csak arra a kollekcióra szűr.
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
@@ -311,6 +321,24 @@ export default function CardAssetsPage() {
     }
     setAssignmentCollection(collectionRes.data);
     setAssignmentCards(cardsRes.data ?? []);
+  }
+
+  async function openBulkImport(asset: CardAsset) {
+    if (!supabase || !asset.collection_id) return;
+    setBulkImportAsset(asset);
+    setBulkImportLoading(true);
+    setBulkImportError(null);
+    const [collectionRes, cardsRes] = await Promise.all([
+      supabase.from("card_collections").select("*").eq("id", asset.collection_id).single(),
+      supabase.from("collection_cards").select("*").eq("collection_id", asset.collection_id).order("sort_order"),
+    ]);
+    setBulkImportLoading(false);
+    if (collectionRes.error || !collectionRes.data) {
+      setBulkImportError(errorMessage(collectionRes.error, "Nem sikerült betölteni a kollekciót."));
+      return;
+    }
+    setBulkImportCollection(collectionRes.data);
+    setBulkImportCards(cardsRes.data ?? []);
   }
 
   function deleteAsset(asset: CardAsset) {
@@ -677,6 +705,7 @@ export default function CardAssetsPage() {
               onDelete={deleteAsset}
               onLightbox={setLightboxSlot}
               onAssign={openAssignment}
+              onBulkImport={openBulkImport}
             />
           ))}
         </div>
@@ -750,6 +779,42 @@ export default function CardAssetsPage() {
             />
           )
         ))}
+
+      {bulkImportAsset &&
+        (bulkImportLoading ? (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 backdrop-blur-[2px]"
+            onClick={() => setBulkImportAsset(null)}
+          >
+            <div className="card p-6" onClick={(e) => e.stopPropagation()}>
+              <Spinner />
+            </div>
+          </div>
+        ) : bulkImportError ? (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 px-4 backdrop-blur-[2px]"
+            onClick={() => setBulkImportAsset(null)}
+          >
+            <div className="card flex flex-col gap-3 p-6" onClick={(e) => e.stopPropagation()}>
+              <p className="text-sm text-red-600">{bulkImportError}</p>
+              <button className="btn btn-ghost self-start" onClick={() => setBulkImportAsset(null)}>
+                Bezárás
+              </button>
+            </div>
+          </div>
+        ) : (
+          bulkImportCollection && (
+            <PdfBulkImportModal
+              asset={bulkImportAsset}
+              fileUrl={signedUrls.get(bulkImportAsset.file_url) ?? bulkImportAsset.file_url}
+              collection={bulkImportCollection}
+              cards={bulkImportCards}
+              onClose={() => setBulkImportAsset(null)}
+              onCardsCreated={(created) => setBulkImportCards((prev) => [...prev, ...created])}
+              onCollectionUpdated={setBulkImportCollection}
+            />
+          )
+        ))}
     </>
   );
 }
@@ -764,6 +829,7 @@ function CardAssetLanguageGroup({
   onDelete,
   onLightbox,
   onAssign,
+  onBulkImport,
 }: {
   language: string;
   versions: CardAsset[];
@@ -774,6 +840,7 @@ function CardAssetLanguageGroup({
   onDelete: (asset: CardAsset) => void;
   onLightbox: (slot: { url: string; label: string }) => void;
   onAssign: (asset: CardAsset) => void;
+  onBulkImport: (asset: CardAsset) => void;
 }) {
   const { visible, hiddenCount, showAll, setShowAll } = useShowMore(versions, 8);
   return (
@@ -851,18 +918,32 @@ function CardAssetLanguageGroup({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {isPreviewableInBrowser(asset.file_url) && asset.collection_id && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAssign(asset);
-                    }}
-                    className="btn btn-ghost !px-2"
-                    aria-label="Oldalak hozzárendelése kártyákhoz"
-                    title="Oldalak hozzárendelése kártyákhoz"
-                  >
-                    <FileStack size={15} />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onBulkImport(asset);
+                      }}
+                      className="btn btn-ghost !px-2"
+                      aria-label="Kártyák importálása"
+                      title="Kártyák importálása (egyszerre több oldal → új kártyák)"
+                    >
+                      <Layers size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAssign(asset);
+                      }}
+                      className="btn btn-ghost !px-2"
+                      aria-label="Oldalak hozzárendelése kártyákhoz"
+                      title="Oldalak hozzárendelése meglévő kártyákhoz"
+                    >
+                      <FileStack size={15} />
+                    </button>
+                  </>
                 )}
                 <a
                   href={signedUrls.get(asset.file_url) ?? asset.file_url}
