@@ -2193,3 +2193,16 @@ create policy "authenticated full access" on public.card_export_versions for all
 -- galéria és a Kártya-fájlok lista kölcsönösen hivatkozhasson egymásra.
 -- =====================================================================
 alter table public.card_assets add column if not exists collection_id uuid references public.card_collections(id) on delete set null;
+
+-- =====================================================================
+-- Kártyatervező — 6. fázis: PDF mockup feltöltés + oldalak kézi
+-- hozzárendelése kártyákhoz. Egy feltöltött (pl. 116 oldalas front+back
+-- production) PDF minden oldala kinyerhető és PNG-ként a card-assets
+-- bucketbe feltölthető (lásd PdfPageAssignmentModal + lib/pdf-pages.ts),
+-- majd nyelvenként hozzárendelhető egy adott kártyához (előlap) vagy a
+-- kollekció hátlapjához — így a Kártyák galéria a TÉNYLEGES,
+-- nyomdakész kinézetet mutathatja, nem csak a designer élő rendereit.
+-- Kulcs = nyelv-kód (pl. 'HU'), érték = a kinyert oldal-kép URL-je.
+-- =====================================================================
+alter table public.collection_cards add column if not exists mockup_images jsonb not null default '{}'::jsonb;
+alter table public.card_collections add column if not exists back_mockup_images jsonb not null default '{}'::jsonb;

@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import JSZip from "jszip";
-import { Plus, Trash2, Archive, Download, ExternalLink, FolderUp, ImageOff, Search } from "lucide-react";
+import { Plus, Trash2, Archive, Download, ExternalLink, FolderUp, ImageOff, Search, FileStack } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { CardAsset, PriceQuote, PrintStatus } from "@/lib/supabase/types";
+import type { CardAsset, CardCollection, CollectionCard, PriceQuote, PrintStatus } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import CardAssetDetailModal from "@/components/CardAssetDetailModal";
+import PdfPageAssignmentModal from "@/components/PdfPageAssignmentModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import SearchBar from "@/components/SearchBar";
@@ -26,13 +27,17 @@ import { errorMessage } from "@/lib/errors";
 const STORAGE_BUCKET = "card-assets";
 const LANGUAGES = ["HU", "DE", "EN"];
 
-// ZIP for a full print-ready bundle, or a single Word / ODF / CSV file when
-// there's nothing to bundle — Storage takes any of these as-is, and the
-// thumbnail-extraction route just skips silently for non-ZIP uploads.
+// ZIP for a full print-ready bundle, a PDF for a page-by-page production
+// mockup (lásd PdfPageAssignmentModal — oldalanként kártyákhoz rendelhető),
+// vagy egy önálló Word / ODF / CSV fájl, ha nincs mit csomagolni — Storage
+// mindegyiket változatlanul tárolja, a thumbnail-kinyerés route pedig
+// csendben kihagyja a nem-ZIP feltöltéseket.
 const FILE_ACCEPT = [
   ".zip",
   "application/zip",
   "application/x-zip-compressed",
+  ".pdf",
+  "application/pdf",
   ".doc",
   ".docx",
   "application/msword",
@@ -96,6 +101,14 @@ export default function CardAssetsPage() {
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
   const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
   const [query, setQuery] = useState("");
+  // "Oldalak hozzárendelése" — PDF-oldalak kártyákhoz rendelése (6. fázis).
+  // A teljes kollekció + kártyalista csak igény szerint töltődik be, hogy a
+  // fő lista ne kelljen mindig mindkettőt magával hordja.
+  const [assignmentAsset, setAssignmentAsset] = useState<CardAsset | null>(null);
+  const [assignmentCollection, setAssignmentCollection] = useState<CardCollection | null>(null);
+  const [assignmentCards, setAssignmentCards] = useState<CollectionCard[]>([]);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
   // Deep link a Kártyák galéria "Kapcsolódó fájlok" gombjából
   // (/card-assets?collection=…) — csak arra a kollekcióra szűr.
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
@@ -280,6 +293,24 @@ export default function CardAssetsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function openAssignment(asset: CardAsset) {
+    if (!supabase || !asset.collection_id) return;
+    setAssignmentAsset(asset);
+    setAssignmentLoading(true);
+    setAssignmentError(null);
+    const [collectionRes, cardsRes] = await Promise.all([
+      supabase.from("card_collections").select("*").eq("id", asset.collection_id).single(),
+      supabase.from("collection_cards").select("*").eq("collection_id", asset.collection_id).order("sort_order"),
+    ]);
+    setAssignmentLoading(false);
+    if (collectionRes.error || !collectionRes.data) {
+      setAssignmentError(errorMessage(collectionRes.error, "Nem sikerült betölteni a kollekciót."));
+      return;
+    }
+    setAssignmentCollection(collectionRes.data);
+    setAssignmentCards(cardsRes.data ?? []);
   }
 
   function deleteAsset(asset: CardAsset) {
@@ -645,6 +676,7 @@ export default function CardAssetsPage() {
               onOpen={setOpenAssetId}
               onDelete={deleteAsset}
               onLightbox={setLightboxSlot}
+              onAssign={openAssignment}
             />
           ))}
         </div>
@@ -680,6 +712,44 @@ export default function CardAssetsPage() {
           onDeleteQuote={deletePriceQuote}
         />
       )}
+
+      {assignmentAsset &&
+        (assignmentLoading ? (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 backdrop-blur-[2px]"
+            onClick={() => setAssignmentAsset(null)}
+          >
+            <div className="card p-6" onClick={(e) => e.stopPropagation()}>
+              <Spinner />
+            </div>
+          </div>
+        ) : assignmentError ? (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 px-4 backdrop-blur-[2px]"
+            onClick={() => setAssignmentAsset(null)}
+          >
+            <div className="card flex flex-col gap-3 p-6" onClick={(e) => e.stopPropagation()}>
+              <p className="text-sm text-red-600">{assignmentError}</p>
+              <button className="btn btn-ghost self-start" onClick={() => setAssignmentAsset(null)}>
+                Bezárás
+              </button>
+            </div>
+          </div>
+        ) : (
+          assignmentCollection && (
+            <PdfPageAssignmentModal
+              asset={assignmentAsset}
+              fileUrl={signedUrls.get(assignmentAsset.file_url) ?? assignmentAsset.file_url}
+              collection={assignmentCollection}
+              cards={assignmentCards}
+              onClose={() => setAssignmentAsset(null)}
+              onCardUpdated={(card) =>
+                setAssignmentCards((prev) => prev.map((c) => (c.id === card.id ? card : c)))
+              }
+              onCollectionUpdated={setAssignmentCollection}
+            />
+          )
+        ))}
     </>
   );
 }
@@ -693,6 +763,7 @@ function CardAssetLanguageGroup({
   onOpen,
   onDelete,
   onLightbox,
+  onAssign,
 }: {
   language: string;
   versions: CardAsset[];
@@ -702,6 +773,7 @@ function CardAssetLanguageGroup({
   onOpen: (id: string) => void;
   onDelete: (asset: CardAsset) => void;
   onLightbox: (slot: { url: string; label: string }) => void;
+  onAssign: (asset: CardAsset) => void;
 }) {
   const { visible, hiddenCount, showAll, setShowAll } = useShowMore(versions, 8);
   return (
@@ -778,6 +850,20 @@ function CardAssetLanguageGroup({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {isPreviewableInBrowser(asset.file_url) && asset.collection_id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAssign(asset);
+                    }}
+                    className="btn btn-ghost !px-2"
+                    aria-label="Oldalak hozzárendelése kártyákhoz"
+                    title="Oldalak hozzárendelése kártyákhoz"
+                  >
+                    <FileStack size={15} />
+                  </button>
+                )}
                 <a
                   href={signedUrls.get(asset.file_url) ?? asset.file_url}
                   target="_blank"
