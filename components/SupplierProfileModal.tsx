@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Trash2, Plus } from "lucide-react";
+import Link from "next/link";
+import { X, Trash2, Plus, ArrowRight } from "lucide-react";
 import type { Supplier, SupplierProduct, ContractStatus, PriceQuote } from "@/lib/supabase/types";
 import { CONTRACT_STATUS_HU } from "@/lib/labels";
 import { ErrorBanner } from "@/components/Feedback";
@@ -59,6 +60,7 @@ export default function SupplierProfileModal({
   quotes,
   cardAssetOptions,
   cardAssetLabelById,
+  linkedCollections,
   quoteSignedUrls,
   onClose,
   onSave,
@@ -72,6 +74,8 @@ export default function SupplierProfileModal({
   quotes: PriceQuote[];
   cardAssetOptions: { id: string; label: string }[];
   cardAssetLabelById: Map<string, string>;
+  /** Kártyatervező — 8. fázis: a hozzá rendelt kollekciók fordítva. */
+  linkedCollections: { id: string; name: string }[];
   // price-quotes bucket is private (see supabase/schema.sql) —
   // screenshot_url is a getPublicUrl()-shaped string that needs
   // exchanging for a signed URL before it'll actually load.
@@ -299,6 +303,23 @@ export default function SupplierProfileModal({
                 onToggleSelected={onToggleQuoteSelected}
                 onDelete={onDeleteQuote}
               />
+            </Section>
+          )}
+
+          {!isNew && linkedCollections.length > 0 && (
+            <Section title="Kapcsolódó kollekciók">
+              <ul className="flex flex-col gap-1.5">
+                {linkedCollections.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/cards?collection=${c.id}`}
+                      className="flex items-center gap-1 text-sm text-forest hover:underline"
+                    >
+                      {c.name} <ArrowRight size={12} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </Section>
           )}
 

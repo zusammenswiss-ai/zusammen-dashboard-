@@ -2218,3 +2218,14 @@ alter table public.card_collections add column if not exists back_mockup_images 
 -- =====================================================================
 alter table public.tasks add column if not exists collection_card_id uuid references public.collection_cards(id) on delete set null;
 alter table public.tasks add column if not exists card_collection_id uuid references public.card_collections(id) on delete set null;
+
+-- =====================================================================
+-- Kártyatervező — 8. fázis: Beszállító hozzárendelése egy kollekcióhoz
+-- (a Beszállítók modul meglévő suppliers tábláját újrahasználva, nem
+-- gépelt szöveggel). card_export_versions.supplier_id csak egy
+-- pillanatfelvétel — melyik beszállítóhoz készült az adott export —,
+-- nem él FK-referenciaként a kollekció aktuális beszállítójára, mert az
+-- később megváltozhat (ugyanaz a minta, mint template_id ugyanitt).
+-- =====================================================================
+alter table public.card_collections add column if not exists supplier_id uuid references public.suppliers(id) on delete set null;
+alter table public.card_export_versions add column if not exists supplier_id uuid references public.suppliers(id) on delete set null;

@@ -27,6 +27,7 @@ export default function CardDesignerPage() {
   const [collections, setCollections] = useState<CardCollection[]>([]);
   const [cards, setCards] = useState<CollectionCard[]>([]);
   const [exportVersions, setExportVersions] = useState<CardExportVersion[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<{ collectionId: string; cardId: string | null; back: boolean } | null>(
@@ -54,11 +55,12 @@ export default function CardDesignerPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const [templatesRes, collectionsRes, cardsRes, exportVersionsRes] = await Promise.all([
+    const [templatesRes, collectionsRes, cardsRes, exportVersionsRes, suppliersRes] = await Promise.all([
       supabase.from("card_templates").select("*").order("name"),
       supabase.from("card_collections").select("*").order("created_at", { ascending: false }),
       supabase.from("collection_cards").select("*").order("sort_order"),
       supabase.from("card_export_versions").select("*").order("created_at", { ascending: false }),
+      supabase.from("suppliers").select("id, name").order("name"),
     ]);
     if (templatesRes.error) setError(errorMessage(templatesRes.error, "Nem sikerült betölteni a sablonokat."));
     else setTemplates(templatesRes.data ?? []);
@@ -66,6 +68,7 @@ export default function CardDesignerPage() {
     else setCollections(collectionsRes.data ?? []);
     if (!cardsRes.error) setCards(cardsRes.data ?? []);
     if (!exportVersionsRes.error) setExportVersions(exportVersionsRes.data ?? []);
+    if (!suppliersRes.error) setSuppliers(suppliersRes.data ?? []);
     setLoading(false);
   }, [supabase]);
 
@@ -117,6 +120,7 @@ export default function CardDesignerPage() {
           templates={templates}
           cards={cards}
           exportVersions={exportVersions}
+          suppliers={suppliers}
           onCollectionsChange={setCollections}
           onCardsChange={setCards}
           onExportVersionsChange={setExportVersions}

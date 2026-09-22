@@ -158,6 +158,11 @@ export default function SuppliersPage() {
   // exchanging for a signed URL before it'll actually load.
   const [quoteSignedUrls, setQuoteSignedUrls] = useState<Map<string, string>>(new Map());
   const [cardAssets, setCardAssets] = useState<{ id: string; language: string; version: string }[]>([]);
+  // Kártyatervező — 8. fázis: fordított nézet — az adott beszállítóhoz
+  // mely kollekciók vannak hozzárendelve (lásd card_collections.supplier_id).
+  const [cardCollections, setCardCollections] = useState<{ id: string; name: string; supplier_id: string | null }[]>(
+    []
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = getSupabaseClient();
@@ -185,18 +190,34 @@ export default function SuppliersPage() {
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const [quotesRes, assetsRes] = await Promise.all([
+      const [quotesRes, assetsRes, collectionsRes] = await Promise.all([
         supabase.from("price_quotes").select("*").order("created_at", { ascending: false }),
         supabase.from("card_assets").select("id, language, version"),
+        supabase.from("card_collections").select("id, name, supplier_id"),
       ]);
       setPriceQuotes(quotesRes.data ?? []);
       setCardAssets(
         (assetsRes.data ?? []).map((a) => ({ id: a.id, language: a.language, version: a.version }))
       );
+      setCardCollections(collectionsRes.data ?? []);
       const screenshotUrls = (quotesRes.data ?? []).map((q) => q.screenshot_url);
       setQuoteSignedUrls(await resolveSignedUrls(supabase, "price-quotes", screenshotUrls));
     })();
   }, [supabase]);
+
+  // Deep link a Kártyatervezőből (/suppliers?open=<id>) — a beszállító
+  // profilja rögtön megnyílik, amint a lista betöltődött.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get("open");
+    if (!openId || suppliers.length === 0) return;
+    const found = suppliers.find((s) => s.id === openId);
+    if (found) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProfileFor(found);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [suppliers]);
 
   async function createSupplier(draft: SupplierDraft): Promise<{ error?: string } | void> {
     if (!supabase) return { error: "Nincs adatbázis-kapcsolat." };
@@ -464,6 +485,9 @@ export default function SuppliersPage() {
           quotes={profileSupplier ? priceQuotes.filter((q) => q.supplier_id === profileSupplier.id) : []}
           cardAssetOptions={cardAssetOptions}
           cardAssetLabelById={cardAssetLabelById}
+          linkedCollections={
+            profileSupplier ? cardCollections.filter((c) => c.supplier_id === profileSupplier.id) : []
+          }
           onClose={() => setProfileFor(null)}
           onSave={saveProfile}
           onDelete={

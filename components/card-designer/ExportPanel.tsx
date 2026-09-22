@@ -147,6 +147,7 @@ export default function ExportPanel({
           format,
           card_count: sortedCards.length,
           file_url: fileUrl,
+          supplier_id: collection.supplier_id,
         })
         .select()
         .single();
