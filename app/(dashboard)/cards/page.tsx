@@ -15,6 +15,11 @@ import { textForLanguage } from "@/lib/card-template";
 import { CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES } from "@/lib/labels";
 
 const STORAGE_BUCKET = "card-designer";
+// A PDF-ből kinyert, valódi mockup-oldalak a Kártya-fájlok modul saját
+// (szintén privát) bucketjébe kerülnek feltöltésre — lásd
+// PdfPageAssignmentModal — nem ugyanoda, mint a designer saját kép/logó
+// feltöltései, ezért külön signed-URL feloldás kell rájuk.
+const MOCKUP_STORAGE_BUCKET = "card-assets";
 type TypeFilter = "Mind" | CollectionCardType | "Hátlap";
 
 /**
@@ -32,6 +37,7 @@ export default function CardsPage() {
   const [templates, setTemplates] = useState<CardTemplate[]>([]);
   const [cards, setCards] = useState<CollectionCard[]>([]);
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
+  const [mockupSignedUrls, setMockupSignedUrls] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +66,12 @@ export default function CardsPage() {
       ...(collectionsRes.data ?? []).map((c) => c.back_image_url),
     ];
     setSignedUrls(await resolveSignedUrls(supabase, STORAGE_BUCKET, imageUrls));
+
+    const mockupUrls: string[] = [
+      ...(cardsRes.data ?? []).flatMap((c): string[] => Object.values(c.mockup_images)),
+      ...(collectionsRes.data ?? []).flatMap((c): string[] => Object.values(c.back_mockup_images)),
+    ];
+    setMockupSignedUrls(await resolveSignedUrls(supabase, MOCKUP_STORAGE_BUCKET, mockupUrls));
     setLoading(false);
   }, [supabase]);
 
@@ -193,6 +205,7 @@ export default function CardsPage() {
               language={effectiveLanguage}
               typeFilter={typeFilter}
               signedUrls={signedUrls}
+              mockupSignedUrls={mockupSignedUrls}
             />
           ))}
         </div>
@@ -208,6 +221,7 @@ function CollectionCardGrid({
   language,
   typeFilter,
   signedUrls,
+  mockupSignedUrls,
 }: {
   collection: CardCollection;
   template: CardTemplate | null;
@@ -215,9 +229,18 @@ function CollectionCardGrid({
   language: string;
   typeFilter: TypeFilter;
   signedUrls: Map<string, string>;
+  mockupSignedUrls: Map<string, string>;
 }) {
   const filteredCards = cards.filter((c) => typeFilter === "Mind" || typeFilter === c.card_type);
-  const showBack = (typeFilter === "Mind" || typeFilter === "Hátlap") && Boolean(collection.back_background_color);
+  const backMockupRaw = language ? collection.back_mockup_images[language] : undefined;
+  const backMockup = backMockupRaw ? mockupSignedUrls.get(backMockupRaw) : undefined;
+  const showBack =
+    (typeFilter === "Mind" || typeFilter === "Hátlap") && (Boolean(backMockup) || Boolean(collection.back_background_color));
+  // Sablon nélkül is megjeleníthető egy kártya, ha van hozzá VALÓDI,
+  // PDF-ből kinyert mockup-kép (lásd PdfPageAssignmentModal) — a
+  // szintetikus CardVisual-render az, aminek a sablon kell.
+  const renderableCards = filteredCards.filter((c) => template || (language && c.mockup_images[language]));
+  const nothingRenderable = !template && !backMockup && renderableCards.length === 0;
 
   return (
     <div>
@@ -240,15 +263,15 @@ function CollectionCardGrid({
         storageKey={`zusammen-collapsed-cards-collection-${collection.id}`}
         headerClassName="mb-3"
       >
-        {!template ? (
+        {nothingRenderable ? (
           <p className="text-xs text-muted">
-            Ehhez a kollekcióhoz még nincs sablon kiválasztva —{" "}
+            Ehhez a kollekcióhoz még nincs sablon, sem hozzárendelt mockup-kép —{" "}
             <Link href={`/card-designer?collection=${collection.id}`} className="underline hover:text-forest">
-              válassz egyet a Kártyatervezőben
+              válassz sablont a Kártyatervezőben
             </Link>{" "}
-            a vizuális előnézethez.
+            vagy rendelj hozzá oldalakat egy feltöltött PDF-ből a Kártya-fájloknál.
           </p>
-        ) : filteredCards.length === 0 && !showBack ? (
+        ) : renderableCards.length === 0 && !showBack ? (
           <p className="text-xs text-muted">Nincs a szűrőnek megfelelő kártya ebben a kollekcióban.</p>
         ) : (
           <div className="flex flex-wrap gap-4">
@@ -257,44 +280,73 @@ function CollectionCardGrid({
                 href={`/card-designer?collection=${collection.id}&back=1`}
                 className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
               >
-                <CardVisual
-                  template={template}
-                  design={{
-                    background_color: collection.back_background_color,
-                    image_url: collection.back_image_url ? signedUrls.get(collection.back_image_url) ?? null : null,
-                    image_x: collection.back_image_x,
-                    image_y: collection.back_image_y,
-                    image_scale: collection.back_image_scale,
-                  }}
-                />
+                {backMockup ? (
+                  // A tényleges, PDF-ből kinyert hátlap-kép — nem a
+                  // designer élő rendere.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={backMockup} alt="Hátlap" className="h-auto w-40 rounded-sm border border-border shadow-sm" />
+                ) : (
+                  template && (
+                    <CardVisual
+                      template={template}
+                      design={{
+                        background_color: collection.back_background_color,
+                        image_url: collection.back_image_url
+                          ? signedUrls.get(collection.back_image_url) ?? null
+                          : null,
+                        image_x: collection.back_image_x,
+                        image_y: collection.back_image_y,
+                        image_scale: collection.back_image_scale,
+                      }}
+                    />
+                  )
+                )}
                 <span className="badge bg-ivory-dim text-walnut">Hátlap</span>
               </Link>
             )}
-            {filteredCards.map((card) => (
-              <Link
-                key={card.id}
-                href={`/card-designer?collection=${collection.id}&card=${card.id}`}
-                className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
-              >
-                <CardVisual
-                  template={template}
-                  design={{
-                    background_color: card.background_color,
-                    image_url: card.image_url ? signedUrls.get(card.image_url) ?? null : null,
-                    image_x: card.image_x,
-                    image_y: card.image_y,
-                    image_scale: card.image_scale,
-                  }}
-                  text={language ? textForLanguage(card, language) : card.text_hu || card.text_de || card.text_en || ""}
-                  textFontSize={card.text_font_size}
-                  textAlign={card.text_align}
-                />
-                <div className="flex items-center gap-1">
-                  <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
-                  <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
-                </div>
-              </Link>
-            ))}
+            {renderableCards.map((card) => {
+              const mockupRaw = language ? card.mockup_images[language] : undefined;
+              const mockup = mockupRaw ? mockupSignedUrls.get(mockupRaw) : undefined;
+              return (
+                <Link
+                  key={card.id}
+                  href={`/card-designer?collection=${collection.id}&card=${card.id}`}
+                  className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
+                >
+                  {mockup ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={mockup}
+                      alt={card.card_number}
+                      className="h-auto w-40 rounded-sm border border-border shadow-sm"
+                    />
+                  ) : (
+                    template && (
+                      <CardVisual
+                        template={template}
+                        design={{
+                          background_color: card.background_color,
+                          image_url: card.image_url ? signedUrls.get(card.image_url) ?? null : null,
+                          image_x: card.image_x,
+                          image_y: card.image_y,
+                          image_scale: card.image_scale,
+                        }}
+                        text={
+                          language ? textForLanguage(card, language) : card.text_hu || card.text_de || card.text_en || ""
+                        }
+                        textFontSize={card.text_font_size}
+                        textAlign={card.text_align}
+                      />
+                    )
+                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
+                    <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
+                    {mockup && <span className="badge bg-forest/10 text-forest">Mockup</span>}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </CollapsibleSection>

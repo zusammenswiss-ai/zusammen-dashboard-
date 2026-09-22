@@ -231,6 +231,9 @@ export interface CardCollection {
   back_image_x: number;
   back_image_y: number;
   back_image_scale: number;
+  // Nyelv-kód → a PDF-ből kinyert hátlap-oldal képe (6. fázis) — lásd
+  // CollectionCard.mockup_images komment-jét ugyanerről.
+  back_mockup_images: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
@@ -258,6 +261,10 @@ export interface CollectionCard {
   image_x: number;
   image_y: number;
   image_scale: number;
+  // Nyelv-kód → a PDF-ből kinyert, TÉNYLEGES nyomdakész oldal-kép URL-je
+  // (6. fázis) — ha van, a Kártyák galéria ezt mutatja a designer élő
+  // rendere helyett. Lásd PdfPageAssignmentModal.
+  mockup_images: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
