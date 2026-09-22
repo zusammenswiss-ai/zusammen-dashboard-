@@ -14,10 +14,21 @@ import {
   type PdfDocument,
 } from "@/lib/pdf-pages";
 import { suggestCardNumber } from "@/lib/card-template";
+import { createImageLayer } from "@/lib/card-layers";
 import { COLLECTION_CARD_TYPES } from "@/lib/labels";
 import { errorMessage } from "@/lib/errors";
 
-const STORAGE_BUCKET = "card-assets";
+const MOCKUP_BUCKET = "card-assets";
+// A Kártyatervező (LayeredCardEditor/CollectionGallery) a design_layers
+// mezőt olvassa, ami a "card-designer" bucketből oldja fel a kép-
+// rétegeket — külön a mockup_images-től, ami a "card-assets" bucketben
+// van és csak a Kártyák galéria mutatja a designer élő rendere HELYETT.
+// Hogy az importált kártya a Kártyatervezőben (nem csak a Kártyák
+// galériában) is a valódi, kirenderelt oldalt mutassa, ugyanazt a
+// már kirenderelt képet ide is feltöltjük, egy teljes vászon méretű
+// képrétegként — pontosan úgy, ahogy a LoadFromFilesModal is teszi
+// egyetlen kártya kézi betöltésénél.
+const DESIGNER_BUCKET = "card-designer";
 
 type RowRole = "skip" | "card" | "back";
 
@@ -27,10 +38,13 @@ type RowRole = "skip" | "card" | "back";
  * importálása a Kártyák modulba — a PdfPageAssignmentModal (egy
  * oldal → egy MÁR LÉTEZŐ kártya) kiegészítése arra az esetre, amikor
  * a kártyák még nem is léteznek: ez oldalanként ÚJ collection_cards
- * sort hoz létre, a kirenderelt PDF-oldalt (nem placeholder, a
- * tényleges nyomdakész vizuális tartalom) mockup-képként mentve rá —
- * pontosan úgy, ahogy a PdfPageAssignmentModal is teszi egyetlen
- * oldalnál, csak itt egy menetben, akár mind az 58 kártyára.
+ * sort hoz létre. A kirenderelt PDF-oldal (nem placeholder, a
+ * tényleges nyomdakész vizuális tartalom) egyszerre kerül mockup-
+ * képként (mockup_images — ezt mutatja a Kártyák galéria) ÉS teljes
+ * vászon méretű, szerkeszthető képrétegként (design_layers — ezt
+ * mutatja a Kártyatervező canvasa és a Galéria-előnézet), hogy az
+ * importált kártya MINDKÉT helyen a valódi tartalmat mutassa, ne csak
+ * a Kártyák nézetben.
  */
 export default function PdfBulkImportModal({
   asset,
@@ -128,18 +142,29 @@ export default function PdfBulkImportModal({
   const backPage = (pages ?? []).find((p) => rowRole[p.pageNumber] === "back") ?? null;
   const selectedCount = cardPages.length + (backPage ? 1 : 0);
 
-  async function uploadHighRes(pageNumber: number): Promise<string> {
+  async function uploadHighRes(pageNumber: number): Promise<{ mockupUrl: string; designUrl: string }> {
     if (!pdfDoc) throw new Error("A PDF még nincs betöltve.");
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Nincs Supabase kapcsolat.");
     const dataUrl = await renderPdfPage(pdfDoc, pageNumber, HIGH_RES_SCALE);
     const blob = dataUrlToBlob(dataUrl);
-    const path = `mockup-pages/${asset.id}/${Date.now()}-p${pageNumber}.png`;
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, blob, { upsert: false, contentType: "image/png" });
-    if (uploadError) throw uploadError;
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+    const filename = `${Date.now()}-p${pageNumber}.png`;
+
+    const mockupPath = `mockup-pages/${asset.id}/${filename}`;
+    const { error: mockupError } = await supabase.storage
+      .from(MOCKUP_BUCKET)
+      .upload(mockupPath, blob, { upsert: false, contentType: "image/png" });
+    if (mockupError) throw mockupError;
+    const mockupUrl = supabase.storage.from(MOCKUP_BUCKET).getPublicUrl(mockupPath).data.publicUrl;
+
+    const designPath = `${crypto.randomUUID()}-${filename}`;
+    const { error: designError } = await supabase.storage
+      .from(DESIGNER_BUCKET)
+      .upload(designPath, blob, { upsert: false, contentType: "image/png" });
+    if (designError) throw designError;
+    const designUrl = supabase.storage.from(DESIGNER_BUCKET).getPublicUrl(designPath).data.publicUrl;
+
+    return { mockupUrl, designUrl };
   }
 
   async function runImport() {
@@ -155,7 +180,7 @@ export default function PdfBulkImportModal({
         const page = cardPages[i];
         setProgress(`Importálás: ${i + 1}/${cardPages.length} kártya…`);
         try {
-          const imageUrl = await uploadHighRes(page.pageNumber);
+          const { mockupUrl, designUrl } = await uploadHighRes(page.pageNumber);
           const cardNumber = (numberOverrides[page.pageNumber] ?? suggestedNumbers.get(page.pageNumber) ?? "").trim();
           if (!cardNumber) throw new Error("Hiányzó azonosító.");
           const { data, error: insertError } = await supabase
@@ -165,7 +190,8 @@ export default function PdfBulkImportModal({
               card_number: cardNumber,
               card_type: cardType,
               sort_order: sortOrder++,
-              mockup_images: { [language]: imageUrl },
+              mockup_images: { [language]: mockupUrl },
+              design_layers: [createImageLayer(designUrl, { x: 0, y: 0, width: 1, height: 1 })],
             })
             .select()
             .single();
@@ -182,11 +208,14 @@ export default function PdfBulkImportModal({
       if (backPage) {
         setProgress("Hátlap importálása…");
         try {
-          const imageUrl = await uploadHighRes(backPage.pageNumber);
-          const nextImages = { ...collection.back_mockup_images, [language]: imageUrl };
+          const { mockupUrl, designUrl } = await uploadHighRes(backPage.pageNumber);
+          const nextImages = { ...collection.back_mockup_images, [language]: mockupUrl };
           const { data, error: updateError } = await supabase
             .from("card_collections")
-            .update({ back_mockup_images: nextImages })
+            .update({
+              back_mockup_images: nextImages,
+              back_design_layers: [createImageLayer(designUrl, { x: 0, y: 0, width: 1, height: 1 })],
+            })
             .eq("id", collection.id)
             .select()
             .single();
