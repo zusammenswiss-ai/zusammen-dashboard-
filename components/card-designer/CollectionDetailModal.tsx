@@ -36,6 +36,8 @@ export default function CollectionDetailModal({
   templates,
   cards,
   exportVersions,
+  initialDesignCardId,
+  initialShowBackEditor,
   onClose,
   onCollectionSaved,
   onCardsChange,
@@ -46,6 +48,10 @@ export default function CollectionDetailModal({
   templates: CardTemplate[];
   cards: CollectionCard[];
   exportVersions: CardExportVersion[];
+  /** A Kártyák galéria deep linkje — a modal ezzel a kártyával/hátlap-
+   * szerkesztővel nyílik meg rögtön, üres felület helyett. */
+  initialDesignCardId?: string | null;
+  initialShowBackEditor?: boolean;
   onClose: () => void;
   onCollectionSaved: (c: CardCollection) => void;
   onCardsChange: (nextForCollection: CollectionCard[]) => void;
@@ -64,8 +70,8 @@ export default function CollectionDetailModal({
   const [metaError, setMetaError] = useState<string | null>(null);
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
-  const [designCardId, setDesignCardId] = useState<string | null>(null);
-  const [showBackEditor, setShowBackEditor] = useState(false);
+  const [designCardId, setDesignCardId] = useState<string | null>(initialDesignCardId ?? null);
+  const [showBackEditor, setShowBackEditor] = useState(initialShowBackEditor ?? false);
 
   const selectedTemplate = templates.find((t) => t.id === meta.template_id) ?? null;
   const designCard = designCardId ? cards.find((c) => c.id === designCardId) ?? null : null;

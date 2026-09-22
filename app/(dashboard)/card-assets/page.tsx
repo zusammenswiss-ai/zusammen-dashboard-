@@ -55,6 +55,7 @@ const EMPTY_FORM = {
   supplier_id: "",
   order_date: "",
   quantity: "",
+  collection_id: "",
 };
 
 function byRecency(a: CardAsset, b: CardAsset) {
@@ -81,6 +82,7 @@ function storagePathFromUrl(url: string): string | null {
 export default function CardAssetsPage() {
   const [assets, setAssets] = useState<CardAsset[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -94,6 +96,9 @@ export default function CardAssetsPage() {
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
   const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
   const [query, setQuery] = useState("");
+  // Deep link a Kártyák galéria "Kapcsolódó fájlok" gombjából
+  // (/card-assets?collection=…) — csak arra a kollekcióra szűr.
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
   // card-assets bucket is private (see supabase/schema.sql) — both
   // asset.file_url and every thumbnails[].url are getPublicUrl()-shaped
   // strings that need exchanging for a signed URL before they'll
@@ -130,10 +135,28 @@ export default function CardAssetsPage() {
   }, [supabase, loadAssets]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const collectionId = params.get("collection");
+    if (collectionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollectionFilter(collectionId);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!supabase) return;
     (async () => {
       const { data } = await supabase.from("suppliers").select("id, name").order("name");
       setSuppliers((data ?? []).map((s) => ({ id: s.id, name: s.name })));
+    })();
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const { data } = await supabase.from("card_collections").select("id, name").order("name");
+      setCollections((data ?? []).map((c) => ({ id: c.id, name: c.name })));
     })();
   }, [supabase]);
 
@@ -238,6 +261,7 @@ export default function CardAssetsPage() {
           supplier_id: form.supplier_id || null,
           order_date: form.order_date || null,
           quantity: form.quantity ? Number(form.quantity) : null,
+          collection_id: form.collection_id || null,
           thumbnails,
         })
         .select()
@@ -312,14 +336,18 @@ export default function CardAssetsPage() {
   }
 
   const supplierNameById = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers]);
+  const collectionNameById = useMemo(() => new Map(collections.map((c) => [c.id, c.name])), [collections]);
   const openAsset = openAssetId ? assets.find((a) => a.id === openAssetId) ?? null : null;
 
   // Version, megjegyzés, nyelv és beszállító neve szerint keres — a
   // találatok utána ugyanúgy nyelvenként csoportosítva jelennek meg lent.
+  // A /cards "Kapcsolódó fájlok" linkje collectionFilter-t is beállíthat,
+  // ami előtte szűkíti a listát egyetlen kollekcióra.
   const filteredAssets = useMemo(() => {
+    const byCollection = collectionFilter ? assets.filter((a) => a.collection_id === collectionFilter) : assets;
     const q = query.trim().toLowerCase();
-    if (!q) return assets;
-    return assets.filter((a) => {
+    if (!q) return byCollection;
+    return byCollection.filter((a) => {
       const supplierName = a.supplier_id ? supplierNameById.get(a.supplier_id) ?? "" : "";
       return (
         a.version.toLowerCase().includes(q) ||
@@ -328,7 +356,7 @@ export default function CardAssetsPage() {
         supplierName.toLowerCase().includes(q)
       );
     });
-  }, [assets, query, supplierNameById]);
+  }, [assets, query, supplierNameById, collectionFilter]);
 
   // Grouped by language — fixed languages first in their usual order, then
   // any others (e.g. from old data) alphabetically — newest version on top
@@ -373,12 +401,30 @@ export default function CardAssetsPage() {
             <Link href="/card-designer" className="btn btn-ghost">
               Kártyatervező megnyitása
             </Link>
-            <button className="btn btn-bronze" onClick={() => setShowForm((v) => !v)}>
+            <button
+              className="btn btn-bronze"
+              onClick={() => {
+                if (!showForm && collectionFilter) setForm((f) => ({ ...f, collection_id: collectionFilter }));
+                setShowForm((v) => !v);
+              }}
+            >
               <Plus size={16} /> Új verzió feltöltése
             </button>
           </div>
         }
       />
+
+      {collectionFilter && (
+        <p className="mb-4 flex items-center gap-2 text-xs text-muted">
+          Szűrve:{" "}
+          <span className="badge bg-bronze/15 text-walnut">
+            {collectionNameById.get(collectionFilter) ?? "kollekció"}
+          </span>
+          <button type="button" onClick={() => setCollectionFilter(null)} className="underline hover:text-forest">
+            szűrő törlése
+          </button>
+        </p>
+      )}
 
       {error && <ErrorBanner message={error} />}
 
@@ -481,7 +527,7 @@ export default function CardAssetsPage() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Nyomtatási állapot</label>
               <select
@@ -507,6 +553,21 @@ export default function CardAssetsPage() {
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Kollekció</label>
+              <select
+                className="select"
+                value={form.collection_id}
+                onChange={(e) => setForm((f) => ({ ...f, collection_id: e.target.value }))}
+              >
+                <option value="">— Nincs —</option>
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -579,6 +640,7 @@ export default function CardAssetsPage() {
               language={language}
               versions={versions}
               supplierNameById={supplierNameById}
+              collectionNameById={collectionNameById}
               signedUrls={signedUrls}
               onOpen={setOpenAssetId}
               onDelete={deleteAsset}
@@ -626,6 +688,7 @@ function CardAssetLanguageGroup({
   language,
   versions,
   supplierNameById,
+  collectionNameById,
   signedUrls,
   onOpen,
   onDelete,
@@ -634,6 +697,7 @@ function CardAssetLanguageGroup({
   language: string;
   versions: CardAsset[];
   supplierNameById: Map<string, string>;
+  collectionNameById: Map<string, string>;
   signedUrls: Map<string, string>;
   onOpen: (id: string) => void;
   onDelete: (asset: CardAsset) => void;
@@ -696,6 +760,15 @@ function CardAssetLanguageGroup({
                 </div>
                 {asset.supplier_id && supplierNameById.get(asset.supplier_id) && (
                   <p className="mt-1 text-xs text-muted">Beszállító: {supplierNameById.get(asset.supplier_id)}</p>
+                )}
+                {asset.collection_id && collectionNameById.get(asset.collection_id) && (
+                  <Link
+                    href={`/cards?collection=${asset.collection_id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 inline-block text-xs text-muted underline decoration-dotted hover:text-forest"
+                  >
+                    Kollekció: {collectionNameById.get(asset.collection_id)}
+                  </Link>
                 )}
                 {asset.notes && <p className="mt-1 line-clamp-2 text-xs text-muted">{asset.notes}</p>}
                 <p className="mt-1 text-xs text-muted">
