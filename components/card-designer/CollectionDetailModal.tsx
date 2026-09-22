@@ -17,6 +17,8 @@ import StickyFormActions from "@/components/StickyFormActions";
 import CardCanvasEditor, { type CardDesign } from "@/components/card-designer/CardCanvasEditor";
 import ExportPanel from "@/components/card-designer/ExportPanel";
 import VersionHistoryList from "@/components/card-designer/VersionHistoryList";
+import CollectionGallery from "@/components/card-designer/CollectionGallery";
+import ManualVersionUpload from "@/components/card-designer/ManualVersionUpload";
 import { errorMessage } from "@/lib/errors";
 import { suggestCardNumber, textForLanguage } from "@/lib/card-template";
 import { CARD_COLLECTION_STATUSES, CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES, LANGUAGE_OPTIONS } from "@/lib/labels";
@@ -189,6 +191,11 @@ export default function CollectionDetailModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <div className="mb-6">
+            <p className="mb-3 font-serif text-lg text-forest">Galéria</p>
+            <CollectionGallery template={selectedTemplate} cards={cards} languages={meta.languages} />
+          </div>
+
           <div className="mb-6 rounded-lg border border-border p-4">
             <p className="mb-3 text-xs font-medium text-bronze">Kollekció adatai</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -364,20 +371,28 @@ export default function CollectionDetailModal({
             </div>
           )}
 
-          {selectedTemplate && (
-            <div className="mt-6 border-t border-border pt-5">
-              <p className="mb-3 font-serif text-lg text-forest">Exportálás &amp; verziók</p>
+          <div className="mt-6 border-t border-border pt-5">
+            <p className="mb-3 font-serif text-lg text-forest">Exportálás &amp; verziók</p>
+            {selectedTemplate ? (
               <ExportPanel
                 collection={collection}
                 template={selectedTemplate}
                 cards={cards}
                 onVersionCreated={(v) => onExportVersionsChange([...exportVersions, v])}
               />
-              <div className="mt-4">
-                <VersionHistoryList versions={exportVersions} onVersionsChange={onExportVersionsChange} />
-              </div>
+            ) : (
+              <p className="text-xs text-muted">Válassz sablont a kollekciónak az app saját exportálásához.</p>
+            )}
+            <div className="mt-3">
+              <ManualVersionUpload
+                collection={collection}
+                onCreated={(v) => onExportVersionsChange([...exportVersions, v])}
+              />
             </div>
-          )}
+            <div className="mt-4">
+              <VersionHistoryList versions={exportVersions} templates={templates} onVersionsChange={onExportVersionsChange} />
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-border p-4">

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Check } from "lucide-react";
+import { Download, Check, Upload } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { CardExportVersion } from "@/lib/supabase/types";
+import type { CardExportVersion, CardTemplate } from "@/lib/supabase/types";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
 import { formatDate } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
@@ -24,13 +24,16 @@ function byRecency(a: CardExportVersion, b: CardExportVersion) {
  * komment). Letöltés + "Gyártónak elküldve" jelölés kártyánként. */
 export default function VersionHistoryList({
   versions,
+  templates,
   onVersionsChange,
 }: {
   versions: CardExportVersion[];
+  templates: CardTemplate[];
   onVersionsChange: (next: CardExportVersion[]) => void;
 }) {
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const templateById = new Map(templates.map((t) => [t.id, t]));
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -74,6 +77,7 @@ export default function VersionHistoryList({
       {error && <p className="text-xs text-red-600">{error}</p>}
       {sorted.map((v) => {
         const signedUrl = signedUrls.get(v.file_url);
+        const template = v.template_id ? templateById.get(v.template_id) : undefined;
         return (
           <div
             key={v.id}
@@ -85,6 +89,12 @@ export default function VersionHistoryList({
                 <span className="badge bg-ivory-dim text-walnut">{KIND_LABELS[v.kind]}</span>
                 <span className="badge bg-bronze/10 text-walnut">{v.format.toUpperCase()}</span>
                 <span className="badge bg-ivory-dim text-walnut">{v.card_count} kártya</span>
+                {template && <span className="badge bg-ivory-dim text-walnut">{template.name}</span>}
+                {v.source === "manual_upload" && (
+                  <span className="badge flex items-center gap-1 bg-walnut/15 text-walnut">
+                    <Upload size={10} /> Kézi feltöltés
+                  </span>
+                )}
                 {v.sent_to_manufacturer && (
                   <span className="badge bg-forest/10 text-forest">
                     Gyártónak elküldve{v.sent_at ? ` — ${formatDate(v.sent_at)}` : ""}

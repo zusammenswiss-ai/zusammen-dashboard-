@@ -2160,6 +2160,23 @@ create table if not exists public.card_export_versions (
   created_at timestamptz not null default now()
 );
 
+-- 4. fázis: kézi feltöltés — egy korábban (nem az app tervezőjéből)
+-- elkészült fájl, pl. a jelenlegi Pear Edition production-fájljai,
+-- utólag rögzíthető verzióként. 'export' az alapértelmezett, hogy a
+-- meglévő (3. fázisban létrehozott) sorok érvényesek maradjanak.
+alter table public.card_export_versions add column if not exists source text not null default 'export';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'card_export_versions_source_check'
+  ) then
+    alter table public.card_export_versions
+      add constraint card_export_versions_source_check
+      check (source in ('export', 'manual_upload'));
+  end if;
+end $$;
+
 alter table public.card_export_versions enable row level security;
 
 drop policy if exists "anon full access" on public.card_export_versions;
