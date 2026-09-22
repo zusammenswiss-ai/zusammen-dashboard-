@@ -29,7 +29,10 @@ export default function LoadFromFilesModal({
   onClose,
 }: {
   collectionId: string;
-  onSelect: (blob: Blob) => void;
+  /** A hívó a Promise-t megvárja, mielőtt a modal saját töltés-
+   * jelzését eltünteti — a kiválasztott oldal/kép feltöltése is ez
+   * alatt fut, nem csak a PDF-oldal renderelése. */
+  onSelect: (blob: Blob) => Promise<void>;
   onClose: () => void;
 }) {
   const [assets, setAssets] = useState<CardAsset[] | null>(null);
@@ -76,8 +79,9 @@ export default function LoadFromFilesModal({
       setError(null);
       try {
         const res = await fetch(fileUrl);
+        if (!res.ok) throw new Error(`A kép letöltése sikertelen (${res.status}).`);
         const blob = await res.blob();
-        onSelect(blob);
+        await onSelect(blob);
       } catch (err) {
         setError(errorMessage(err, "Nem sikerült betölteni a képet."));
       } finally {
@@ -89,6 +93,7 @@ export default function LoadFromFilesModal({
     setPageLoadError(null);
     try {
       const res = await fetch(fileUrl);
+      if (!res.ok) throw new Error(`A PDF letöltése sikertelen (${res.status}).`);
       const buf = await res.arrayBuffer();
       const doc = await loadPdfDocument(buf);
       setPdfDoc(doc);
@@ -107,7 +112,7 @@ export default function LoadFromFilesModal({
     setLoadingPage(pageNumber);
     try {
       const dataUrl = await renderPdfPage(pdfDoc, pageNumber, HIGH_RES_SCALE);
-      onSelect(dataUrlToBlob(dataUrl));
+      await onSelect(dataUrlToBlob(dataUrl));
     } catch (err) {
       setPageLoadError(errorMessage(err, "Nem sikerült betölteni az oldalt."));
     } finally {
@@ -118,7 +123,14 @@ export default function LoadFromFilesModal({
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-forest/40 px-4 py-8 backdrop-blur-[2px]"
-      onClick={onClose}
+      onClick={(e) => {
+        // Ne buborékoljon fel a LayeredCardEditor saját háttér-
+        // kattintás-kezelőjéhez (ami az egész szerkesztőt zárná be) —
+        // ez a modal a szerkesztőn belül nyílik, a sajátja csak ezt a
+        // fájlválasztót zárja be.
+        e.stopPropagation();
+        onClose();
+      }}
     >
       <div
         className="animate-fade-in card flex max-h-full w-full max-w-2xl flex-col overflow-hidden"

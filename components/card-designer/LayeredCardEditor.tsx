@@ -230,9 +230,14 @@ export default function LayeredCardEditor({
   // alapértelmezett méretét), mert ez egy már kész mockup-oldal/design,
   // aminek a referenciaként vagy kiindulásként a teljes vászont kell
   // kitöltenie, nem egy beillesztett logó méretét.
+  // A LoadFromFilesModal a visszaadott Promise-t megvárja, mielőtt a
+  // saját (a kiválasztott oldalon megjelenő) töltés-jelzését eltünteti —
+  // így a founder a teljes feltöltés alatt lát visszajelzést, nem csak a
+  // PDF-oldal renderelése alatt. A modal a hívás után (sikertől
+  // függetlenül) mindig bezáródik, hogy egy esetleges hibaüzenet
+  // rögtön látható legyen a szerkesztőn.
   async function handleLoadedFileBlob(blob: Blob) {
     if (!supabase) return;
-    setShowLoadFromFiles(false);
     setError(null);
     try {
       const path = `${crypto.randomUUID()}-fajlbol-betoltve.png`;
@@ -246,6 +251,8 @@ export default function LayeredCardEditor({
       setSelectedId(layer.id);
     } catch (err) {
       setError(errorMessage(err, "Nem sikerült betölteni a kiválasztott fájlt."));
+    } finally {
+      setShowLoadFromFiles(false);
     }
   }
 
@@ -759,11 +766,7 @@ export default function LayeredCardEditor({
       </div>
 
       {showLoadFromFiles && (
-        <LoadFromFilesModal
-          collectionId={collectionId}
-          onSelect={(blob) => void handleLoadedFileBlob(blob)}
-          onClose={() => setShowLoadFromFiles(false)}
-        />
+        <LoadFromFilesModal collectionId={collectionId} onSelect={handleLoadedFileBlob} onClose={() => setShowLoadFromFiles(false)} />
       )}
     </div>
   );
