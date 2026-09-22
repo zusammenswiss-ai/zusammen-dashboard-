@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardTemplate, CollectionCard } from "@/lib/supabase/types";
-import { renderCardCanvas } from "@/lib/card-render";
+import { renderCardCanvas, resolveLayerImages } from "@/lib/card-render";
 import { resolveSignedUrl } from "@/lib/signed-storage-url";
 import { textForLanguage } from "@/lib/card-template";
 
@@ -48,6 +48,7 @@ export default function CollectionGallery({
     setRendering(true);
     (async () => {
       const imageUrl = await resolveSignedUrl(supabase, STORAGE_BUCKET, coverCard.image_url);
+      const layers = await resolveLayerImages(supabase, coverCard.design_layers);
       const next = new Map<string, string>();
       for (const lang of langs) {
         const canvas = await renderCardCanvas(
@@ -61,7 +62,8 @@ export default function CollectionGallery({
             text_font_size: coverCard.text_font_size,
             text_align: coverCard.text_align,
           },
-          textForLanguage(coverCard, lang)
+          textForLanguage(coverCard, lang),
+          layers
         );
         next.set(lang, canvas.toDataURL("image/png"));
       }

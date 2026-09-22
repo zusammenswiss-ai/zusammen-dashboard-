@@ -7,16 +7,18 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type {
   CardCollection,
   CardExportVersion,
+  CardLayoutTemplate,
   CardTemplate,
   CollectionCard,
   CollectionCardInsert,
   CollectionCardType,
+  DesignLayer,
   TaskItem,
 } from "@/lib/supabase/types";
 import BackButton from "@/components/BackButton";
 import EmptyState from "@/components/EmptyState";
 import StickyFormActions from "@/components/StickyFormActions";
-import CardCanvasEditor, { type CardDesign } from "@/components/card-designer/CardCanvasEditor";
+import LayeredCardEditor from "@/components/card-designer/LayeredCardEditor";
 import ExportPanel from "@/components/card-designer/ExportPanel";
 import VersionHistoryList from "@/components/card-designer/VersionHistoryList";
 import CollectionGallery from "@/components/card-designer/CollectionGallery";
@@ -24,6 +26,7 @@ import ManualVersionUpload from "@/components/card-designer/ManualVersionUpload"
 import CardNumberAudit from "@/components/card-designer/CardNumberAudit";
 import { errorMessage } from "@/lib/errors";
 import { suggestCardNumber, textForLanguage } from "@/lib/card-template";
+import { legacyBackToLayers, legacyToLayers } from "@/lib/card-layers";
 import { CARD_COLLECTION_STATUSES, CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES, LANGUAGE_OPTIONS } from "@/lib/labels";
 
 function bySortOrder(a: CollectionCard, b: CollectionCard) {
@@ -40,12 +43,14 @@ export default function CollectionDetailModal({
   cards,
   exportVersions,
   suppliers,
+  layoutTemplates,
   initialDesignCardId,
   initialShowBackEditor,
   onClose,
   onCollectionSaved,
   onCardsChange,
   onExportVersionsChange,
+  onLayoutTemplateCreated,
   onDelete,
 }: {
   collection: CardCollection;
@@ -53,6 +58,7 @@ export default function CollectionDetailModal({
   cards: CollectionCard[];
   exportVersions: CardExportVersion[];
   suppliers: { id: string; name: string }[];
+  layoutTemplates: CardLayoutTemplate[];
   /** A Kártyák galéria deep linkje — a modal ezzel a kártyával/hátlap-
    * szerkesztővel nyílik meg rögtön, üres felület helyett. */
   initialDesignCardId?: string | null;
@@ -61,6 +67,7 @@ export default function CollectionDetailModal({
   onCollectionSaved: (c: CardCollection) => void;
   onCardsChange: (nextForCollection: CollectionCard[]) => void;
   onExportVersionsChange: (nextForCollection: CardExportVersion[]) => void;
+  onLayoutTemplateCreated: (t: CardLayoutTemplate) => void;
   onDelete: () => void;
 }) {
   const [meta, setMeta] = useState({
@@ -198,20 +205,12 @@ export default function CollectionDetailModal({
     if (data) onCollectionSaved(data);
   }
 
-  async function saveCardDesign(card: CollectionCard, design: CardDesign) {
+  async function saveCardDesign(card: CollectionCard, layers: DesignLayer[], backgroundColor: string | null) {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     const { data, error } = await supabase
       .from("collection_cards")
-      .update({
-        background_color: design.background_color,
-        image_url: design.image_url,
-        image_x: design.image_x,
-        image_y: design.image_y,
-        image_scale: design.image_scale,
-        text_font_size: design.text_font_size,
-        text_align: design.text_align,
-      })
+      .update({ design_layers: layers, background_color: backgroundColor })
       .eq("id", card.id)
       .select()
       .single();
@@ -219,18 +218,12 @@ export default function CollectionDetailModal({
     if (data) onCardsChange(cards.map((x) => (x.id === data.id ? data : x)));
   }
 
-  async function saveBackDesign(design: CardDesign) {
+  async function saveBackDesign(layers: DesignLayer[], backgroundColor: string | null) {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     const { data, error } = await supabase
       .from("card_collections")
-      .update({
-        back_background_color: design.background_color,
-        back_image_url: design.image_url,
-        back_image_x: design.image_x,
-        back_image_y: design.image_y,
-        back_image_scale: design.image_scale,
-      })
+      .update({ back_design_layers: layers, back_background_color: backgroundColor })
       .eq("id", collection.id)
       .select()
       .single();
@@ -541,47 +534,59 @@ export default function CollectionDetailModal({
       </div>
 
       {designCard && selectedTemplate && (
-        <CardCanvasEditor
+        <LayeredCardEditor
           template={selectedTemplate}
           title={`Kártya tervezése — ${designCard.card_number}`}
-          showText
-          previewTexts={
-            meta.languages.length > 0
-              ? meta.languages
-                  .filter((lang) => lang === "HU" || lang === "DE" || lang === "EN")
-                  .map((lang) => ({ code: lang, text: textForLanguage(designCard, lang) }))
-              : [{ code: "Szöveg", text: designCard.text_hu ?? "" }]
+          backgroundColor={designCard.background_color}
+          layers={
+            designCard.design_layers.length > 0
+              ? designCard.design_layers
+              : legacyToLayers(
+                  selectedTemplate,
+                  {
+                    background_color: designCard.background_color,
+                    image_url: designCard.image_url,
+                    image_x: designCard.image_x,
+                    image_y: designCard.image_y,
+                    image_scale: designCard.image_scale,
+                    text_font_size: designCard.text_font_size,
+                    text_align: designCard.text_align,
+                  },
+                  Boolean(designCard.text_hu || designCard.text_de || designCard.text_en)
+                )
           }
-          design={{
-            background_color: designCard.background_color,
-            image_url: designCard.image_url,
-            image_x: designCard.image_x,
-            image_y: designCard.image_y,
-            image_scale: designCard.image_scale,
-            text_font_size: designCard.text_font_size,
-            text_align: designCard.text_align,
-          }}
-          onSave={(design) => saveCardDesign(designCard, design)}
+          languageCodes={meta.languages.length > 0 ? meta.languages : ["HU"]}
+          questionTextByLang={Object.fromEntries(
+            (meta.languages.length > 0 ? meta.languages : ["HU"]).map((lang) => [lang, textForLanguage(designCard, lang)])
+          )}
+          layoutTemplates={layoutTemplates}
+          onSave={(layers, backgroundColor) => saveCardDesign(designCard, layers, backgroundColor)}
+          onLayoutTemplateCreated={onLayoutTemplateCreated}
           onClose={() => setDesignCardId(null)}
         />
       )}
 
       {showBackEditor && selectedTemplate && (
-        <CardCanvasEditor
+        <LayeredCardEditor
           template={selectedTemplate}
           title="Hátlap tervezése"
-          showText={false}
-          previewTexts={[]}
-          design={{
-            background_color: collection.back_background_color,
-            image_url: collection.back_image_url,
-            image_x: collection.back_image_x,
-            image_y: collection.back_image_y,
-            image_scale: collection.back_image_scale,
-            text_font_size: 48,
-            text_align: "center",
-          }}
+          backgroundColor={collection.back_background_color}
+          layers={
+            collection.back_design_layers.length > 0
+              ? collection.back_design_layers
+              : legacyBackToLayers({
+                  background_color: collection.back_background_color,
+                  image_url: collection.back_image_url,
+                  image_x: collection.back_image_x,
+                  image_y: collection.back_image_y,
+                  image_scale: collection.back_image_scale,
+                })
+          }
+          languageCodes={meta.languages.length > 0 ? meta.languages : ["HU"]}
+          questionTextByLang={null}
+          layoutTemplates={layoutTemplates}
           onSave={saveBackDesign}
+          onLayoutTemplateCreated={onLayoutTemplateCreated}
           onClose={() => setShowBackEditor(false)}
         />
       )}

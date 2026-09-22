@@ -13,7 +13,7 @@ import type {
   CardTemplate,
   CollectionCard,
 } from "@/lib/supabase/types";
-import { renderCardCanvas, canvasToPngBlob } from "@/lib/card-render";
+import { renderCardCanvas, canvasToPngBlob, resolveLayerImages } from "@/lib/card-render";
 import { resolveSignedUrl } from "@/lib/signed-storage-url";
 import { textForLanguage } from "@/lib/card-template";
 import { errorMessage } from "@/lib/errors";
@@ -68,6 +68,7 @@ export default function ExportPanel({
       if (kind === "front_back_pairs") {
         setProgress("Hátlap renderelése…");
         const backImageUrl = await resolveSignedUrl(supabase, STORAGE_BUCKET, collection.back_image_url);
+        const backLayers = await resolveLayerImages(supabase, collection.back_design_layers);
         backCanvas = await renderCardCanvas(
           template,
           {
@@ -79,7 +80,8 @@ export default function ExportPanel({
             text_font_size: 48,
             text_align: "center",
           },
-          ""
+          "",
+          backLayers
         );
       }
 
@@ -88,6 +90,7 @@ export default function ExportPanel({
         const card = sortedCards[i];
         setProgress(`Renderelés: ${i + 1}/${sortedCards.length} kártya (${card.card_number})`);
         const imageUrl = await resolveSignedUrl(supabase, STORAGE_BUCKET, card.image_url);
+        const cardLayers = await resolveLayerImages(supabase, card.design_layers);
         const frontCanvas = await renderCardCanvas(
           template,
           {
@@ -99,7 +102,8 @@ export default function ExportPanel({
             text_font_size: card.text_font_size,
             text_align: card.text_align,
           },
-          textForLanguage(card, language)
+          textForLanguage(card, language),
+          cardLayers
         );
         const safeNumber = card.card_number.replace(/[^a-zA-Z0-9]+/g, "-");
         const prefix = String(i + 1).padStart(2, "0");
