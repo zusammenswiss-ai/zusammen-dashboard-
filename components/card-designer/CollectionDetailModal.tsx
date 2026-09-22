@@ -20,6 +20,7 @@ import EmptyState from "@/components/EmptyState";
 import StickyFormActions from "@/components/StickyFormActions";
 import LayeredCardEditor from "@/components/card-designer/LayeredCardEditor";
 import ExportPanel from "@/components/card-designer/ExportPanel";
+import PrintPanel from "@/components/card-designer/PrintPanel";
 import VersionHistoryList from "@/components/card-designer/VersionHistoryList";
 import CollectionGallery from "@/components/card-designer/CollectionGallery";
 import ManualVersionUpload from "@/components/card-designer/ManualVersionUpload";
@@ -521,6 +522,13 @@ export default function CollectionDetailModal({
               />
             </div>
           </div>
+
+          {selectedTemplate && sortedCards.length > 0 && (
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="mb-3 font-serif text-lg text-forest">Nyomtatás</p>
+              <PrintPanel collection={collection} template={selectedTemplate} cards={cards} />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-border p-4">

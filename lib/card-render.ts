@@ -183,6 +183,36 @@ export async function renderCardCanvas(
   return canvas;
 }
 
+/**
+ * Ugyanaz, mint renderCardCanvas, de a bleed vászon helyett a cut
+ * (végleges) méretre vágva — otthoni/irodai nyomtatáshoz kell (10.
+ * fázis, lib/card-print.ts), ahol nincs értelme a szakmai bleed
+ * ráhagyásnak, mert a founder ollóval a végleges méret szerint vág.
+ */
+export async function renderCutCardCanvas(
+  template: Pick<
+    CardTemplate,
+    "cut_width_in" | "cut_height_in" | "safe_width_in" | "safe_height_in" | "bleed_width_in" | "bleed_height_in" | "dpi"
+  >,
+  design: RenderableDesign,
+  text: string,
+  layers: DesignLayer[] = []
+): Promise<HTMLCanvasElement> {
+  const bleedCanvas = await renderCardCanvas(template, design, text, layers);
+  const guides = computeGuideRects(template);
+  const sx = (guides.cut.insetXPct / 100) * bleedCanvas.width;
+  const sy = (guides.cut.insetYPct / 100) * bleedCanvas.height;
+  const sw = bleedCanvas.width - 2 * sx;
+  const sh = bleedCanvas.height - 2 * sy;
+  const cutCanvas = document.createElement("canvas");
+  cutCanvas.width = Math.round(sw);
+  cutCanvas.height = Math.round(sh);
+  const ctx = cutCanvas.getContext("2d");
+  if (!ctx) throw new Error("A böngésző nem támogatja a canvas renderelést.");
+  ctx.drawImage(bleedCanvas, sx, sy, sw, sh, 0, 0, cutCanvas.width, cutCanvas.height);
+  return cutCanvas;
+}
+
 export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Nem sikerült PNG fájlt készíteni."))), "image/png");
