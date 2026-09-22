@@ -39,6 +39,7 @@ export default function CollectionDetailModal({
   templates,
   cards,
   exportVersions,
+  suppliers,
   initialDesignCardId,
   initialShowBackEditor,
   onClose,
@@ -51,6 +52,7 @@ export default function CollectionDetailModal({
   templates: CardTemplate[];
   cards: CollectionCard[];
   exportVersions: CardExportVersion[];
+  suppliers: { id: string; name: string }[];
   /** A Kártyák galéria deep linkje — a modal ezzel a kártyával/hátlap-
    * szerkesztővel nyílik meg rögtön, üres felület helyett. */
   initialDesignCardId?: string | null;
@@ -68,6 +70,7 @@ export default function CollectionDetailModal({
     template_id: collection.template_id ?? "",
     languages: collection.languages,
     customLanguage: "",
+    supplier_id: collection.supplier_id ?? "",
   });
   const [metaSaving, setMetaSaving] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
@@ -182,6 +185,7 @@ export default function CollectionDetailModal({
         status: meta.status,
         template_id: meta.template_id || null,
         languages: meta.languages,
+        supplier_id: meta.supplier_id || null,
       })
       .eq("id", collection.id)
       .select()
@@ -319,6 +323,31 @@ export default function CollectionDetailModal({
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-muted">Beszállító</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="select"
+                    value={meta.supplier_id}
+                    onChange={(e) => setMeta((f) => ({ ...f, supplier_id: e.target.value }))}
+                  >
+                    <option value="">— Nincs kiválasztva —</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  {collection.supplier_id && (
+                    <Link
+                      href={`/suppliers?open=${collection.supplier_id}`}
+                      className="shrink-0 text-xs text-muted underline decoration-dotted hover:text-forest"
+                    >
+                      Beszállító megnyitása
+                    </Link>
+                  )}
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-medium text-muted">Leírás / koncepció</label>
@@ -491,7 +520,12 @@ export default function CollectionDetailModal({
               />
             </div>
             <div className="mt-4">
-              <VersionHistoryList versions={exportVersions} templates={templates} onVersionsChange={onExportVersionsChange} />
+              <VersionHistoryList
+                versions={exportVersions}
+                templates={templates}
+                suppliers={suppliers}
+                onVersionsChange={onExportVersionsChange}
+              />
             </div>
           </div>
         </div>

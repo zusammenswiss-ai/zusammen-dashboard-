@@ -21,6 +21,7 @@ export default function CollectionsSection({
   templates,
   cards,
   exportVersions,
+  suppliers,
   onCollectionsChange,
   onCardsChange,
   onExportVersionsChange,
@@ -30,6 +31,7 @@ export default function CollectionsSection({
   templates: CardTemplate[];
   cards: CollectionCard[];
   exportVersions: CardExportVersion[];
+  suppliers: { id: string; name: string }[];
   onCollectionsChange: (next: CardCollection[]) => void;
   onCardsChange: (next: CollectionCard[]) => void;
   onExportVersionsChange: (next: CardExportVersion[]) => void;
@@ -55,6 +57,7 @@ export default function CollectionsSection({
 
   const sorted = [...collections].sort(byRecency);
   const templateById = new Map(templates.map((t) => [t.id, t]));
+  const supplierById = new Map(suppliers.map((s) => [s.id, s.name]));
   const openCollection = collections.find((c) => c.id === openId) ?? null;
 
   function handleDelete(collection: CardCollection) {
@@ -121,6 +124,9 @@ export default function CollectionsSection({
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                   <span className="badge bg-ivory-dim text-walnut">{cardCount} kártya</span>
                   {template && <span className="badge bg-ivory-dim text-walnut">{template.name}</span>}
+                  {c.supplier_id && supplierById.get(c.supplier_id) && (
+                    <span className="badge bg-bronze/10 text-walnut">{supplierById.get(c.supplier_id)}</span>
+                  )}
                   {c.languages.map((lang) => (
                     <span key={lang} className="badge bg-forest-light/15 text-forest">
                       {lang}
@@ -142,6 +148,7 @@ export default function CollectionsSection({
           templates={templates}
           cards={cards.filter((card) => card.collection_id === openCollection.id)}
           exportVersions={exportVersions.filter((v) => v.collection_id === openCollection.id)}
+          suppliers={suppliers}
           initialDesignCardId={deepLink?.collectionId === openCollection.id ? deepLink.cardId : null}
           initialShowBackEditor={deepLink?.collectionId === openCollection.id ? deepLink.back : false}
           onClose={() => setOpenId(null)}

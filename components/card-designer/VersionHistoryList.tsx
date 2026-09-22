@@ -25,15 +25,18 @@ function byRecency(a: CardExportVersion, b: CardExportVersion) {
 export default function VersionHistoryList({
   versions,
   templates,
+  suppliers,
   onVersionsChange,
 }: {
   versions: CardExportVersion[];
   templates: CardTemplate[];
+  suppliers: { id: string; name: string }[];
   onVersionsChange: (next: CardExportVersion[]) => void;
 }) {
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const templateById = new Map(templates.map((t) => [t.id, t]));
+  const supplierById = new Map(suppliers.map((s) => [s.id, s.name]));
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -90,6 +93,9 @@ export default function VersionHistoryList({
                 <span className="badge bg-bronze/10 text-walnut">{v.format.toUpperCase()}</span>
                 <span className="badge bg-ivory-dim text-walnut">{v.card_count} kártya</span>
                 {template && <span className="badge bg-ivory-dim text-walnut">{template.name}</span>}
+                {v.supplier_id && supplierById.get(v.supplier_id) && (
+                  <span className="badge bg-bronze/10 text-walnut">{supplierById.get(v.supplier_id)}</span>
+                )}
                 {v.source === "manual_upload" && (
                   <span className="badge flex items-center gap-1 bg-walnut/15 text-walnut">
                     <Upload size={10} /> Kézi feltöltés

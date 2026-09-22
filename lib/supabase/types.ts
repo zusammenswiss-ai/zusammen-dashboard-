@@ -239,6 +239,9 @@ export interface CardCollection {
   // Nyelv-kód → a PDF-ből kinyert hátlap-oldal képe (6. fázis) — lásd
   // CollectionCard.mockup_images komment-jét ugyanerről.
   back_mockup_images: Record<string, string>;
+  // Melyik beszállítóhoz (a Beszállítók modul suppliers táblájából)
+  // tartozik ez a kollekció (8. fázis).
+  supplier_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -301,6 +304,10 @@ export interface CardExportVersion {
   // utólag feltöltött, korábban elkészült fájl (pl. a jelenlegi Pear
   // Edition production-fájljai). Lásd ManualVersionUpload.
   source: CardExportSource;
+  // Pillanatfelvétel — a kollekció aktuális supplier_id-jából másolva
+  // létrehozáskor (8. fázis), nem él FK-referenciaként rá, mert az
+  // később megváltozhat. Ugyanaz a minta, mint template_id fent.
+  supplier_id: string | null;
   created_at: string;
 }
 export type CardExportVersionInsert = Partial<Omit<CardExportVersion, "id" | "created_at">> & {

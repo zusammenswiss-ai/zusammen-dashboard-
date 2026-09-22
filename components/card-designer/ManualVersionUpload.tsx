@@ -61,6 +61,7 @@ export default function ManualVersionUpload({
           source: "manual_upload",
           sent_to_manufacturer: sent,
           sent_at: sent ? sentAt : null,
+          supplier_id: collection.supplier_id,
         })
         .select()
         .single();
