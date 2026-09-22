@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CreditCard, Palette } from "lucide-react";
+import { CreditCard, Maximize2, Palette, RefreshCw } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { CardCollection, CardTemplate, CollectionCard, CollectionCardType, DesignLayer, ImageDesignLayer } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
@@ -10,6 +10,7 @@ import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import CardVisual from "@/components/card-designer/CardVisual";
+import Lightbox from "@/components/Lightbox";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
 import { textForLanguage } from "@/lib/card-template";
 import { CARD_COLLECTION_STATUS_STYLES, COLLECTION_CARD_TYPES } from "@/lib/labels";
@@ -237,8 +238,20 @@ function CollectionCardGrid({
   signedUrls: Map<string, string>;
   mockupSignedUrls: Map<string, string>;
 }) {
+  const [flippedIds, setFlippedIds] = useState<Set<string>>(new Set());
+  const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
+
   function resolveLayers(layers: DesignLayer[]): DesignLayer[] {
     return layers.map((l) => (l.type === "image" ? { ...l, url: signedUrls.get(l.url) ?? l.url } : l));
+  }
+
+  function toggleFlip(id: string) {
+    setFlippedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   const filteredCards = cards.filter((c) => typeFilter === "Mind" || typeFilter === c.card_type);
@@ -286,82 +299,145 @@ function CollectionCardGrid({
         ) : (
           <div className="flex flex-wrap gap-4">
             {showBack && (
-              <Link
-                href={`/card-designer?collection=${collection.id}&back=1`}
-                className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
-              >
-                {backMockup ? (
-                  // A tényleges, PDF-ből kinyert hátlap-kép — nem a
-                  // designer élő rendere.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={backMockup} alt="Hátlap" className="h-auto w-40 rounded-sm border border-border shadow-sm" />
-                ) : (
-                  template && (
-                    <CardVisual
-                      template={template}
-                      design={{
-                        background_color: collection.back_background_color,
-                        image_url: collection.back_image_url
-                          ? signedUrls.get(collection.back_image_url) ?? null
-                          : null,
-                        image_x: collection.back_image_x,
-                        image_y: collection.back_image_y,
-                        image_scale: collection.back_image_scale,
-                      }}
-                      layers={resolveLayers(collection.back_design_layers)}
-                    />
-                  )
-                )}
-                <span className="badge bg-ivory-dim text-walnut">Hátlap</span>
-              </Link>
-            )}
-            {renderableCards.map((card) => {
-              const mockupRaw = language ? card.mockup_images[language] : undefined;
-              const mockup = mockupRaw ? mockupSignedUrls.get(mockupRaw) : undefined;
-              return (
+              <div className="relative">
                 <Link
-                  key={card.id}
-                  href={`/card-designer?collection=${collection.id}&card=${card.id}`}
+                  href={`/card-designer?collection=${collection.id}&back=1`}
                   className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
                 >
-                  {mockup ? (
+                  {backMockup ? (
+                    // A tényleges, PDF-ből kinyert hátlap-kép — nem a
+                    // designer élő rendere.
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={mockup}
-                      alt={card.card_number}
-                      className="h-auto w-40 rounded-sm border border-border shadow-sm"
-                    />
+                    <img src={backMockup} alt="Hátlap" className="h-auto w-40 rounded-sm border border-border shadow-sm" />
                   ) : (
                     template && (
                       <CardVisual
                         template={template}
                         design={{
-                          background_color: card.background_color,
-                          image_url: card.image_url ? signedUrls.get(card.image_url) ?? null : null,
-                          image_x: card.image_x,
-                          image_y: card.image_y,
-                          image_scale: card.image_scale,
+                          background_color: collection.back_background_color,
+                          image_url: collection.back_image_url
+                            ? signedUrls.get(collection.back_image_url) ?? null
+                            : null,
+                          image_x: collection.back_image_x,
+                          image_y: collection.back_image_y,
+                          image_scale: collection.back_image_scale,
                         }}
-                        text={
-                          language ? textForLanguage(card, language) : card.text_hu || card.text_de || card.text_en || ""
-                        }
-                        textFontSize={card.text_font_size}
-                        textAlign={card.text_align}
-                        layers={resolveLayers(card.design_layers)}
+                        layers={resolveLayers(collection.back_design_layers)}
                       />
                     )
                   )}
-                  <div className="flex items-center gap-1">
-                    <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
-                    <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
-                    {mockup && <span className="badge bg-forest/10 text-forest">Mockup</span>}
-                  </div>
+                  <span className="badge bg-ivory-dim text-walnut">Hátlap</span>
                 </Link>
+                {backMockup && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setLightboxSlot({ url: backMockup, label: `Hátlap — ${collection.name}` });
+                    }}
+                    className="absolute right-1.5 top-1.5 rounded-md bg-black/50 p-1 text-white hover:bg-black/70"
+                    aria-label="Nagyítás"
+                    title="Teljes méretű nézet"
+                  >
+                    <Maximize2 size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+            {renderableCards.map((card) => {
+              const mockupRaw = language ? card.mockup_images[language] : undefined;
+              const mockup = mockupRaw ? mockupSignedUrls.get(mockupRaw) : undefined;
+              const flipped = flippedIds.has(card.id);
+              const showingBack = flipped && Boolean(backMockup);
+              const displayedMockup = showingBack ? backMockup : mockup;
+              return (
+                <div key={card.id} className="relative">
+                  <Link
+                    href={`/card-designer?collection=${collection.id}&card=${card.id}`}
+                    className="flex flex-col items-center gap-1.5 rounded-md border-2 border-transparent p-1 hover:border-bronze/40"
+                  >
+                    {displayedMockup ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={displayedMockup}
+                        alt={showingBack ? `${card.card_number} — hátlap` : card.card_number}
+                        className="h-auto w-40 rounded-sm border border-border shadow-sm"
+                      />
+                    ) : (
+                      template && (
+                        <CardVisual
+                          template={template}
+                          design={{
+                            background_color: card.background_color,
+                            image_url: card.image_url ? signedUrls.get(card.image_url) ?? null : null,
+                            image_x: card.image_x,
+                            image_y: card.image_y,
+                            image_scale: card.image_scale,
+                          }}
+                          text={
+                            language ? textForLanguage(card, language) : card.text_hu || card.text_de || card.text_en || ""
+                          }
+                          textFontSize={card.text_font_size}
+                          textAlign={card.text_align}
+                          layers={resolveLayers(card.design_layers)}
+                        />
+                      )
+                    )}
+                    <div className="flex items-center gap-1">
+                      <span className="badge bg-ivory-dim text-walnut">{card.card_number}</span>
+                      <span className="badge bg-bronze/10 text-walnut">{card.card_type}</span>
+                      {showingBack ? (
+                        <span className="badge bg-forest/10 text-forest">Hátlap</span>
+                      ) : (
+                        mockup && <span className="badge bg-forest/10 text-forest">Mockup</span>
+                      )}
+                    </div>
+                  </Link>
+                  <div className="absolute right-1.5 top-1.5 flex gap-1">
+                    {mockup && backMockup && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleFlip(card.id);
+                        }}
+                        className="rounded-md bg-black/50 p-1 text-white hover:bg-black/70"
+                        aria-label="Előlap/hátlap váltása"
+                        title="Előlap/hátlap váltása"
+                      >
+                        <RefreshCw size={13} />
+                      </button>
+                    )}
+                    {displayedMockup && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setLightboxSlot({
+                            url: displayedMockup,
+                            label: showingBack ? `${card.card_number} — hátlap` : card.card_number,
+                          });
+                        }}
+                        className="rounded-md bg-black/50 p-1 text-white hover:bg-black/70"
+                        aria-label="Nagyítás"
+                        title="Teljes méretű nézet"
+                      >
+                        <Maximize2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
         )}
       </CollapsibleSection>
+      {lightboxSlot && (
+        <Lightbox src={lightboxSlot.url} alt={lightboxSlot.label} onClose={() => setLightboxSlot(null)} />
+      )}
     </div>
   );
 }

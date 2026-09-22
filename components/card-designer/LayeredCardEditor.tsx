@@ -16,6 +16,7 @@ import {
   AlignCenter,
   AlignRight,
   Save,
+  FolderOpen,
 } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { CardLayoutTemplate, CardTemplate, CardTextAlign, DesignLayer, ImageDesignLayer } from "@/lib/supabase/types";
@@ -25,6 +26,7 @@ import { templatePixelDims } from "@/lib/card-template";
 import { createImageLayer, createShapeLayer, createTextLayer, snapValue, FONT_OPTIONS } from "@/lib/card-layers";
 import { resolveSignedUrls } from "@/lib/signed-storage-url";
 import { errorMessage } from "@/lib/errors";
+import LoadFromFilesModal from "@/components/card-designer/LoadFromFilesModal";
 
 const STORAGE_BUCKET = "card-designer";
 const PREVIEW_WIDTH_PX = 300;
@@ -64,6 +66,7 @@ export default function LayeredCardEditor({
   languageCodes,
   questionTextByLang,
   layoutTemplates,
+  collectionId,
   onSave,
   onLayoutTemplateCreated,
   onClose,
@@ -81,6 +84,9 @@ export default function LayeredCardEditor({
    * kérdés-szöveg a hátlaphoz. */
   questionTextByLang: Record<string, string> | null;
   layoutTemplates: CardLayoutTemplate[];
+  /** A "Betöltés fájlból" fájlpicker ezzel szűri/priorizálja a Kártya-
+   * fájlok listáját — lásd LoadFromFilesModal. */
+  collectionId: string;
   onSave: (layers: DesignLayer[], backgroundColor: string | null) => Promise<void>;
   onLayoutTemplateCreated: (t: CardLayoutTemplate) => void;
   onClose: () => void;
@@ -100,6 +106,7 @@ export default function LayeredCardEditor({
   const [templateName, setTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showLoadFromFiles, setShowLoadFromFiles] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const activeLang = languageCodes[langIndex] ?? languageCodes[0] ?? "HU";
@@ -215,6 +222,30 @@ export default function LayeredCardEditor({
       setSelectedId(layer.id);
     } catch (err) {
       setError(errorMessage(err, "Nem sikerült feltölteni a képet."));
+    }
+  }
+
+  // A LoadFromFilesModal-ból kiválasztott PDF-oldal/kép — teljes vászon
+  // méretű képréteget hoz létre belőle (nem a createImageLayer kis
+  // alapértelmezett méretét), mert ez egy már kész mockup-oldal/design,
+  // aminek a referenciaként vagy kiindulásként a teljes vászont kell
+  // kitöltenie, nem egy beillesztett logó méretét.
+  async function handleLoadedFileBlob(blob: Blob) {
+    if (!supabase) return;
+    setShowLoadFromFiles(false);
+    setError(null);
+    try {
+      const path = `${crypto.randomUUID()}-fajlbol-betoltve.png`;
+      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { upsert: false });
+      if (uploadError) throw uploadError;
+      const storedUrl = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+      const resolved = await resolveSignedUrls(supabase, STORAGE_BUCKET, [storedUrl]);
+      setSignedImageUrls((prev) => new Map([...prev, ...resolved]));
+      const layer = createImageLayer(storedUrl, { x: 0, y: 0, width: 1, height: 1 });
+      setForm((f) => ({ ...f, layers: [...f.layers, layer] }));
+      setSelectedId(layer.id);
+    } catch (err) {
+      setError(errorMessage(err, "Nem sikerült betölteni a kiválasztott fájlt."));
     }
   }
 
@@ -484,6 +515,13 @@ export default function LayeredCardEditor({
                   <button type="button" onClick={addShapeLayer} className="btn btn-ghost !px-2.5 !py-1.5 text-xs">
                     <Square size={13} /> Alakzat / csík
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLoadFromFiles(true)}
+                    className="btn btn-ghost !px-2.5 !py-1.5 text-xs"
+                  >
+                    <FolderOpen size={13} /> Betöltés fájlból
+                  </button>
                 </div>
               </div>
 
@@ -719,6 +757,14 @@ export default function LayeredCardEditor({
           </button>
         </div>
       </div>
+
+      {showLoadFromFiles && (
+        <LoadFromFilesModal
+          collectionId={collectionId}
+          onSelect={(blob) => void handleLoadedFileBlob(blob)}
+          onClose={() => setShowLoadFromFiles(false)}
+        />
+      )}
     </div>
   );
 }
