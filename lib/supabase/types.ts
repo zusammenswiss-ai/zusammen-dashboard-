@@ -269,6 +269,7 @@ export type CollectionCardUpdate = Partial<Omit<CollectionCard, "id" | "created_
 
 export type CardExportKind = "fronts_only" | "front_back_pairs";
 export type CardExportFormat = "png" | "pdf";
+export type CardExportSource = "export" | "manual_upload";
 
 // Kártyatervező — 3. fázis: minden "Exportálás" egy új, dátumozott sort
 // hoz létre itt (lásd a schema.sql-en a komment-et) — a régebbi exportok
@@ -284,6 +285,10 @@ export interface CardExportVersion {
   file_url: string;
   sent_to_manufacturer: boolean;
   sent_at: string | null;
+  // 'manual_upload' — nem az app tervezőjéből/exportjából, hanem egy
+  // utólag feltöltött, korábban elkészült fájl (pl. a jelenlegi Pear
+  // Edition production-fájljai). Lásd ManualVersionUpload.
+  source: CardExportSource;
   created_at: string;
 }
 export type CardExportVersionInsert = Partial<Omit<CardExportVersion, "id" | "created_at">> & {
