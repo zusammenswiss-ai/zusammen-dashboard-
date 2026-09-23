@@ -723,12 +723,14 @@ export default function CardAssetsPage() {
           asset={openAsset}
           supplierName={openAsset.supplier_id ? supplierNameById.get(openAsset.supplier_id) ?? null : null}
           suppliers={suppliers}
+          collections={collections}
           quotes={priceQuotes.filter((q) => q.card_asset_id === openAsset.id)}
           supplierNameById={supplierNameById}
           signedUrls={signedUrls}
           quoteSignedUrls={quoteSignedUrls}
           onClose={() => setOpenAssetId(null)}
           onDelete={() => deleteAsset(openAsset)}
+          onCollectionUpdated={(updated) => setAssets((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))}
           onQuoteCreated={(quote) => {
             setPriceQuotes((prev) => [quote, ...prev]);
             if (quote.screenshot_url && supabase) {
@@ -944,6 +946,19 @@ function CardAssetLanguageGroup({
                       <FileStack size={15} />
                     </button>
                   </>
+                )}
+                {isPreviewableInBrowser(asset.file_url) && !asset.collection_id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(asset.id);
+                    }}
+                    className="badge cursor-pointer border border-bronze/40 bg-bronze/10 text-walnut"
+                    title='Nincs kollekció hozzárendelve — emiatt nem jelenik meg a "Kártyák importálása"/"Oldalak hozzárendelése" gomb. Kattints a kollekció beállításához.'
+                  >
+                    Kollekció hiányzik
+                  </button>
                 )}
                 <a
                   href={signedUrls.get(asset.file_url) ?? asset.file_url}
