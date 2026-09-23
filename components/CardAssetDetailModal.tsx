@@ -22,6 +22,7 @@ export default function CardAssetDetailModal({
   asset,
   supplierName,
   suppliers,
+  collections,
   quotes,
   supplierNameById,
   signedUrls,
@@ -31,10 +32,12 @@ export default function CardAssetDetailModal({
   onQuoteCreated,
   onToggleQuoteSelected,
   onDeleteQuote,
+  onCollectionUpdated,
 }: {
   asset: CardAsset;
   supplierName: string | null;
   suppliers: { id: string; name: string }[];
+  collections: { id: string; name: string }[];
   quotes: PriceQuote[];
   supplierNameById: Map<string, string>;
   signedUrls: Map<string, string>;
@@ -44,6 +47,7 @@ export default function CardAssetDetailModal({
   onQuoteCreated: (quote: PriceQuote) => void;
   onToggleQuoteSelected: (quote: PriceQuote) => void;
   onDeleteQuote: (quote: PriceQuote) => void;
+  onCollectionUpdated: (asset: CardAsset) => void;
 }) {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
@@ -53,6 +57,29 @@ export default function CardAssetDetailModal({
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lightboxSlot, setLightboxSlot] = useState<{ url: string; label: string } | null>(null);
+  const [savingCollection, setSavingCollection] = useState(false);
+
+  // A kollekció-hozzárendelés utólag is módosítható — a feltöltéskor ez
+  // könnyen kimaradhat, pedig e nélkül a "Kártyák importálása"/"Oldalak
+  // hozzárendelése" gombok (lásd a lista sorainál) nem jelennek meg egy
+  // fájlnál, mert nem tudják, melyik kollekció kártyáihoz kell nyúlniuk.
+  async function updateCollection(collectionId: string) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setSavingCollection(true);
+    const { data, error: updateError } = await supabase
+      .from("card_assets")
+      .update({ collection_id: collectionId || null })
+      .eq("id", asset.id)
+      .select()
+      .single();
+    setSavingCollection(false);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    if (data) onCollectionUpdated(data);
+  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -116,6 +143,29 @@ export default function CardAssetDetailModal({
           >
             <X size={18} />
           </button>
+        </div>
+
+        <div className="border-b border-border px-5 py-3">
+          <label className="mb-1 block text-xs font-medium text-muted">Kollekció</label>
+          <select
+            className="select"
+            value={asset.collection_id ?? ""}
+            onChange={(e) => void updateCollection(e.target.value)}
+            disabled={savingCollection}
+          >
+            <option value="">— Nincs —</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {!asset.collection_id && (
+            <p className="mt-1.5 text-[11px] text-muted">
+              Kollekció nélkül a &quot;Kártyák importálása&quot; / &quot;Oldalak hozzárendelése&quot; gombok nem jelennek meg
+              ennél a fájlnál a listában — válassz egyet, hogy elérhetővé váljanak.
+            </p>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
