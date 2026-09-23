@@ -506,8 +506,22 @@ export default function LayeredCardEditor({
                   <button type="button" onClick={() => addTextLayer("custom")} className="btn btn-ghost !px-2.5 !py-1.5 text-xs">
                     <Type size={13} /> Szövegdoboz
                   </button>
-                  <label className="btn btn-ghost cursor-pointer !px-2.5 !py-1.5 text-xs">
-                    <ImageIcon size={13} /> Kép
+                  <button type="button" onClick={addShapeLayer} className="btn btn-ghost !px-2.5 !py-1.5 text-xs">
+                    <Square size={13} /> Alakzat / csík
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLoadFromFiles(true)}
+                    className="btn btn-bronze !px-2.5 !py-1.5 text-xs"
+                    title="Egy már feltöltött PDF-mockup vagy kép betöltése a Kártya-fájlokból"
+                  >
+                    <FolderOpen size={13} /> Betöltés a Kártya-fájlokból
+                  </button>
+                  <label
+                    className="btn btn-ghost cursor-pointer !px-2.5 !py-1.5 text-xs"
+                    title="Új kép/logó feltöltése közvetlenül a géped fájljai közül"
+                  >
+                    <ImageIcon size={13} /> Kép feltöltése a gépemről
                     <input
                       type="file"
                       accept="image/*"
@@ -519,16 +533,6 @@ export default function LayeredCardEditor({
                       }}
                     />
                   </label>
-                  <button type="button" onClick={addShapeLayer} className="btn btn-ghost !px-2.5 !py-1.5 text-xs">
-                    <Square size={13} /> Alakzat / csík
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowLoadFromFiles(true)}
-                    className="btn btn-ghost !px-2.5 !py-1.5 text-xs"
-                  >
-                    <FolderOpen size={13} /> Betöltés fájlból
-                  </button>
                 </div>
               </div>
 
