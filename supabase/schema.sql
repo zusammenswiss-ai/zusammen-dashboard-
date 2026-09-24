@@ -1020,6 +1020,34 @@ create trigger set_updated_at before update on public.gmail_connection
   for each row execute function public.set_updated_at();
 
 -- =====================================================================
+-- Email send config — Beállítások → "Email küldés" (the "egyszerű
+-- e-mail menü" the founder asked for so she doesn't have to hand-edit
+-- Vercel environment variables for the Resend API key / from-address).
+-- Same treatment as gmail_connection above and for the same reason: the
+-- Resend API key is a genuine secret, so this table gets RLS enabled
+-- with zero policies (blocks the anon key entirely) and the key itself
+-- is encrypted at rest with lib/token-crypto.ts before being stored —
+-- only the service-role client can ever read it. Domain verification
+-- (DNS records at the founder's domain host) is NOT stored here and
+-- can't be: that step happens outside this app entirely.
+-- =====================================================================
+create table if not exists public.email_send_config (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null default 'gmail' check (provider in ('gmail', 'resend')),
+  resend_api_key_encrypted text,
+  resend_from_name text,
+  resend_from_email text,
+  resend_reply_to text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.email_send_config enable row level security;
+
+drop trigger if exists set_updated_at on public.email_send_config;
+create trigger set_updated_at before update on public.email_send_config
+  for each row execute function public.set_updated_at();
+
+-- =====================================================================
 -- Közös tér (/together) — a partner-shared view of the Személyes rituálé
 -- (Gold Card Letters, Journey/Passport, Wild Cards, Meglepetés kérdés),
 -- reached via a short access code instead of the founder dashboard —

@@ -2,15 +2,17 @@
 // app (Beszállítók, Megrendelések, Dokumentumok, Marketing, Megosztások)
 // goes through this same /api/send-email → getEmailSender() path — none
 // of them talk to Resend or Gmail directly — so switching providers
-// later (e.g. back to Resend once a verified custom domain exists) is a
-// one-line change here, not a rewrite across every page. See the README
-// for how EMAIL_PROVIDER is set.
+// later is a one-line change here, not a rewrite across every page. The
+// provider choice itself comes from Beállítások → "Email küldés" (see
+// lib/email/resend-config.ts), falling back to the EMAIL_PROVIDER env
+// var if that menu was never touched — see the README.
 import { GmailSender } from "./gmail-sender";
 import { ResendSender } from "./resend-sender";
+import { getActiveEmailProvider } from "./resend-config";
 import type { EmailSender } from "./types";
 
-export function getEmailSender(): EmailSender {
-  const provider = (process.env.EMAIL_PROVIDER || "gmail").trim().toLowerCase();
+export async function getEmailSender(): Promise<EmailSender> {
+  const provider = await getActiveEmailProvider();
   if (provider === "resend") return new ResendSender();
   return new GmailSender();
 }

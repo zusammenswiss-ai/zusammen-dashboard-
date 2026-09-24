@@ -526,7 +526,18 @@ useful once a real custom domain exists (Resend can't send "from"
 domain you don't own the other way around) or if Gmail OAuth ever feels
 like more setup than it's worth for a given deployment.
 
-To switch: set `EMAIL_PROVIDER=resend`, then:
+The easiest way to switch: **Beállítások → Email küldés** in the
+dashboard itself — pick "Resend", paste the API key, and optionally set
+a feladó-név/-cím/válaszcím, all without touching Vercel. That page
+writes to its own `email_send_config` table (RLS-locked, service-role
+only, key encrypted at rest the same way the Gmail refresh token is —
+see `lib/email/resend-config.ts`) and takes priority over the env vars
+below wherever it's been filled in, so the two approaches are
+interchangeable and either one alone is enough.
+
+To do it via environment variables instead (or as a fallback the
+dashboard settings can't reach, e.g. before Supabase is connected): set
+`EMAIL_PROVIDER=resend`, then:
 
 1. Go to [resend.com](https://resend.com) → **Sign up** (free — 3,000
    emails/month, 100/day is plenty for this).
@@ -542,12 +553,23 @@ That's it — sending works immediately using Resend's shared
 `RESEND_FROM_EMAIL` (e.g. `Zusammen <hello@zusammenswiss.ch>`) and
 optionally `RESEND_REPLY_TO` — no code changes needed either way.
 
-> **Note:** the daily reminder email (next section) always sends via
-> Resend directly, regardless of `EMAIL_PROVIDER` — it's an unattended
-> Vercel Cron job with no one to click through a "Gmail nincs
-> összekapcsolva" prompt if the OAuth connection ever lapses, so it
-> intentionally doesn't depend on it. It needs `RESEND_API_KEY` set
-> either way if you want that email.
+> **Domain verification can't be done from the dashboard either way.**
+> Sending "from" a custom domain (e.g. `connect@das-zusammen.ch`) needs
+> DNS records (TXT/MX/CNAME) added once at wherever that domain's DNS is
+> managed, proving you own it — this is what stops anyone from sending
+> email "as" your domain, and no application, this one included, can
+> substitute for it. Resend's dashboard (**Domains → Add Domain**) shows
+> the exact records to add.
+
+> **Note:** the daily reminder emails (next section, and the separate
+> "Várakozás" check-date digest) always send via Resend directly,
+> regardless of the Gmail/Resend choice above — they're unattended
+> Vercel Cron jobs with no one to click through a "Gmail nincs
+> összekapcsolva" prompt if the OAuth connection ever lapses, so they
+> intentionally don't depend on it. They do read the API key/from-address
+> from Beállítások → Email küldés when set there, falling back to
+> `RESEND_API_KEY`/`RESEND_FROM_EMAIL` — so filling in that menu once
+> covers these too.
 
 ---
 

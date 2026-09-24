@@ -7,13 +7,107 @@
 // ténylegesen szükség van rá, így nem terheli a build SSR/prerender
 // lépését (Node.js-ben nem a böngésző-build a célja) sem a kezdeti
 // bundle méretét azoknál az oldalaknál, amik nem használják.
+// A pdfjs-dist 6.x minden PDF betöltésekor (pl. a dokumentum
+// "fingerprint"-jének számításához) a Uint8Array.prototype.toHex/toBase64
+// és a Uint8Array.fromHex/fromBase64 natív JS motor-szintű metódusokra
+// támaszkodik — ezek viszonylag friss (2024 végi) böngésző-funkciók, egy
+// ennél régebbi Chrome-ban/Safariban még nincsenek meg, és nélkülük a
+// PDF-betöltés rögtön "toHex is not a function" hibával elszáll. A
+// polyfill-t mind a fő szálon, mind a pdf.js SAJÁT Web Workerében külön
+// be kell tölteni — a worker külön globális scope-ban fut, a fő szálon
+// tett prototípus-patch oda nem ér el.
+function polyfillUint8ArrayHexBase64(target: typeof Uint8Array) {
+  const proto = target.prototype as Uint8Array & { toHex?: () => string; toBase64?: () => string };
+  if (typeof proto.toHex !== "function") {
+    proto.toHex = function (this: Uint8Array) {
+      let out = "";
+      for (let i = 0; i < this.length; i++) out += this[i].toString(16).padStart(2, "0");
+      return out;
+    };
+  }
+  const ctor = target as typeof Uint8Array & {
+    fromHex?: (hex: string) => Uint8Array;
+    fromBase64?: (base64: string) => Uint8Array;
+  };
+  if (typeof ctor.fromHex !== "function") {
+    ctor.fromHex = (hex: string) => {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+      return bytes;
+    };
+  }
+  if (typeof proto.toBase64 !== "function") {
+    proto.toBase64 = function (this: Uint8Array) {
+      let binary = "";
+      for (let i = 0; i < this.length; i++) binary += String.fromCharCode(this[i]);
+      return btoa(binary);
+    };
+  }
+  if (typeof ctor.fromBase64 !== "function") {
+    ctor.fromBase64 = (base64: string) => {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    };
+  }
+}
+
+// Ugyanennek a polyfillnek a forráskódja stringként — a worker saját,
+// külön global scope-jában kell lefusson, MIELŐTT a pdf.js worker kódja
+// betöltődne. Ezt egy Blob URL-lé csomagolt kis wrapper modullal érjük
+// el: a worker ténylegesen ezt tölti be, ami előbb lefuttatja a
+// polyfillt, utána importálja a valódi pdfjs-dist worker fájlt.
+const WORKER_POLYFILL_SOURCE = `
+function polyfillUint8ArrayHexBase64(target) {
+  const proto = target.prototype;
+  if (typeof proto.toHex !== "function") {
+    proto.toHex = function () {
+      let out = "";
+      for (let i = 0; i < this.length; i++) out += this[i].toString(16).padStart(2, "0");
+      return out;
+    };
+  }
+  if (typeof target.fromHex !== "function") {
+    target.fromHex = function (hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+      return bytes;
+    };
+  }
+  if (typeof proto.toBase64 !== "function") {
+    proto.toBase64 = function () {
+      let binary = "";
+      for (let i = 0; i < this.length; i++) binary += String.fromCharCode(this[i]);
+      return btoa(binary);
+    };
+  }
+  if (typeof target.fromBase64 !== "function") {
+    target.fromBase64 = function (base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    };
+  }
+}
+polyfillUint8ArrayHexBase64(Uint8Array);
+`;
+
 let pdfjsLibPromise: ReturnType<typeof loadPdfjs> | null = null;
 async function loadPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
+  polyfillUint8ArrayHexBase64(Uint8Array);
   // A webpack/Turbopack által is értett `new URL(..., import.meta.url)`
   // asset-mintát használja, hogy a worker fájl a build része legyen —
-  // nem szerver route, tisztán statikus asset.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  // nem szerver route, tisztán statikus asset. A tényleges workerSrc
+  // viszont egy Blob URL-be csomagolt wrapper (lásd fent), ami előbb a
+  // polyfillt tölti be, utána ezt az eredeti fájlt.
+  const realWorkerUrl = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  const wrapperBlob = new Blob([`${WORKER_POLYFILL_SOURCE}\nimport ${JSON.stringify(realWorkerUrl)};\n`], {
+    type: "text/javascript",
+  });
+  pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(wrapperBlob);
   return pdfjsLib;
 }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { getUnreadInboxCount } from "@/lib/email/gmail-inbox";
+import { getResolvedResendConfig } from "@/lib/email/resend-config";
 import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
 import { errorMessage } from "@/lib/errors";
 
@@ -9,9 +10,12 @@ import { errorMessage } from "@/lib/errors";
 // (overdue/soon tasks, overdue/soon order deliveries, expiring supplier
 // contracts — via lib/notifications.ts, shared with the NotificationBell
 // in the nav so the two criteria never drift apart) and emails it via
-// Resend. Gated by CRON_SECRET so this route can't be triggered by
-// anyone who finds the URL.
-const DEFAULT_FROM = "Zusammen <onboarding@resend.dev>";
+// Resend — always Resend here regardless of the Beállítások → Email
+// küldés provider choice (Gmail/Resend), since this is an unattended
+// cron job with no OAuth session to send as. Reads the API key/from-
+// address from that same Email küldés menu (see resend-config.ts),
+// falling back to the RESEND_* env vars. Gated by CRON_SECRET so this
+// route can't be triggered by anyone who finds the URL.
 const DEFAULT_TO = "zusammen.swiss@gmail.com";
 
 function isoDate(d: Date) {
@@ -34,9 +38,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    return NextResponse.json({ ok: false, error: "RESEND_API_KEY nincs beállítva." }, { status: 500 });
+  const resendConfig = await getResolvedResendConfig();
+  if (!resendConfig.apiKey) {
+    return NextResponse.json(
+      { ok: false, error: "Nincs beállítva Resend API-kulcs (Beállítások → Email küldés, vagy RESEND_API_KEY)." },
+      { status: 500 }
+    );
   }
 
   // Service-role client, not the anon key: this route is trusted (gated
@@ -117,9 +124,9 @@ export async function GET(request: Request) {
 
   lines.push("— A Zusammen dashboard automatikus emlékeztetője.");
 
-  const resend = new Resend(resendKey);
+  const resend = new Resend(resendConfig.apiKey);
   const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
+    from: resendConfig.from,
     to: [process.env.REMINDER_EMAIL_TO || DEFAULT_TO],
     subject: `Zusammen — napi összefoglaló (${todayStr})`,
     text: lines.join("\n"),

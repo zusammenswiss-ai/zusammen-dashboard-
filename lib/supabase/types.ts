@@ -1066,6 +1066,22 @@ export type GmailConnectionInsert = Partial<Omit<GmailConnection, "id" | "connec
 };
 export type GmailConnectionUpdate = Partial<Omit<GmailConnection, "id" | "connected_at">>;
 
+// email_send_config is deliberately NOT part of the Database type below,
+// same reasoning as gmail_connection above: no anon RLS policy, so only
+// the service-role client (ServerDatabase) may touch it. Backs
+// Beállítások → "Email küldés" — see supabase/schema.sql.
+export interface EmailSendConfig {
+  id: string;
+  provider: "gmail" | "resend";
+  resend_api_key_encrypted: string | null;
+  resend_from_name: string | null;
+  resend_from_email: string | null;
+  resend_reply_to: string | null;
+  updated_at: string;
+}
+export type EmailSendConfigInsert = Partial<Omit<EmailSendConfig, "id" | "updated_at">>;
+export type EmailSendConfigUpdate = Partial<Omit<EmailSendConfig, "id" | "updated_at">>;
+
 // Everything Database below has, PLUS gmail_connection — the service-role
 // client (lib/supabase/serverClient.ts) bypasses RLS entirely, so it's
 // the right client for any trusted server-only code path (a route
@@ -1081,6 +1097,12 @@ export interface ServerDatabase {
         Row: GmailConnection;
         Insert: GmailConnectionInsert;
         Update: GmailConnectionUpdate;
+        Relationships: [];
+      };
+      email_send_config: {
+        Row: EmailSendConfig;
+        Insert: EmailSendConfigInsert;
+        Update: EmailSendConfigUpdate;
         Relationships: [];
       };
     };
