@@ -56,7 +56,8 @@ export async function POST(request: Request) {
   // ends up with the signature duplicated at the end of the body.
   const body = rawBody.trim().endsWith(signature) ? rawBody : `${rawBody}\n\n${signature}`;
 
-  const result = await getEmailSender().send({ to, subject, body });
+  const sender = await getEmailSender();
+  const result = await sender.send({ to, subject, body });
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error, code: result.code }, { status: 502 });
   }

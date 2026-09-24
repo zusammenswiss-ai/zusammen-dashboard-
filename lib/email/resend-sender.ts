@@ -1,26 +1,28 @@
 // Resend implementation of EmailSender — this is the entire original
 // /api/send-email logic, moved here unchanged so it sits behind the same
-// interface as gmail-sender.ts. Kept ready to flip back to (see
-// EMAIL_PROVIDER in README) once a verified custom domain makes Resend's
-// deliverability the better choice again.
+// interface as gmail-sender.ts. The API key / from-address / reply-to
+// come from Beállítások → "Email küldés" when set there (see
+// resend-config.ts), falling back field-by-field to the RESEND_* env
+// vars otherwise, so a Vercel-only setup keeps working untouched.
 import { Resend } from "resend";
 import type { EmailSendParams, EmailSendResult, EmailSender } from "./types";
-
-const DEFAULT_FROM = "Zusammen <onboarding@resend.dev>";
-const DEFAULT_REPLY_TO = "zusammen.swiss@gmail.com";
+import { getResolvedResendConfig } from "./resend-config";
 
 export class ResendSender implements EmailSender {
   async send({ to, subject, body }: EmailSendParams): Promise<EmailSendResult> {
-    const apiKey = process.env.RESEND_API_KEY;
+    const { apiKey, from, replyTo } = await getResolvedResendConfig();
     if (!apiKey) {
-      return { ok: false, error: "RESEND_API_KEY nincs beállítva a szerver környezeti változói között." };
+      return {
+        ok: false,
+        error: "Nincs beállítva Resend API-kulcs — add meg a Beállítások → Email küldés menüben, vagy a RESEND_API_KEY környezeti változóban.",
+      };
     }
 
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
+      from,
       to: [to],
-      replyTo: process.env.RESEND_REPLY_TO || DEFAULT_REPLY_TO,
+      replyTo,
       subject,
       text: body,
     });

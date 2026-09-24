@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
+import { getResolvedResendConfig } from "@/lib/email/resend-config";
 import { SITE_URL } from "@/lib/site-url";
 import { errorMessage } from "@/lib/errors";
 
@@ -11,6 +12,9 @@ import { errorMessage } from "@/lib/errors";
 // there's nothing due, unlike the general reminder, which always sends —
 // this one is opt-in-quiet by design (see the feature request: "ne legyen
 // felesleges zaj"). Gated by CRON_SECRET, same as /api/reminder-email.
+// Always sends via Resend regardless of the Beállítások → Email küldés
+// provider choice (unattended cron job, no OAuth session) — reads the
+// API key/from-address from that same menu when set, else RESEND_*_CHECK_DATE/RESEND_*.
 const DEFAULT_FROM = "Zusammen Dashboard <connect@das-zusammen.ch>";
 const DEFAULT_TO = "zusammen.swiss@gmail.com";
 
@@ -30,9 +34,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    return NextResponse.json({ ok: false, error: "RESEND_API_KEY nincs beállítva." }, { status: 500 });
+  const resendConfig = await getResolvedResendConfig();
+  if (!resendConfig.apiKey) {
+    return NextResponse.json(
+      { ok: false, error: "Nincs beállítva Resend API-kulcs (Beállítások → Email küldés, vagy RESEND_API_KEY)." },
+      { status: 500 }
+    );
   }
 
   // Service-role client — an unattended cron job has no Supabase Auth
@@ -74,9 +81,9 @@ export async function GET(request: Request) {
     "— A Zusammen dashboard automatikus emlékeztetője.",
   ];
 
-  const resend = new Resend(resendKey);
+  const resend = new Resend(resendConfig.apiKey);
   const { error: sendError } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL_CHECK_DATE || DEFAULT_FROM,
+    from: process.env.RESEND_FROM_EMAIL_CHECK_DATE || resendConfig.from || DEFAULT_FROM,
     to: [process.env.REMINDER_EMAIL_TO || DEFAULT_TO],
     subject: `${dueTasks.length} esedékes ellenőrzés vár rád ma — Zusammen Dashboard`,
     text: lines.join("\n"),
