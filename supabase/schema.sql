@@ -2393,3 +2393,108 @@ create policy "authenticated full access" on public.support_faqs for all
 drop trigger if exists set_updated_at on public.support_faqs;
 create trigger set_updated_at before update on public.support_faqs
   for each row execute function public.set_updated_at();
+
+-- =====================================================================
+-- Jegyzőkönyvek (/protocols) — heti/rendszeres megbeszélés-jegyzőkönyv,
+-- a Feladatok modullal két, szándékosan korlátozott ponton összekötve
+-- (lásd a "Következő heti fókusz → Feladat létrehozása" gombot és a
+-- tasks.protocol_id oszlopot lentebb) — nem élő, kétirányú szinkron.
+--
+-- Első bevezetése az egyszerű szerep-jelölésnek: jelenleg minden
+-- Supabase Auth felhasználó valójában a founder saját fiókja (nincs
+-- meghívó/regisztráció-folyamat a dashboardban), de ez a modul explicit
+-- jogosultság-ellenőrzést igényel — a bejegyzések szerkesztése/törlése
+-- csak "Founder" szerepű felhasználónak engedélyezett, megtekintés
+-- bárkinek, aki be van jelentkezve. Ha a jövőben más felhasználó is
+-- hozzáférést kapna, az alapértelmezett "Viewer" szerep csak olvasási
+-- jogot ad, amíg valaki (kézzel, SQL Editorból) Founder-re nem állítja.
+-- =====================================================================
+create table if not exists public.user_roles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'Viewer' check (role in ('Founder', 'Viewer')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.user_roles enable row level security;
+
+-- Minden bejelentkezett felhasználó lássa a saját szerepét (a UI ez
+-- alapján dönti el, mutassa-e a szerkesztés/törlés gombokat) — senki ne
+-- írhassa át a saját (vagy más) szerepét a böngészőből; azt csak kézzel,
+-- SQL Editorból lehet módosítani.
+drop policy if exists "read own role" on public.user_roles;
+create policy "read own role" on public.user_roles for select
+  using (auth.uid() = id);
+
+-- A jelenlegi (egyetlen) fiók automatikusan Founder — ha később új
+-- felhasználó regisztrál, ez a sor nem érinti, az alapértelmezett
+-- "Viewer" szerepet kapja, amíg valaki kézzel Founder-re nem írja át.
+insert into public.user_roles (id, role)
+select id, 'Founder' from auth.users
+on conflict (id) do nothing;
+
+create table if not exists public.protocols (
+  id uuid primary key default gen_random_uuid(),
+  entry_date date not null default current_date,
+  -- lib/weekly-stats.ts WeeklyStatsSnapshot alakja, "Pillanatkép mentése"
+  -- gombbal fagyasztva be — lásd a lenti trigger kommentjét, miért nem
+  -- módosítható utólag.
+  stats_snapshot jsonb not null default '{}'::jsonb,
+  topics text,
+  decisions text,
+  risks text,
+  -- [{ text: string, task_ref: string | null }] — task_ref szabad szöveg,
+  -- NEM valódi FK a tasks táblára (a kérésnek megfelelően nem automatikus
+  -- kapcsolás).
+  action_items jsonb not null default '[]'::jsonb,
+  next_focus text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.protocols enable row level security;
+
+drop policy if exists "authenticated read" on public.protocols;
+create policy "authenticated read" on public.protocols for select
+  using (auth.uid() is not null);
+
+drop policy if exists "founder insert" on public.protocols;
+create policy "founder insert" on public.protocols for insert
+  with check (exists (select 1 from public.user_roles where id = auth.uid() and role = 'Founder'));
+
+drop policy if exists "founder update" on public.protocols;
+create policy "founder update" on public.protocols for update
+  using (exists (select 1 from public.user_roles where id = auth.uid() and role = 'Founder'))
+  with check (exists (select 1 from public.user_roles where id = auth.uid() and role = 'Founder'));
+
+drop policy if exists "founder delete" on public.protocols;
+create policy "founder delete" on public.protocols for delete
+  using (exists (select 1 from public.user_roles where id = auth.uid() and role = 'Founder'));
+
+drop trigger if exists set_updated_at on public.protocols;
+create trigger set_updated_at before update on public.protocols
+  for each row execute function public.set_updated_at();
+
+-- A "Heti statisztika pillanatkép" egy történeti rekord — a kérés
+-- szerint egy már mentett bejegyzésben utólag nem módosulhat, még akkor
+-- sem, ha valaki (pl. egy jövőbeli funkció) megpróbálná felülírni.
+-- Minden más mező (téma, döntés, stb.) változatlanul szerkeszthető marad.
+create or replace function public.protect_protocol_stats_snapshot()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.stats_snapshot is distinct from old.stats_snapshot then
+    raise exception 'A heti statisztika pillanatkép utólag nem módosítható.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_stats_snapshot on public.protocols;
+create trigger protect_stats_snapshot before update on public.protocols
+  for each row execute function public.protect_protocol_stats_snapshot();
+
+-- "Következő heti fókusz → Feladat létrehozása" — ugyanaz a valódi-FK
+-- minta, mint tasks.collection_card_id/card_collection_id (Kártyatervező
+-- 7. fázis): csak metaadat, honnan született a feladat, nem élő szinkron.
+alter table public.tasks add column if not exists protocol_id uuid references public.protocols(id) on delete set null;

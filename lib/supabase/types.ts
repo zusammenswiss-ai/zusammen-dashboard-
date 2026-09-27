@@ -23,6 +23,10 @@ export type SupportTopic = "Kérdés" | "Probléma" | "Panasz" | "Dicséret" | "
 export type SupportTicketStatus = "Nyitott" | "Válaszra vár" | "Megoldva";
 export type SupportPriority = "Alacsony" | "Közepes" | "Magas";
 
+// Jegyzőkönyvek (/protocols) — egyszerű szerep-jelölés, lásd
+// supabase/schema.sql user_roles kommentjét.
+export type UserRole = "Founder" | "Viewer";
+
 export interface SupplierProduct {
   id: string;
   name: string;
@@ -93,6 +97,9 @@ export interface TaskItem {
   // content_id a Marketingnél. Csak az egyik szokott ki legyen töltve.
   collection_card_id: string | null;
   card_collection_id: string | null;
+  // Jegyzőkönyvek — "Következő heti fókusz → Feladat létrehozása" gomb;
+  // csak eredet-metaadat, nem élő szinkron a jegyzőkönyv-bejegyzéssel.
+  protocol_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -338,6 +345,40 @@ export type SupportFaqInsert = Partial<Omit<SupportFaq, "id" | "created_at" | "u
   answer: string;
 };
 export type SupportFaqUpdate = Partial<Omit<SupportFaq, "id" | "created_at" | "updated_at">>;
+
+// Jegyzőkönyvek (/protocols) — lásd supabase/schema.sql user_roles/
+// protocols kommentjeit.
+export interface UserRoleRow {
+  id: string;
+  role: UserRole;
+  created_at: string;
+}
+export type UserRoleRowUpdate = Partial<Omit<UserRoleRow, "id" | "created_at">>;
+
+export interface ProtocolActionItem {
+  text: string;
+  // Szabad szöveg, NEM valódi FK a tasks táblára — lásd a kérés
+  // indoklását: opcionális, nem automatikus kapcsolás.
+  task_ref: string | null;
+}
+
+export interface Protocol {
+  id: string;
+  entry_date: string;
+  // lib/weekly-stats.ts WeeklyStatsSnapshot alakja — {} amíg nincs
+  // pillanatkép mentve. Lásd a schema.sql trigger kommentjét: egy már
+  // mentett bejegyzésben ez utólag nem módosítható.
+  stats_snapshot: Record<string, unknown>;
+  topics: string | null;
+  decisions: string | null;
+  risks: string | null;
+  action_items: ProtocolActionItem[];
+  next_focus: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type ProtocolInsert = Partial<Omit<Protocol, "id" | "created_at" | "updated_at">>;
+export type ProtocolUpdate = Partial<Omit<Protocol, "id" | "created_at" | "updated_at">>;
 
 export interface CardCollection {
   id: string;
@@ -1418,6 +1459,18 @@ export interface Database {
         Update: SupportFaqUpdate;
         Relationships: [];
       };
+      user_roles: {
+        Row: UserRoleRow;
+        Insert: never;
+        Update: UserRoleRowUpdate;
+        Relationships: [];
+      };
+      protocols: {
+        Row: Protocol;
+        Insert: ProtocolInsert;
+        Update: ProtocolUpdate;
+        Relationships: [];
+      };
       expenses: {
         Row: Expense;
         Insert: ExpenseInsert;
@@ -1539,4 +1592,6 @@ export const ANON_TABLE_NAMES = [
   "support_todos",
   "support_templates",
   "support_faqs",
+  "user_roles",
+  "protocols",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];

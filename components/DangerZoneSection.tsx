@@ -23,8 +23,20 @@ const CONFIRM_WORD = "TÖRLÉS";
 // delivery regardless. legal_documents is kept too: the Impresszum/
 // Adatvédelem text is site configuration the public pages depend on
 // (app/impresszum, app/adatvedelem) — wiping it would break both pages
-// instead of just resetting "my business data".
-const KEPT_TABLES = new Set(["together_settings", "company_settings", "email_unsubscribes", "legal_documents"]);
+// instead of just resetting "my business data". user_roles is kept for
+// the same account-level reason: wiping it would strip the founder's own
+// Founder-szerepét, locking her out of the Jegyzőkönyvek modul's write
+// access. protocols is kept too — a jegyzőkönyv-történet is a governance
+// record, not disposable business content; "minden adat törlése" here
+// would be a surprising way to lose meeting history.
+const KEPT_TABLES = new Set([
+  "together_settings",
+  "company_settings",
+  "email_unsubscribes",
+  "legal_documents",
+  "user_roles",
+  "protocols",
+]);
 const WIPE_TABLES = ANON_TABLE_NAMES.filter((t) => !KEPT_TABLES.has(t));
 
 /**
