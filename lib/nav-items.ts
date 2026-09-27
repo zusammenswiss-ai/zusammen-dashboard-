@@ -23,6 +23,7 @@ import {
   Sparkles,
   Palette,
   Headset,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -68,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "munkafolyamat",
     items: [
       { href: "/tasks", label: "Feladatok", icon: Columns3 },
+      { href: "/protocols", label: "Jegyzőkönyvek", icon: ClipboardList },
       { href: "/calendar", label: "Naptár", icon: Calendar },
       { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
     ],
