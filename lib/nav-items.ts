@@ -41,6 +41,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "üzlet",
     items: [
       { href: "/suppliers", label: "Beszállítók", icon: Truck },
+      { href: "/products", label: "Termékek", icon: Tag },
       { href: "/orders", label: "Megrendelések", icon: Package },
       { href: "/finance", label: "Pénzügyek", icon: Calculator },
       { href: "/demand", label: "Igényfelmérés", icon: BarChart3 },
@@ -49,11 +50,14 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "tartalom",
     items: [
-      { href: "/cards", label: "Kártyák", icon: CreditCard },
-      { href: "/rituals", label: "Rituálék", icon: Sparkles },
+      // Az alkotás sorrendjét követi: tervezés → nyers fájlok/import →
+      // kész galéria → rituálé-tartalom → marketing → dokumentumok —
+      // korábban a kész Kártyák galéria a tervező-eszközök ELŐTT
+      // szerepelt, ami a munkafolyamattal ellentétes sorrend volt.
       { href: "/card-designer", label: "Kártyatervező", icon: Palette },
       { href: "/card-assets", label: "Kártya-fájlok", icon: Layers },
-      { href: "/products", label: "Termékek", icon: Tag },
+      { href: "/cards", label: "Kártyák", icon: CreditCard },
+      { href: "/rituals", label: "Rituálék", icon: Sparkles },
       { href: "/marketing", label: "Marketing", icon: Megaphone },
       { href: "/documents", label: "Dokumentumok", icon: FileText },
     ],
