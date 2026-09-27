@@ -19,6 +19,10 @@ import type {
   ContentStatus,
   CardCollectionStatus,
   CollectionCardType,
+  SupportChannel,
+  SupportTopic,
+  SupportTicketStatus,
+  SupportPriority,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -303,3 +307,25 @@ export const CALENDAR_CATEGORIES = {
 } as const;
 
 export type CalendarCategory = keyof typeof CALENDAR_CATEGORIES;
+
+// Ügyfélszolgálat (/support) — all 4 already stored in Hungarian (see the
+// schema check constraint on support_tickets), same convention as
+// product/campaign status above: just display order + badge color.
+export const SUPPORT_CHANNELS: SupportChannel[] = ["Email", "Instagram", "WhatsApp", "Egyéb"];
+export const SUPPORT_TOPICS: SupportTopic[] = ["Kérdés", "Probléma", "Panasz", "Dicséret", "Egyéb"];
+
+export const SUPPORT_TICKET_STATUSES: SupportTicketStatus[] = ["Nyitott", "Válaszra vár", "Megoldva"];
+export const SUPPORT_TICKET_STATUS_STYLES: Record<SupportTicketStatus, string> = {
+  Nyitott: "bg-bronze/15 text-walnut",
+  "Válaszra vár": "bg-forest-light/15 text-forest",
+  Megoldva: "bg-forest/10 text-forest",
+};
+
+// Same red-for-urgency convention as PRIORITY_STYLES (TaskPriority)
+// above — a real warning signal, not a brand-progression stage.
+export const SUPPORT_PRIORITIES: SupportPriority[] = ["Alacsony", "Közepes", "Magas"];
+export const SUPPORT_PRIORITY_STYLES: Record<SupportPriority, string> = {
+  Alacsony: "bg-forest/10 text-forest",
+  Közepes: "bg-bronze/15 text-walnut",
+  Magas: "bg-red-100 text-red-700",
+};

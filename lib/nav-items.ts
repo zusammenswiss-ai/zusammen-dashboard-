@@ -22,6 +22,7 @@ import {
   CreditCard,
   Sparkles,
   Palette,
+  Headset,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/suppliers", label: "Beszállítók", icon: Truck },
       { href: "/products", label: "Termékek", icon: Tag },
       { href: "/orders", label: "Megrendelések", icon: Package },
+      { href: "/support", label: "Ügyfélszolgálat", icon: Headset },
       { href: "/finance", label: "Pénzügyek", icon: Calculator },
       { href: "/demand", label: "Igényfelmérés", icon: BarChart3 },
     ],

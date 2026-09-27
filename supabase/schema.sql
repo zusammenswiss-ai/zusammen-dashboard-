@@ -2292,3 +2292,104 @@ drop policy if exists "anon full access" on public.card_layout_templates;
 drop policy if exists "authenticated full access" on public.card_layout_templates;
 create policy "authenticated full access" on public.card_layout_templates for all
   using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- =====================================================================
+-- Ügyfélszolgálat (/support) — deliberately independent of the tasks
+-- table / Feladatok Kanban: a customer-inquiry log needs its own status
+-- vocabulary (Nyitott/Válaszra vár/Megoldva) and fields (csatorna, téma,
+-- kapcsolódó rendelés) that don't belong on a general brand/product-level
+-- task, and mixing the two would make the Kanban board noisy with
+-- individual customer messages. support_todos below is likewise a
+-- separate, deliberately simpler to-do list (no Kanban states, just a
+-- done/not-done checkbox) — same reasoning, scoped to this module only,
+-- never surfaced on or merged with Feladatok. Manual record-keeping only
+-- for v1 — no email/inbox integration.
+-- =====================================================================
+create table if not exists public.support_tickets (
+  id uuid primary key default gen_random_uuid(),
+  customer_name text not null,
+  contact text,
+  channel text not null default 'Egyéb' check (channel in ('Email', 'Instagram', 'WhatsApp', 'Egyéb')),
+  topic text not null default 'Egyéb' check (topic in ('Kérdés', 'Probléma', 'Panasz', 'Dicséret', 'Egyéb')),
+  -- Szabad szöveg, NEM valódi FK az orders táblára — a kérésnek
+  -- megfelelően egyelőre nincs szükség automatikus összekapcsolásra a
+  -- Megrendelések modullal.
+  related_order text,
+  status text not null default 'Nyitott' check (status in ('Nyitott', 'Válaszra vár', 'Megoldva')),
+  priority text not null default 'Közepes' check (priority in ('Alacsony', 'Közepes', 'Magas')),
+  received_at date not null default current_date,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.support_tickets enable row level security;
+
+drop policy if exists "authenticated full access" on public.support_tickets;
+create policy "authenticated full access" on public.support_tickets for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.support_tickets;
+create trigger set_updated_at before update on public.support_tickets
+  for each row execute function public.set_updated_at();
+
+-- Saját, ügyfélszolgálat-szintű teendőlista — lásd a fenti komment
+-- indoklását: szándékosan NEM a tasks tábla, nincs Kanban-szerű
+-- állapotgép, csak egy egyszerű kész/nincs kész checkbox.
+create table if not exists public.support_todos (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  due_date date,
+  done boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.support_todos enable row level security;
+
+drop policy if exists "authenticated full access" on public.support_todos;
+create policy "authenticated full access" on public.support_todos for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.support_todos;
+create trigger set_updated_at before update on public.support_todos
+  for each row execute function public.set_updated_at();
+
+-- Sablonválasz-könyvtár — v1, egyszerű cím + szöveg pár, bővíthető.
+create table if not exists public.support_templates (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  body text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.support_templates enable row level security;
+
+drop policy if exists "authenticated full access" on public.support_templates;
+create policy "authenticated full access" on public.support_templates for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.support_templates;
+create trigger set_updated_at before update on public.support_templates
+  for each row execute function public.set_updated_at();
+
+-- GYIK — v1, egyszerű kérdés + válasz pár, bővíthető.
+create table if not exists public.support_faqs (
+  id uuid primary key default gen_random_uuid(),
+  question text not null,
+  answer text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.support_faqs enable row level security;
+
+drop policy if exists "authenticated full access" on public.support_faqs;
+create policy "authenticated full access" on public.support_faqs for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.support_faqs;
+create trigger set_updated_at before update on public.support_faqs
+  for each row execute function public.set_updated_at();

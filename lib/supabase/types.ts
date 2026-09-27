@@ -16,6 +16,13 @@ export type RecurrenceType = "Napi" | "Heti" | "Havi" | "Negyedéves" | "Éves";
 export type ProductStatus = "Fejlesztés alatt" | "Tesztelés" | "Élő" | "Jövőbeli terv";
 export type CampaignStatus = "Tervezve" | "Aktív" | "Lezárva";
 
+// Ügyfélszolgálat (/support) — see supabase/schema.sql's support_tickets
+// comment for why this stays independent of TaskStatus/TaskPriority.
+export type SupportChannel = "Email" | "Instagram" | "WhatsApp" | "Egyéb";
+export type SupportTopic = "Kérdés" | "Probléma" | "Panasz" | "Dicséret" | "Egyéb";
+export type SupportTicketStatus = "Nyitott" | "Válaszra vár" | "Megoldva";
+export type SupportPriority = "Alacsony" | "Közepes" | "Magas";
+
 export interface SupplierProduct {
   id: string;
   name: string;
@@ -270,6 +277,67 @@ export type CardLayoutTemplateInsert = Partial<Omit<CardLayoutTemplate, "id" | "
   name: string;
 };
 export type CardLayoutTemplateUpdate = Partial<Omit<CardLayoutTemplate, "id" | "created_at">>;
+
+// Ügyfélszolgálat (/support) — see supabase/schema.sql for why these 4
+// tables stay independent of tasks/task_templates.
+export interface SupportTicket {
+  id: string;
+  customer_name: string;
+  contact: string | null;
+  channel: SupportChannel;
+  topic: SupportTopic;
+  related_order: string | null;
+  status: SupportTicketStatus;
+  priority: SupportPriority;
+  received_at: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type SupportTicketInsert = Partial<Omit<SupportTicket, "id" | "created_at" | "updated_at">> & {
+  customer_name: string;
+};
+export type SupportTicketUpdate = Partial<Omit<SupportTicket, "id" | "created_at" | "updated_at">>;
+
+export interface SupportTodo {
+  id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  done: boolean;
+  created_at: string;
+  updated_at: string;
+}
+export type SupportTodoInsert = Partial<Omit<SupportTodo, "id" | "created_at" | "updated_at">> & {
+  title: string;
+};
+export type SupportTodoUpdate = Partial<Omit<SupportTodo, "id" | "created_at" | "updated_at">>;
+
+export interface SupportTemplate {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+export type SupportTemplateInsert = Partial<Omit<SupportTemplate, "id" | "created_at" | "updated_at">> & {
+  title: string;
+  body: string;
+};
+export type SupportTemplateUpdate = Partial<Omit<SupportTemplate, "id" | "created_at" | "updated_at">>;
+
+export interface SupportFaq {
+  id: string;
+  question: string;
+  answer: string;
+  created_at: string;
+  updated_at: string;
+}
+export type SupportFaqInsert = Partial<Omit<SupportFaq, "id" | "created_at" | "updated_at">> & {
+  question: string;
+  answer: string;
+};
+export type SupportFaqUpdate = Partial<Omit<SupportFaq, "id" | "created_at" | "updated_at">>;
 
 export interface CardCollection {
   id: string;
@@ -1326,6 +1394,30 @@ export interface Database {
         Update: CardLayoutTemplateUpdate;
         Relationships: [];
       };
+      support_tickets: {
+        Row: SupportTicket;
+        Insert: SupportTicketInsert;
+        Update: SupportTicketUpdate;
+        Relationships: [];
+      };
+      support_todos: {
+        Row: SupportTodo;
+        Insert: SupportTodoInsert;
+        Update: SupportTodoUpdate;
+        Relationships: [];
+      };
+      support_templates: {
+        Row: SupportTemplate;
+        Insert: SupportTemplateInsert;
+        Update: SupportTemplateUpdate;
+        Relationships: [];
+      };
+      support_faqs: {
+        Row: SupportFaq;
+        Insert: SupportFaqInsert;
+        Update: SupportFaqUpdate;
+        Relationships: [];
+      };
       expenses: {
         Row: Expense;
         Insert: ExpenseInsert;
@@ -1443,4 +1535,8 @@ export const ANON_TABLE_NAMES = [
   "rituals",
   "cards",
   "legal_documents",
+  "support_tickets",
+  "support_todos",
+  "support_templates",
+  "support_faqs",
 ] as const satisfies readonly (keyof Database["public"]["Tables"])[];
