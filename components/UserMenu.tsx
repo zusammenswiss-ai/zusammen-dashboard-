@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserRound, Settings, LogOut } from "lucide-react";
+import { UserRound, LogOut } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 /**
- * Persistent account menu — sign-out and a Beállítások shortcut, reachable
- * from every page via the nav (previously sign-out only lived inside
- * Beállítások' own AccountCard, so leaving that page was the only way
- * back to it). Same dropdown mechanics as NotificationBell (click-outside
+ * Persistent account menu — just sign-out, reachable from every page via
+ * the nav (previously sign-out only lived inside Beállítások' own
+ * AccountCard, so leaving that page was the only way back to it). No
+ * Beállítások shortcut here — the sidebar already has a permanent
+ * Beállítások link on every page, so a second one here was just a
+ * duplicate. Same dropdown mechanics as NotificationBell (click-outside
  * to close, `absolute right-0 top-11` panel) for a consistent feel next
  * to it in the nav.
  */
-export default function UserMenu({ onNavigate }: { onNavigate?: () => void }) {
+export default function UserMenu() {
   const supabase = getSupabaseClient();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -63,16 +64,6 @@ export default function UserMenu({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           )}
           <div className="flex flex-col p-1.5">
-            <Link
-              href="/settings"
-              onClick={() => {
-                setOpen(false);
-                onNavigate?.();
-              }}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-forest transition-colors hover:bg-ivory-dim"
-            >
-              <Settings size={15} /> Beállítások
-            </Link>
             <button
               onClick={() => void signOut()}
               disabled={signingOut}

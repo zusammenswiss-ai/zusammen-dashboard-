@@ -65,7 +65,7 @@ export default function Nav() {
         <Brand />
         <div className="flex items-center gap-1">
           <NotificationBell />
-          <UserMenu onNavigate={() => setOpen(false)} />
+          <UserMenu />
           <button
             onClick={() => setOpen((v) => !v)}
             aria-label="Navigáció megnyitása/bezárása"
