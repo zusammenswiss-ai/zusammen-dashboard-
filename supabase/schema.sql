@@ -2540,3 +2540,43 @@ create trigger set_updated_at before update on public.telegram_config
 alter table public.support_tickets drop constraint if exists support_tickets_channel_check;
 alter table public.support_tickets add constraint support_tickets_channel_check
   check (channel in ('Email', 'Instagram', 'WhatsApp', 'Telegram', 'Egyéb'));
+
+-- =====================================================================
+-- Telegram — csapattagok + nyilvános beszélgetések. A telegram_config
+-- egyetlen chat_id-ja ("owner") továbbra is a founder saját fiókja —
+-- erre mennek a kimenő értesítések. Ezen felül:
+--   - telegram_trusted_users: meghívó kóddal csatlakozott csapattagok
+--     (lásd telegram_invite_codes), ugyanazokat a parancsokat
+--     használhatják, mint a founder (sima szöveg → Feladat, "/ugyfel" →
+--     Megkeresés).
+--   - telegram_invite_codes: egyszer használatos, 24 órán belül lejáró
+--     kódok — a founder generálja a Beállításokban, elküldi a
+--     csapattagnak egy külső csatornán (pl. WhatsApp), a csapattag a
+--     "/csatlakozas KÓD" üzenettel váltja be a botban.
+-- Bárki más (ismeretlen chat_id, nincs meghívó kódja) üzenete
+-- automatikusan Megkeresés lesz az Ügyfélszolgálat modulban — lásd
+-- app/api/telegram-webhook — soha nem hozhat létre Feladatot, hogy egy
+-- véletlen járókelő üzenete ne piszkálhassa a belső Feladatok-táblát.
+-- Mindkét tábla ugyanazzal a védelemmel, mint telegram_config: RLS
+-- bekapcsolva, policy nélkül, csak a service-role kliens éri el.
+-- =====================================================================
+create table if not exists public.telegram_trusted_users (
+  id uuid primary key default gen_random_uuid(),
+  chat_id text not null unique,
+  label text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.telegram_trusted_users enable row level security;
+
+create table if not exists public.telegram_invite_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  label text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '24 hours'),
+  used_at timestamptz,
+  used_by_chat_id text
+);
+
+alter table public.telegram_invite_codes enable row level security;
