@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { getResolvedResendConfig } from "@/lib/email/resend-config";
+import { sendTelegramNotification } from "@/lib/telegram";
 import { SITE_URL } from "@/lib/site-url";
 import { errorMessage } from "@/lib/errors";
 
@@ -80,6 +81,10 @@ export async function GET(request: Request) {
     "",
     "— A Zusammen dashboard automatikus emlékeztetője.",
   ];
+
+  // Best-effort, második csatorna az email mellett — lásd a
+  // reminder-email route azonos komment-jét.
+  await sendTelegramNotification(lines.join("\n")).catch(() => {});
 
   const resend = new Resend(resendConfig.apiKey);
   const { error: sendError } = await resend.emails.send({

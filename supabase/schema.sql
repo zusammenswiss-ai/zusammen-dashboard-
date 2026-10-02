@@ -2498,3 +2498,36 @@ create trigger protect_stats_snapshot before update on public.protocols
 -- minta, mint tasks.collection_card_id/card_collection_id (Kártyatervező
 -- 7. fázis): csak metaadat, honnan született a feladat, nem élő szinkron.
 alter table public.tasks add column if not exists protocol_id uuid references public.protocols(id) on delete set null;
+
+-- =====================================================================
+-- Telegram összekapcsolás — Beállítások → "Telegram". Két irányban
+-- használt: kimenő (a napi emlékeztető/ellenőrzés-digest Telegramon is
+-- kiküldve, lásd app/api/reminder-email és app/api/cron/check-date-
+-- digest) és bejövő (a founder bármilyen üzenetet küld a saját
+-- botjának, abból gyors Feladat lesz — lásd app/api/telegram-webhook).
+-- Ugyanaz a kezelés, mint a gmail_connection/email_send_config táblánál:
+-- a bot token egy valódi secret, úgyhogy RLS bekapcsolva, policy
+-- nélkül (csak a service-role kliens éri el), titkosítva tárolva
+-- lib/token-crypto.ts-sel. webhook_secret a Telegram setWebhook()
+-- saját "secret_token" paramétere — minden bejövő webhook-hívás ezt az
+-- értéket adja vissza az X-Telegram-Bot-Api-Secret-Token fejlécben,
+-- így a webhook végpont ellenőrizni tudja, hogy a hívás tényleg a
+-- Telegramtól jött, nem egy találgatott URL-re küldött hamis kérés.
+-- =====================================================================
+create table if not exists public.telegram_config (
+  id uuid primary key default gen_random_uuid(),
+  bot_token_encrypted text,
+  -- A founder saját Telegram beszélgetésének azonosítója — ide mennek a
+  -- kimenő értesítések, és csak innen fogadunk el bejövő üzenetet.
+  chat_id text,
+  notifications_enabled boolean not null default true,
+  webhook_secret text,
+  webhook_active boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.telegram_config enable row level security;
+
+drop trigger if exists set_updated_at on public.telegram_config;
+create trigger set_updated_at before update on public.telegram_config
+  for each row execute function public.set_updated_at();

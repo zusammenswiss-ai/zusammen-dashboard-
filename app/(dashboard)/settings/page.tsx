@@ -10,6 +10,7 @@ import type { TogetherSettings } from "@/lib/supabase/types";
 import { generateAccessCode } from "@/lib/together";
 import CompanySettingsSection from "@/components/CompanySettingsSection";
 import EmailSendSettingsSection from "@/components/EmailSendSettingsSection";
+import TelegramSettingsSection from "@/components/TelegramSettingsSection";
 import ServiceAccountsSection from "@/components/ServiceAccountsSection";
 import LegalDocumentsSection from "@/components/LegalDocumentsSection";
 import DataExportSection from "@/components/DataExportSection";
@@ -28,6 +29,7 @@ export default function SettingsPage() {
         {isSupabaseConfigured && (
           <>
             <EmailSendSettingsSection />
+            <TelegramSettingsSection />
             <TogetherAccessCard />
             <CompanySettingsSection />
             <ServiceAccountsSection />
