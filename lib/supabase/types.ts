@@ -18,7 +18,7 @@ export type CampaignStatus = "Tervezve" | "Aktív" | "Lezárva";
 
 // Ügyfélszolgálat (/support) — see supabase/schema.sql's support_tickets
 // comment for why this stays independent of TaskStatus/TaskPriority.
-export type SupportChannel = "Email" | "Instagram" | "WhatsApp" | "Egyéb";
+export type SupportChannel = "Email" | "Instagram" | "WhatsApp" | "Telegram" | "Egyéb";
 export type SupportTopic = "Kérdés" | "Probléma" | "Panasz" | "Dicséret" | "Egyéb";
 export type SupportTicketStatus = "Nyitott" | "Válaszra vár" | "Megoldva";
 export type SupportPriority = "Alacsony" | "Közepes" | "Magas";
