@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { getUnreadInboxCount } from "@/lib/email/gmail-inbox";
 import { getResolvedResendConfig } from "@/lib/email/resend-config";
+import { sendTelegramNotification } from "@/lib/telegram";
 import { fetchDueNotifications, type NotificationItem } from "@/lib/notifications";
 import { errorMessage } from "@/lib/errors";
 
@@ -123,6 +124,10 @@ export async function GET(request: Request) {
   }
 
   lines.push("— A Zusammen dashboard automatikus emlékeztetője.");
+
+  // Best-effort, második csatorna az email mellett — ha a Telegram nincs
+  // beállítva/bekapcsolva, ez némán kihagyja, nem buktatja el a route-ot.
+  await sendTelegramNotification(lines.join("\n")).catch(() => {});
 
   const resend = new Resend(resendConfig.apiKey);
   const { error } = await resend.emails.send({

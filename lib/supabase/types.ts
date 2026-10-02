@@ -1191,6 +1191,21 @@ export interface EmailSendConfig {
 export type EmailSendConfigInsert = Partial<Omit<EmailSendConfig, "id" | "updated_at">>;
 export type EmailSendConfigUpdate = Partial<Omit<EmailSendConfig, "id" | "updated_at">>;
 
+// telegram_config — same treatment as email_send_config above (real
+// secret, service-role only). Backs Beállítások → "Telegram" — see
+// supabase/schema.sql.
+export interface TelegramConfig {
+  id: string;
+  bot_token_encrypted: string | null;
+  chat_id: string | null;
+  notifications_enabled: boolean;
+  webhook_secret: string | null;
+  webhook_active: boolean;
+  updated_at: string;
+}
+export type TelegramConfigInsert = Partial<Omit<TelegramConfig, "id" | "updated_at">>;
+export type TelegramConfigUpdate = Partial<Omit<TelegramConfig, "id" | "updated_at">>;
+
 // Everything Database below has, PLUS gmail_connection — the service-role
 // client (lib/supabase/serverClient.ts) bypasses RLS entirely, so it's
 // the right client for any trusted server-only code path (a route
@@ -1212,6 +1227,12 @@ export interface ServerDatabase {
         Row: EmailSendConfig;
         Insert: EmailSendConfigInsert;
         Update: EmailSendConfigUpdate;
+        Relationships: [];
+      };
+      telegram_config: {
+        Row: TelegramConfig;
+        Insert: TelegramConfigInsert;
+        Update: TelegramConfigUpdate;
         Relationships: [];
       };
     };
