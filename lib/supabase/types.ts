@@ -1206,6 +1206,35 @@ export interface TelegramConfig {
 export type TelegramConfigInsert = Partial<Omit<TelegramConfig, "id" | "updated_at">>;
 export type TelegramConfigUpdate = Partial<Omit<TelegramConfig, "id" | "updated_at">>;
 
+// telegram_trusted_users / telegram_invite_codes — csapattag-hozzáférés
+// a bothoz, lásd supabase/schema.sql kommentjét. Ugyanaz a kezelés, mint
+// telegram_config fent: service-role only.
+export interface TelegramTrustedUser {
+  id: string;
+  chat_id: string;
+  label: string;
+  created_at: string;
+}
+export type TelegramTrustedUserInsert = Partial<Omit<TelegramTrustedUser, "id" | "created_at">> & {
+  chat_id: string;
+  label: string;
+};
+
+export interface TelegramInviteCode {
+  id: string;
+  code: string;
+  label: string;
+  created_at: string;
+  expires_at: string;
+  used_at: string | null;
+  used_by_chat_id: string | null;
+}
+export type TelegramInviteCodeInsert = Partial<Omit<TelegramInviteCode, "id" | "created_at">> & {
+  code: string;
+  label: string;
+};
+export type TelegramInviteCodeUpdate = Partial<Omit<TelegramInviteCode, "id" | "created_at">>;
+
 // Everything Database below has, PLUS gmail_connection — the service-role
 // client (lib/supabase/serverClient.ts) bypasses RLS entirely, so it's
 // the right client for any trusted server-only code path (a route
@@ -1233,6 +1262,18 @@ export interface ServerDatabase {
         Row: TelegramConfig;
         Insert: TelegramConfigInsert;
         Update: TelegramConfigUpdate;
+        Relationships: [];
+      };
+      telegram_trusted_users: {
+        Row: TelegramTrustedUser;
+        Insert: TelegramTrustedUserInsert;
+        Update: never;
+        Relationships: [];
+      };
+      telegram_invite_codes: {
+        Row: TelegramInviteCode;
+        Insert: TelegramInviteCodeInsert;
+        Update: TelegramInviteCodeUpdate;
         Relationships: [];
       };
     };

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Send, Check, ShieldCheck, KeyRound, Trash2, RefreshCw, Webhook } from "lucide-react";
+import { Send, Check, ShieldCheck, KeyRound, Trash2, RefreshCw, Webhook, Users, UserPlus, Copy } from "lucide-react";
 import { Spinner } from "@/components/Feedback";
+import type { TelegramTrustedUser, TelegramInviteCode } from "@/lib/supabase/types";
 
 type Status = {
   botTokenConfigured: boolean;
@@ -34,14 +35,29 @@ export default function TelegramSettingsSection() {
   const [sendingTest, setSendingTest] = useState(false);
   const [togglingWebhook, setTogglingWebhook] = useState(false);
 
+  const [trustedUsers, setTrustedUsers] = useState<TelegramTrustedUser[]>([]);
+  const [inviteCodes, setInviteCodes] = useState<TelegramInviteCode[]>([]);
+  const [inviteLabel, setInviteLabel] = useState("");
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [revokingCodeId, setRevokingCodeId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/telegram-settings");
-      const data = (await res.json()) as Status;
+      const [statusRes, usersRes, codesRes] = await Promise.all([
+        fetch("/api/telegram-settings"),
+        fetch("/api/telegram-settings/trusted-users"),
+        fetch("/api/telegram-settings/invite-codes"),
+      ]);
+      const data = (await statusRes.json()) as Status;
       setStatus(data);
       setChatIdInput(data.chatId ?? "");
       setNotificationsEnabled(data.notificationsEnabled);
+      const usersData = await usersRes.json();
+      if (usersData.ok) setTrustedUsers(usersData.users);
+      const codesData = await codesRes.json();
+      if (codesData.ok) setInviteCodes(codesData.codes);
     } catch {
       setError("Nem sikerült betölteni a Telegram beállításokat.");
     } finally {
@@ -53,6 +69,63 @@ export default function TelegramSettingsSection() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  async function createInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setCreatingInvite(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch("/api/telegram-settings/invite-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: inviteLabel }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Nem sikerült meghívó kódot generálni.");
+      setInviteCodes(data.codes);
+      setInviteLabel("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nem sikerült meghívó kódot generálni.");
+    } finally {
+      setCreatingInvite(false);
+    }
+  }
+
+  async function revokeInvite(id: string) {
+    setRevokingCodeId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/telegram-settings/invite-codes?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) setInviteCodes(data.codes);
+    } finally {
+      setRevokingCodeId(null);
+    }
+  }
+
+  async function removeUser(id: string) {
+    setRemovingUserId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/telegram-settings/trusted-users?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) setTrustedUsers(data.users);
+    } finally {
+      setRemovingUserId(null);
+    }
+  }
+
+  async function copyInviteInstructions(code: string) {
+    const text = `Szia! Csatlakozz a Telegram-botomhoz: nyisd meg a botot, és küldd el neki ezt az üzenetet: /csatlakozas ${code}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setInfo("Meghívó szöveg vágólapra másolva.");
+    } catch {
+      // Clipboard API nem minden böngészőben/kontextusban elérhető — a
+      // kód amúgy is látható a listában, kézzel is kimásolható.
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -260,10 +333,88 @@ export default function TelegramSettingsSection() {
           <p className="mt-2 text-xs text-muted">
             Sima üzenet → gyors <strong>Feladat</strong>. <code>/ugyfel Ügyfél neve | jegyzet</code> → gyors{" "}
             <strong>Megkeresés</strong> az Ügyfélszolgálat modulban (a „ | ” és utána a név elhagyható, akkor az
-            egész szöveg jegyzetként kerül be).
+            egész szöveg jegyzetként kerül be). Bárki más, aki ismeretlenül ír a botnak, automatikusan{" "}
+            <strong>Megkeresést</strong> kap az Ügyfélszolgálatban — ők nem tudnak Feladatot létrehozni.
           </p>
         )}
       </div>
+
+      {status?.webhookActive && (
+        <div className="mt-5 rounded-lg border border-border px-4 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Users size={15} className="text-bronze" />
+            <span className="text-forest">Csapattagok</span>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            Egy meghívó kóddal csatlakozott csapattag ugyanúgy tud Feladatot/Megkeresést rögzíteni a botban, mint te.
+          </p>
+
+          {trustedUsers.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1.5">
+              {trustedUsers.map((u) => (
+                <li key={u.id} className="flex items-center justify-between gap-2 rounded-md bg-ivory-dim px-3 py-1.5 text-sm">
+                  <span className="text-forest">{u.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeUser(u.id)}
+                    disabled={removingUserId === u.id}
+                    className="flex shrink-0 items-center gap-1 text-xs text-muted/70 hover:text-red-600"
+                  >
+                    <Trash2 size={12} /> {removingUserId === u.id ? "Törlés…" : "Eltávolítás"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form onSubmit={createInvite} className="mt-3 flex items-center gap-2">
+            <input
+              className="input flex-1"
+              value={inviteLabel}
+              onChange={(e) => setInviteLabel(e.target.value)}
+              placeholder="Csapattag neve, pl. Peti"
+            />
+            <button type="submit" disabled={creatingInvite} className="btn btn-ghost shrink-0 !px-3 !py-1.5 text-xs">
+              <UserPlus size={13} /> {creatingInvite ? "Generálás…" : "Meghívó kód"}
+            </button>
+          </form>
+
+          {inviteCodes.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1.5">
+              {inviteCodes.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-2 rounded-md bg-ivory-dim px-3 py-1.5 text-sm">
+                  <div>
+                    <span className="font-mono text-forest">{c.code}</span>
+                    <span className="ml-2 text-xs text-muted">{c.label} — érvényes {new Date(c.expires_at).toLocaleString("hu-HU")}-ig</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyInviteInstructions(c.code)}
+                      className="flex items-center gap-1 text-xs text-muted/70 hover:text-forest"
+                    >
+                      <Copy size={12} /> Másolás
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => revokeInvite(c.id)}
+                      disabled={revokingCodeId === c.id}
+                      className="flex items-center gap-1 text-xs text-muted/70 hover:text-red-600"
+                    >
+                      <Trash2 size={12} /> {revokingCodeId === c.id ? "…" : "Visszavonás"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-muted">
+            Küldd el a csapattagnak a kódot (pl. WhatsAppon), ő pedig a botban a{" "}
+            <code>/csatlakozas KÓD</code> üzenettel aktiválja. A kód 24 órán belül lejár, és csak egyszer
+            használható fel.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { encryptToken, decryptToken } from "@/lib/token-crypto";
 import { SITE_URL } from "@/lib/site-url";
-import type { TelegramConfig } from "@/lib/supabase/types";
+import type { TelegramConfig, TelegramTrustedUser, TelegramInviteCode } from "@/lib/supabase/types";
 
 const TELEGRAM_API = "https://api.telegram.org";
 
@@ -226,16 +226,129 @@ export async function disableTelegramWebhook(): Promise<{ ok: true } | { ok: fal
   return { ok: true };
 }
 
-/** A webhook route maga hívja — ellenőrzi, hogy a bejövő kérés tényleg a
- * Telegramtól jött-e (a saját, mentett webhook_secret-tel egyezik-e a
- * fejléc), és hogy a beszélgetés a founderé-e. */
-export async function verifyWebhookRequest(
+export type TelegramSenderRole = "owner" | "trusted" | "public";
+
+/**
+ * A webhook route maga hívja — először ellenőrzi, hogy a bejövő kérés
+ * tényleg a Telegramtól jött-e (a saját, mentett webhook_secret-tel
+ * egyezik-e a fejléc), aztán besorolja a küldőt:
+ *   - "owner": a telegram_config.chat_id (a founder saját fiókja)
+ *   - "trusted": szerepel a telegram_trusted_users táblában (meghívó
+ *     kóddal csatlakozott csapattag)
+ *   - "public": ismeretlen chat — a webhook route ezt mindig
+ *     Megkeresésként kezeli, soha nem Feladatként, lásd a schema.sql
+ *     telegram_trusted_users kommentjét.
+ * A secret_token-ellenőrzés mindhárom esetben kötelező — csak az dönti
+ * el, hogy a kérés egyáltalán a Telegramtól jött-e, nem azt, kitől.
+ */
+export async function classifyTelegramSender(
   secretHeader: string | null,
   chatId: number
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+): Promise<{ ok: true; role: TelegramSenderRole } | { ok: false; reason: string }> {
   const row = await loadRow();
   if (!row?.webhook_active || !row.webhook_secret) return { ok: false, reason: "A webhook nincs aktiválva." };
   if (secretHeader !== row.webhook_secret) return { ok: false, reason: "Érvénytelen webhook secret." };
-  if (String(chatId) !== row.chat_id) return { ok: false, reason: "Ismeretlen chat." };
+
+  if (String(chatId) === row.chat_id) return { ok: true, role: "owner" };
+
+  const supabase = getSupabaseServiceClient();
+  if (supabase) {
+    const { data } = await supabase
+      .from("telegram_trusted_users")
+      .select("id")
+      .eq("chat_id", String(chatId))
+      .maybeSingle();
+    if (data) return { ok: true, role: "trusted" };
+  }
+
+  return { ok: true, role: "public" };
+}
+
+function generateInviteCode(): string {
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => (b % 36).toString(36)).join("").toUpperCase();
+}
+
+export async function listTrustedUsers(): Promise<TelegramTrustedUser[]> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return [];
+  const { data } = await supabase.from("telegram_trusted_users").select("*").order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function removeTrustedUser(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return { ok: false, error: "Supabase service-role kliens nincs beállítva." };
+  const { error } = await supabase.from("telegram_trusted_users").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+/** "Csapattag meghívása" — egy 24 órán belül lejáró, egyszer felhasználható
+ * kódot generál. A founder ezt küldi el a csapattagnak egy külső
+ * csatornán (pl. WhatsApp); a csapattag a "/csatlakozas KÓD" üzenettel
+ * váltja be a botban, lásd redeemInviteCode. */
+export async function createInviteCode(label: string): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return { ok: false, error: "Supabase service-role kliens nincs beállítva." };
+  if (!label.trim()) return { ok: false, error: "Adj meg egy nevet a csapattagnak." };
+  const code = generateInviteCode();
+  const { error } = await supabase.from("telegram_invite_codes").insert({ code, label: label.trim() });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, code };
+}
+
+export async function listInviteCodes(): Promise<TelegramInviteCode[]> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from("telegram_invite_codes")
+    .select("*")
+    .is("used_at", null)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function deleteInviteCode(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return { ok: false, error: "Supabase service-role kliens nincs beállítva." };
+  const { error } = await supabase.from("telegram_invite_codes").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** A webhook route hívja "/csatlakozas KÓD" üzenetnél — lásd
+ * app/api/telegram-webhook. Érvényes, még fel nem használt, le nem járt
+ * kód esetén felveszi a küldőt a telegram_trusted_users táblába. */
+export async function redeemInviteCode(
+  code: string,
+  chatId: number
+): Promise<{ ok: true; label: string } | { ok: false; error: string }> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return { ok: false, error: "Supabase service-role kliens nincs beállítva." };
+
+  const { data: invite } = await supabase
+    .from("telegram_invite_codes")
+    .select("*")
+    .eq("code", code.trim().toUpperCase())
+    .is("used_at", null)
+    .maybeSingle();
+
+  if (!invite) return { ok: false, error: "Érvénytelen vagy már felhasznált kód." };
+  if (new Date(invite.expires_at).getTime() < Date.now()) {
+    return { ok: false, error: "Ez a kód már lejárt — kérj egy újat." };
+  }
+
+  const { error: trustedError } = await supabase
+    .from("telegram_trusted_users")
+    .upsert({ chat_id: String(chatId), label: invite.label }, { onConflict: "chat_id" });
+  if (trustedError) return { ok: false, error: trustedError.message };
+
+  await supabase
+    .from("telegram_invite_codes")
+    .update({ used_at: new Date().toISOString(), used_by_chat_id: String(chatId) })
+    .eq("id", invite.id);
+
+  return { ok: true, label: invite.label };
 }
