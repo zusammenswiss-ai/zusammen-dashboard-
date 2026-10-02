@@ -44,7 +44,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/suppliers", label: "Beszállítók", icon: Truck },
       { href: "/products", label: "Termékek", icon: Tag },
-      { href: "/orders", label: "Megrendelések", icon: Package },
+      { href: "/orders", label: "Vevői rendelések", icon: Package },
       { href: "/support", label: "Ügyfélszolgálat", icon: Headset },
       { href: "/finance", label: "Pénzügyek", icon: Calculator },
       { href: "/demand", label: "Igényfelmérés", icon: BarChart3 },

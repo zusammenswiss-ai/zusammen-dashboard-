@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Mail, Users, Upload, Download } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { Supplier, SupplierInsert, PriceQuote } from "@/lib/supabase/types";
+import type { Supplier, SupplierInsert, PriceQuote, Purchase } from "@/lib/supabase/types";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
@@ -153,6 +153,7 @@ export default function SuppliersPage() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [priceQuotes, setPriceQuotes] = useState<PriceQuote[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   // price-quotes bucket is private (see supabase/schema.sql) —
   // screenshot_url is a getPublicUrl()-shaped string that needs
   // exchanging for a signed URL before it'll actually load.
@@ -168,6 +169,7 @@ export default function SuppliersPage() {
   const supabase = getSupabaseClient();
   const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
   const { pending: pendingUndoQuote, schedule: scheduleUndoQuote, undoNow: undoNowQuote } = useUndoAction();
+  const { pending: pendingUndoPurchase, schedule: scheduleUndoPurchase, undoNow: undoNowPurchase } = useUndoAction();
 
   const loadSuppliers = useCallback(async () => {
     if (!supabase) return;
@@ -190,12 +192,14 @@ export default function SuppliersPage() {
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const [quotesRes, assetsRes, collectionsRes] = await Promise.all([
+      const [quotesRes, assetsRes, collectionsRes, purchasesRes] = await Promise.all([
         supabase.from("price_quotes").select("*").order("created_at", { ascending: false }),
         supabase.from("card_assets").select("id, language, version"),
         supabase.from("card_collections").select("id, name, supplier_id"),
+        supabase.from("purchases").select("*").order("created_at", { ascending: false }),
       ]);
       setPriceQuotes(quotesRes.data ?? []);
+      setPurchases(purchasesRes.data ?? []);
       setCardAssets(
         (assetsRes.data ?? []).map((a) => ({ id: a.id, language: a.language, version: a.version }))
       );
@@ -329,6 +333,27 @@ export default function SuppliersPage() {
         if (error) setError(error.message);
       },
       () => setPriceQuotes((prev) => [quote, ...prev])
+    );
+  }
+
+  function createPurchase(purchase: Purchase) {
+    setPurchases((prev) => [purchase, ...prev]);
+  }
+
+  function updatePurchase(purchase: Purchase) {
+    setPurchases((prev) => prev.map((p) => (p.id === purchase.id ? purchase : p)));
+  }
+
+  function deletePurchase(purchase: Purchase) {
+    if (!supabase) return;
+    setPurchases((prev) => prev.filter((p) => p.id !== purchase.id));
+    scheduleUndoPurchase(
+      "Beszerzés törölve.",
+      async () => {
+        const { error } = await supabase.from("purchases").delete().eq("id", purchase.id);
+        if (error) setError(error.message);
+      },
+      () => setPurchases((prev) => [purchase, ...prev])
     );
   }
 
@@ -478,6 +503,7 @@ export default function SuppliersPage() {
 
       {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
       {pendingUndoQuote && <UndoToast message={pendingUndoQuote.message} onUndo={undoNowQuote} />}
+      {pendingUndoPurchase && <UndoToast message={pendingUndoPurchase.message} onUndo={undoNowPurchase} />}
 
       {profileFor && (
         <SupplierProfileModal
@@ -488,6 +514,10 @@ export default function SuppliersPage() {
           linkedCollections={
             profileSupplier ? cardCollections.filter((c) => c.supplier_id === profileSupplier.id) : []
           }
+          purchases={profileSupplier ? purchases.filter((p) => p.supplier_id === profileSupplier.id) : []}
+          onPurchaseCreated={createPurchase}
+          onPurchaseUpdated={updatePurchase}
+          onDeletePurchase={deletePurchase}
           onClose={() => setProfileFor(null)}
           onSave={saveProfile}
           onDelete={
