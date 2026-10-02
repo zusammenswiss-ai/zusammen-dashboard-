@@ -241,21 +241,28 @@ export default function TelegramSettingsSection() {
         </div>
       </form>
 
-      <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
-        <div className="flex items-center gap-2 text-sm">
-          <Webhook size={15} className={status?.webhookActive ? "text-forest" : "text-muted"} />
-          <span className="text-forest">
-            Bejövő üzenetek (gyors Feladat rögzítés): {status?.webhookActive ? "bekapcsolva" : "kikapcsolva"}
-          </span>
+      <div className="mt-5 rounded-lg border border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Webhook size={15} className={status?.webhookActive ? "text-forest" : "text-muted"} />
+            <span className="text-forest">Bejövő üzenetek: {status?.webhookActive ? "bekapcsolva" : "kikapcsolva"}</span>
+          </div>
+          <button
+            type="button"
+            onClick={toggleWebhook}
+            disabled={togglingWebhook || !status?.botTokenConfigured || !status?.chatId}
+            className="btn btn-ghost shrink-0 !px-3 !py-1.5 text-xs"
+          >
+            {togglingWebhook ? "…" : status?.webhookActive ? "Kikapcsolás" : "Bekapcsolás"}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={toggleWebhook}
-          disabled={togglingWebhook || !status?.botTokenConfigured || !status?.chatId}
-          className="btn btn-ghost shrink-0 !px-3 !py-1.5 text-xs"
-        >
-          {togglingWebhook ? "…" : status?.webhookActive ? "Kikapcsolás" : "Bekapcsolás"}
-        </button>
+        {status?.webhookActive && (
+          <p className="mt-2 text-xs text-muted">
+            Sima üzenet → gyors <strong>Feladat</strong>. <code>/ugyfel Ügyfél neve | jegyzet</code> → gyors{" "}
+            <strong>Megkeresés</strong> az Ügyfélszolgálat modulban (a „ | ” és utána a név elhagyható, akkor az
+            egész szöveg jegyzetként kerül be).
+          </p>
+        )}
       </div>
     </div>
   );

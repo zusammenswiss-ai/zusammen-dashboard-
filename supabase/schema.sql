@@ -2309,7 +2309,7 @@ create table if not exists public.support_tickets (
   id uuid primary key default gen_random_uuid(),
   customer_name text not null,
   contact text,
-  channel text not null default 'Egyéb' check (channel in ('Email', 'Instagram', 'WhatsApp', 'Egyéb')),
+  channel text not null default 'Egyéb' check (channel in ('Email', 'Instagram', 'WhatsApp', 'Telegram', 'Egyéb')),
   topic text not null default 'Egyéb' check (topic in ('Kérdés', 'Probléma', 'Panasz', 'Dicséret', 'Egyéb')),
   -- Szabad szöveg, NEM valódi FK az orders táblára — a kérésnek
   -- megfelelően egyelőre nincs szükség automatikus összekapcsolásra a
@@ -2531,3 +2531,12 @@ alter table public.telegram_config enable row level security;
 drop trigger if exists set_updated_at on public.telegram_config;
 create trigger set_updated_at before update on public.telegram_config
   for each row execute function public.set_updated_at();
+
+-- Telegram mint Ügyfélszolgálat-csatorna — a bejövő webhook /ugyfel
+-- parancsa ezzel a channel-lel hoz létre Megkeresést (support_tickets),
+-- lásd app/api/telegram-webhook. Drop+re-add a constraintet, mert a
+-- tábla már létezhet egy korábbi migrációból, ahol a channel check még
+-- nem tartalmazta a 'Telegram' értéket.
+alter table public.support_tickets drop constraint if exists support_tickets_channel_check;
+alter table public.support_tickets add constraint support_tickets_channel_check
+  check (channel in ('Email', 'Instagram', 'WhatsApp', 'Telegram', 'Egyéb'));

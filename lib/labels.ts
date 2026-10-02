@@ -311,7 +311,7 @@ export type CalendarCategory = keyof typeof CALENDAR_CATEGORIES;
 // Ügyfélszolgálat (/support) — all 4 already stored in Hungarian (see the
 // schema check constraint on support_tickets), same convention as
 // product/campaign status above: just display order + badge color.
-export const SUPPORT_CHANNELS: SupportChannel[] = ["Email", "Instagram", "WhatsApp", "Egyéb"];
+export const SUPPORT_CHANNELS: SupportChannel[] = ["Email", "Instagram", "WhatsApp", "Telegram", "Egyéb"];
 export const SUPPORT_TOPICS: SupportTopic[] = ["Kérdés", "Probléma", "Panasz", "Dicséret", "Egyéb"];
 
 export const SUPPORT_TICKET_STATUSES: SupportTicketStatus[] = ["Nyitott", "Válaszra vár", "Megoldva"];
