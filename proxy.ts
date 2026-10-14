@@ -11,6 +11,13 @@ import { createServerClient } from "@supabase/ssr";
 // the matcher below — so it (and the fonts/images it loads) stays reachable
 // by visitors even when the dashboard itself is locked down.
 //
+// /first20 is excluded the same way — the public "First 20" signup
+// campaign page (app/first20/page.tsx), reachable logged out, with its
+// own simple layout (no dashboard chrome). /api/first20 is its signup
+// form endpoint, same reasoning as /api/newsletter/unsubscribe below:
+// a public visitor's browser has no Basic Auth/Supabase session to
+// offer, and the route gates itself (honeypot + IP rate-limit) instead.
+//
 // /impresszum and /adatvedelem are excluded the same way — the public
 // legal pages (app/impresszum, app/adatvedelem), content read live from
 // legal_documents. Without this, a signed-out visitor (or a crawler)
@@ -153,5 +160,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher:
-    "/((?!_next/static|_next/image|favicon.ico|landing|impresszum|adatvedelem|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe).*)",
+    "/((?!_next/static|_next/image|favicon.ico|landing|first20|impresszum|adatvedelem|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe|api/first20).*)",
 };
