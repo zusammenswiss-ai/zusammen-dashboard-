@@ -333,10 +333,13 @@ export type SupportTemplateInsert = Partial<Omit<SupportTemplate, "id" | "create
 };
 export type SupportTemplateUpdate = Partial<Omit<SupportTemplate, "id" | "created_at" | "updated_at">>;
 
+export type SupportFaqLanguage = "hu" | "de" | "en";
+
 export interface SupportFaq {
   id: string;
   question: string;
   answer: string;
+  language: SupportFaqLanguage;
   created_at: string;
   updated_at: string;
 }
