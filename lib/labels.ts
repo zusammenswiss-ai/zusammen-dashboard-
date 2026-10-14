@@ -23,6 +23,7 @@ import type {
   SupportTopic,
   SupportTicketStatus,
   SupportPriority,
+  SupportFaqLanguage,
   PurchaseType,
   PurchaseStatus,
 } from "./supabase/types";
@@ -354,4 +355,16 @@ export const SUPPORT_PRIORITY_STYLES: Record<SupportPriority, string> = {
   Alacsony: "bg-forest/10 text-forest",
   Közepes: "bg-bronze/15 text-walnut",
   Magas: "bg-red-100 text-red-700",
+};
+
+export const SUPPORT_FAQ_LANGUAGES: SupportFaqLanguage[] = ["hu", "de", "en"];
+export const SUPPORT_FAQ_LANGUAGE_HU: Record<SupportFaqLanguage, string> = {
+  hu: "Magyar",
+  de: "Német",
+  en: "Angol",
+};
+export const SUPPORT_FAQ_LANGUAGE_STYLES: Record<SupportFaqLanguage, string> = {
+  hu: "bg-forest/10 text-forest",
+  de: "bg-bronze/15 text-walnut",
+  en: "bg-teal/10 text-teal",
 };

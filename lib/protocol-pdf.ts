@@ -3,17 +3,15 @@
 // jsPDF nem tud CSS-változót olvasni). Kliens-oldalon fut, ugyanaz a
 // jsPDF csomag, amit a Kártyatervező ExportPanel-je is használ.
 //
-// jsPDF beépített fontjai (helvetica/times/courier) a WinAnsi
-// kódolást használják, amiben NINCS "ő"/"ű" (U+0151/U+0171) — ezek a
-// karakterek hibásan vagy egyáltalán nem jelennek meg. Ezért a dashboard
-// saját, már amúgy is használt brand-fontjait (Inter, Fraunces — lásd
-// public/fonts/pdf/) ágyazzuk be a PDF-be, mindkettő teljes magyar
-// ékezet-lefedettséggel.
+// A magyar ékezeteket (és a brand-fontokat) igénylő font-betöltés
+// megosztva lib/pdf-fonts.ts-ben — lásd ott a jsPDF beépített fontjainak
+// WinAnsi-korlátjáról szóló kommentet.
 import { jsPDF } from "jspdf";
 import type { Protocol } from "@/lib/supabase/types";
 import { formatMoney } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
 import { STATS_ROW_LABELS, type WeeklyStatsSnapshot } from "@/lib/weekly-stats";
+import { registerBrandFonts } from "@/lib/pdf-fonts";
 
 const FOREST = [35, 51, 40] as const;
 const BRONZE = [176, 138, 82] as const;
@@ -29,49 +27,6 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 // oldalról) is márkázottnak, nem csupasz szövegdömpingnek tűnnek.
 const SIDEBAR_WIDTH = 5;
 const FOOTER_Y = 290;
-
-const FONT_FILES: { file: string; name: string; style: "normal" | "bold" }[] = [
-  { file: "Inter-Regular.ttf", name: "Inter", style: "normal" },
-  { file: "Inter-Bold.ttf", name: "Inter", style: "bold" },
-  { file: "Fraunces-Bold.ttf", name: "Fraunces", style: "bold" },
-];
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-let fontsPromise: Promise<string[]> | null = null;
-
-/** Egyszer tölti le a 3 fontfájlt (base64-ként gyorsítótárazva), aztán
- * minden buildProtocolPdf hívás ugyanazt a base64-et regisztrálja az adott
- * jsPDF példányra — az addFileToVFS/addFont példányonkénti, a letöltés
- * nem, úgyhogy nem kell újra hálózatra menni minden exportnál. */
-async function loadFontData(): Promise<string[]> {
-  if (!fontsPromise) {
-    fontsPromise = Promise.all(
-      FONT_FILES.map((f) =>
-        fetch(`/fonts/pdf/${f.file}`)
-          .then((res) => res.arrayBuffer())
-          .then(arrayBufferToBase64)
-      )
-    );
-  }
-  return fontsPromise;
-}
-
-async function registerBrandFonts(doc: jsPDF): Promise<void> {
-  const data = await loadFontData();
-  FONT_FILES.forEach((f, i) => {
-    doc.addFileToVFS(f.file, data[i]);
-    doc.addFont(f.file, f.name, f.style);
-  });
-}
 
 function isSnapshot(value: Record<string, unknown>): value is WeeklyStatsSnapshot {
   return typeof value.computedAt === "string";

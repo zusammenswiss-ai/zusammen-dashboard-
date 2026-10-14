@@ -2700,3 +2700,14 @@ create table if not exists public.first20_rate_limits (
 create index if not exists first20_rate_limits_ip_hash_idx on public.first20_rate_limits (ip_hash, created_at);
 
 alter table public.first20_rate_limits enable row level security;
+
+-- =====================================================================
+-- GYIK (Ügyfélszolgálat) — nyelvi szűrés. A korábbi support_faqs tábla
+-- nem különböztette meg a kérdéseket nyelv szerint; ez a mező teszi
+-- lehetővé, hogy a dashboardon HU/DE/EN szerint szűrhető legyen a lista
+-- és a PDF-export is. Meglévő sorok 'hu'-ra állnak (a korábbi egyetlen
+-- nyelv), ezt utólag kézzel kell korrigálni azoknál, amik valójában
+-- németül/angolul vannak.
+-- =====================================================================
+alter table public.support_faqs add column if not exists language text not null default 'hu'
+  check (language in ('hu', 'de', 'en'));
