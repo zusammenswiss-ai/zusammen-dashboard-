@@ -67,6 +67,12 @@ import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "marketing";
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
+// Seedelve supabase/schema.sql-ben (lásd a "ZUSAMMEN FIRST 20" insert
+// kommentjét) — ha mégsem létezne (régi/kihagyott migráció), a lenti
+// betöltés pótolja ugyanazokkal a mezőkkel, hogy a First 20 fülön
+// létrehozott feladatok mindig egy valódi campaign_id-hez kapcsolódjanak,
+// ne csak egy szöveges címkéhez.
+const FIRST20_CAMPAIGN_NAME = "ZUSAMMEN FIRST 20";
 
 const SEASON_META: Record<Season, { icon: typeof Sun; accent: string }> = {
   Spring: { icon: Sprout, accent: "bg-forest/10 text-forest" },
@@ -130,6 +136,10 @@ export default function MarketingPage() {
   // server-side at send time, so this only needs to inform the checkbox
   // label on EmailCampaignSendForm.
   const [demandEmailCount, setDemandEmailCount] = useState(0);
+  // Csak a darabszám az Email kampányok fülön lévő "Kinek menjen ki"
+  // választóhoz — a tényleges jelentkező-sorokat a First20SignupsSection
+  // tölti be külön, lásd ott.
+  const [first20Count, setFirst20Count] = useState(0);
   // Set by "Kampányhoz csatolás" on a template card — pre-selects that
   // sablon on EmailCampaignSendForm below.
   const [campaignTemplateId, setCampaignTemplateId] = useState<string | null>(null);
@@ -197,17 +207,27 @@ export default function MarketingPage() {
     (async () => {
       setLoading(true);
       setError(null);
-      const [strategiesRes, kampanyokRes, contentRes, assetsRes, tasksRes, templatesRes, newsletterRes, demandRes] =
-        await Promise.all([
-          supabase.from("marketing_campaigns").select("*"),
-          supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
-          supabase.from("marketing_content").select("*").order("scheduled_date", { ascending: true }),
-          supabase.from("marketing_assets").select("*").order("created_at", { ascending: false }),
-          supabase.from("tasks").select("id, title, status, task_type, content_id, campaign_id"),
-          supabase.from("email_templates").select("*").order("created_at", { ascending: false }),
-          supabase.from("newsletter_subscribers").select("*").order("subscribed_at", { ascending: false }),
-          supabase.from("landing_responses").select("email").not("email", "is", null),
-        ]);
+      const [
+        strategiesRes,
+        kampanyokRes,
+        contentRes,
+        assetsRes,
+        tasksRes,
+        templatesRes,
+        newsletterRes,
+        demandRes,
+        first20Res,
+      ] = await Promise.all([
+        supabase.from("marketing_campaigns").select("*"),
+        supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
+        supabase.from("marketing_content").select("*").order("scheduled_date", { ascending: true }),
+        supabase.from("marketing_assets").select("*").order("created_at", { ascending: false }),
+        supabase.from("tasks").select("id, title, status, task_type, content_id, campaign_id"),
+        supabase.from("email_templates").select("*").order("created_at", { ascending: false }),
+        supabase.from("newsletter_subscribers").select("*").order("subscribed_at", { ascending: false }),
+        supabase.from("landing_responses").select("email").not("email", "is", null),
+        supabase.from("first20_signups").select("id", { count: "exact", head: true }),
+      ]);
       if (strategiesRes.error) setError(strategiesRes.error.message);
       else {
         const sorted = [...(strategiesRes.data ?? [])].sort(
@@ -216,7 +236,18 @@ export default function MarketingPage() {
         setSeasonalStrategies(sorted);
       }
       if (kampanyokRes.error) setError(kampanyokRes.error.message);
-      else setCampaigns(kampanyokRes.data ?? []);
+      else {
+        let campaignRows = kampanyokRes.data ?? [];
+        if (!campaignRows.some((c) => c.name === FIRST20_CAMPAIGN_NAME)) {
+          const { data: created } = await supabase
+            .from("campaigns")
+            .insert({ name: FIRST20_CAMPAIGN_NAME, season: "Autumn", status: "Tervezve" })
+            .select()
+            .single();
+          if (created) campaignRows = [created, ...campaignRows];
+        }
+        setCampaigns(campaignRows);
+      }
       if (contentRes.error) setError(contentRes.error.message);
       else setContent(contentRes.data ?? []);
       if (assetsRes.error) setError(assetsRes.error.message);
@@ -235,6 +266,7 @@ export default function MarketingPage() {
         const demandRows: { email: string | null }[] = demandRes.data ?? [];
         setDemandEmailCount(new Set(demandRows.map((r) => r.email?.trim().toLowerCase()).filter(Boolean)).size);
       }
+      if (!first20Res.error) setFirst20Count(first20Res.count ?? 0);
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -259,6 +291,7 @@ export default function MarketingPage() {
   }, [campaigns]);
 
   const openCampaign = openCampaignId ? campaignById.get(openCampaignId) ?? null : null;
+  const first20CampaignId = campaigns.find((c) => c.name === FIRST20_CAMPAIGN_NAME)?.id ?? null;
 
   async function updateSeasonalStrategy(id: string, patch: Partial<MarketingCampaign>) {
     setSeasonalStrategies((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -522,6 +555,7 @@ export default function MarketingPage() {
                   templates={templates}
                   demandCount={demandEmailCount}
                   newsletterCount={newsletterSubscribers.filter((s) => !s.unsubscribed).length}
+                  first20Count={first20Count}
                   onSent={addContent}
                   presetTemplateId={campaignTemplateId}
                 />
@@ -529,7 +563,9 @@ export default function MarketingPage() {
             </div>
           )}
 
-          {tab === "first20" && <First20SignupsSection />}
+          {tab === "first20" && (
+            <First20SignupsSection campaignId={first20CampaignId} onOpenCampaign={setOpenCampaignId} />
+          )}
         </>
       )}
 

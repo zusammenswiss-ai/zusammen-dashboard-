@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Rocket, Copy, Check, ExternalLink, Trash2, Mail, MailCheck, ListPlus, ArrowRight } from "lucide-react";
+import { Rocket, Copy, Check, ExternalLink, Trash2, Mail, MailCheck, ListPlus, ArrowRight, Target } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { First20Signup } from "@/lib/supabase/types";
 import { first20T, type First20Lang, type HowHeardOption } from "@/lib/first20-i18n";
@@ -32,8 +32,20 @@ function shareUrl(origin: string, lang: First20Lang): string {
 
 /** "First 20" kampány — a /first20 publikus oldal élő jelentkezésszámlálója,
  * a megosztható link, és a beérkezett jelentkezések listája, hogy ne kelljen
- * külön a Supabase-be nézni ahhoz, hogy lássuk, ki és hogyan jelentkezett. */
-export default function First20SignupsSection() {
+ * külön a Supabase-be nézni ahhoz, hogy lássuk, ki és hogyan jelentkezett.
+ *
+ * campaignId: a "ZUSAMMEN FIRST 20" valódi campaigns-sor id-je (lásd
+ * supabase/schema.sql seed-jét) — a szülő (Marketing lap) tölti be és
+ * adja át, hogy az itt létrehozott feladatok valódi campaign_id-vel
+ * kapcsolódjanak a kampányhoz, ne csak egy szöveges címkével. null, amíg
+ * a szülő még nem töltötte be vagy nem hozta létre. */
+export default function First20SignupsSection({
+  campaignId,
+  onOpenCampaign,
+}: {
+  campaignId: string | null;
+  onOpenCampaign: (id: string) => void;
+}) {
   const [signups, setSignups] = useState<First20Signup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,9 +104,20 @@ export default function First20SignupsSection() {
   return (
     <div className="flex flex-col gap-5">
       <section className="card p-5 sm:p-6">
-        <div className="flex items-center gap-2">
-          <Rocket size={18} className="text-bronze" />
-          <h2 className="font-serif text-lg text-forest">First 20 — megosztható link</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Rocket size={18} className="text-bronze" />
+            <h2 className="font-serif text-lg text-forest">First 20 — megosztható link</h2>
+          </div>
+          {campaignId && (
+            <button
+              type="button"
+              onClick={() => onOpenCampaign(campaignId)}
+              className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
+            >
+              <Target size={13} /> Kampány megnyitása
+            </button>
+          )}
         </div>
         <p className="mt-1 text-sm text-muted">
           A publikus /first20 jelentkezési oldal linkje — nyelvválasztóval, hogy a megfelelő verziót küldd tovább.
@@ -194,7 +217,7 @@ export default function First20SignupsSection() {
           extraFields={{
             category: "Marketing",
             task_type: "Kampány",
-            campaign_label: "First 20",
+            ...(campaignId ? { campaign_id: campaignId } : { campaign_label: "ZUSAMMEN FIRST 20" }),
             notes: `First 20 jelentkező — ${taskModalFor.email}`,
           }}
           onClose={() => setTaskModalFor(null)}

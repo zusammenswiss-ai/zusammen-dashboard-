@@ -8,7 +8,7 @@ import type { Database } from "@/lib/supabase/types";
 import { SITE_URL } from "@/lib/site-url";
 import { legalDocumentUrl } from "@/lib/legal-links";
 
-export type CampaignAudience = "demand" | "newsletter";
+export type CampaignAudience = "demand" | "newsletter" | "first20";
 
 export type CampaignRecipient = {
   email: string;
@@ -55,6 +55,16 @@ export async function resolveCampaignRecipients(
     for (const row of rows) {
       const email = row.email.trim().toLowerCase();
       recipients.set(email, { email, name: row.name });
+    }
+  }
+
+  if (audiences.includes("first20")) {
+    const first20Res = await supabase.from("first20_signups").select("first_name, email");
+    if (first20Res.error) return { recipients: [], error: first20Res.error.message };
+    const rows: { first_name: string; email: string }[] = first20Res.data ?? [];
+    for (const row of rows) {
+      const email = row.email.trim().toLowerCase();
+      recipients.set(email, { email, name: row.first_name });
     }
   }
 
