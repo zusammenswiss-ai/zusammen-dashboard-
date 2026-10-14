@@ -6,7 +6,7 @@ import type { EmailTemplate, MarketingContent } from "@/lib/supabase/types";
 import { errorMessage } from "@/lib/errors";
 import BackButton from "@/components/BackButton";
 
-type Audience = "demand" | "newsletter";
+type Audience = "demand" | "newsletter" | "first20";
 
 type PreviewData = {
   recipient: { email: string; name: string | null };
@@ -26,12 +26,14 @@ export default function EmailCampaignSendForm({
   templates,
   demandCount,
   newsletterCount,
+  first20Count,
   onSent,
   presetTemplateId,
 }: {
   templates: EmailTemplate[];
   demandCount: number;
   newsletterCount: number;
+  first20Count: number;
   onSent: (contentItem: MarketingContent) => void;
   // Set by EmailTemplatesSection's "Kampányhoz csatolás" button so
   // picking a sablon up there jumps straight into this form pre-selected
@@ -64,7 +66,9 @@ export default function EmailCampaignSendForm({
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const totalRecipients =
-    (audiences.has("demand") ? demandCount : 0) + (audiences.has("newsletter") ? newsletterCount : 0);
+    (audiences.has("demand") ? demandCount : 0) +
+    (audiences.has("newsletter") ? newsletterCount : 0) +
+    (audiences.has("first20") ? first20Count : 0);
 
   function toggleAudience(a: Audience) {
     setAudiences((prev) => {
@@ -168,6 +172,10 @@ export default function EmailCampaignSendForm({
               <label className="flex items-center gap-1.5 text-sm text-forest">
                 <input type="checkbox" checked={audiences.has("newsletter")} onChange={() => toggleAudience("newsletter")} />
                 Hírlevél feliratkozók ({newsletterCount})
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-forest">
+                <input type="checkbox" checked={audiences.has("first20")} onChange={() => toggleAudience("first20")} />
+                First 20 jelentkezők ({first20Count})
               </label>
             </div>
             {audiences.size > 0 && (
