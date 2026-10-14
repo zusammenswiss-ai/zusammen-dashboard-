@@ -23,6 +23,7 @@ import {
   LibraryBig,
   Send,
   Search,
+  Rocket,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
@@ -49,6 +50,7 @@ import EmailTemplatesSection from "@/components/EmailTemplatesSection";
 import NewsletterSubscribersSection from "@/components/NewsletterSubscribersSection";
 import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
 import CampaignFormModal from "@/components/CampaignFormModal";
+import First20SignupsSection from "@/components/First20SignupsSection";
 import CampaignDetailModal from "@/components/CampaignDetailModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
@@ -105,7 +107,7 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-type Tab = "seasons" | "calendar" | "assets" | "email";
+type Tab = "seasons" | "calendar" | "assets" | "email" | "first20";
 
 // What "→ Tartalom létrehozása ebből" hands the content form: enough to
 // pre-select the asset in the gallery picker and seed a sensible title —
@@ -434,6 +436,9 @@ export default function MarketingPage() {
         <button onClick={() => setTab("email")} className={`btn ${tab === "email" ? "btn-bronze" : "btn-ghost"}`}>
           <Send size={15} /> Email kampányok
         </button>
+        <button onClick={() => setTab("first20")} className={`btn ${tab === "first20" ? "btn-bronze" : "btn-ghost"}`}>
+          <Rocket size={15} /> First 20
+        </button>
       </div>
 
       {loading ? (
@@ -512,6 +517,8 @@ export default function MarketingPage() {
               </div>
             </div>
           )}
+
+          {tab === "first20" && <First20SignupsSection />}
         </>
       )}
 
