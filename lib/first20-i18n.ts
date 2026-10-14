@@ -186,7 +186,7 @@ export const first20T: Record<First20Lang, T> = {
         },
         {
           q: "Wer seid ihr?",
-          a: "Wir sind ein junges Schweizer Herzensprojekt rund um den Thunersee — gestartet, weil wir selbst wieder mehr Zeit füreinander wollten. [Hier ergänzt Barbara in 2–3 Sätzen, wer ihr seid.]",
+          a: "Ich bin Barbara — geboren in Ungarn, lebe heute in der Schweiz und baue zusammen mit meinem Partner Zusammen auf, der Name bedeutet genau das: zusammen. Diese Marke ist eine Hommage an unsere Beziehung: Wir glauben, dass die wichtigsten Menschen im Alltag am wenigsten Aufmerksamkeit bekommen, deshalb haben wir ein Kartenspiel entwickelt, das für einen Abend das Handy verstummen lässt und dem Gespräch Raum gibt. Die Fragen haben wir selbst zusammengestellt, und bevor wir sie irgendjemandem geben, haben wir sie natürlich zuerst selbst ausprobiert :) Jetzt suchen wir zwanzig Paare, die uns sagen, was sie davon halten.",
         },
       ],
     },
@@ -293,7 +293,7 @@ export const first20T: Record<First20Lang, T> = {
         },
         {
           q: "Kik vagytok?",
-          a: "Egy fiatal, szívből jövő svájci projekt vagyunk a Thuni-tó mellől — azért indítottuk, mert mi magunk is több időt akartunk egymásra szánni. [Ide kerül Barbara 2–3 mondatos bemutatkozása.]",
+          a: "Barbara vagyok, magyarként élek Svájcban, és a párommal együtt építjük a Zusammen-t — a név németül azt jelenti: együtt. Ez a márka a kapcsolatunk tiszteletére készült: hisszük, hogy a legfontosabb emberekre jut a legkevesebb figyelem a hétköznapokban, ezért készítettünk egy paklit, amely egy estére elhallgattatja a telefont, és helyet ad a beszélgetésnek. A kérdéseket mi állítottuk össze, és mielőtt bárkinek odaadnánk, mi magunk már kipróbáltuk :) Most húsz párt keresünk, hogy ti is elmondjátok, mit gondoltok róla.",
         },
       ],
     },
@@ -387,7 +387,7 @@ export const first20T: Record<First20Lang, T> = {
         },
         {
           q: "Who are you?",
-          a: "We're a small Swiss project near Lake Thun, started because we wanted more real time for each other too. [Barbara adds 2–3 sentences about who you are here.]",
+          a: "I'm Barbara — Hungarian by birth, now living in Switzerland, building Zusammen together with my partner. The name means exactly that: together. This brand is a tribute to our relationship: we believe the people who matter most get the least attention in everyday life, so we made a deck of cards that quiets the phone for one evening and makes room for real conversation. We wrote the questions ourselves, and before handing them to anyone else, we tried them out on ourselves first :) Now we're looking for twenty couples to tell us what they think.",
         },
       ],
     },
