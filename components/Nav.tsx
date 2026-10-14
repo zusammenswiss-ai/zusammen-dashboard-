@@ -142,16 +142,16 @@ export default function Nav() {
               );
             })}
 
-            {/* Személyes rituálé — visually set apart from the business
-                groups above: a warm background + gold left border even
-                while inactive, not just on the active state everything
-                else gets. */}
+            {/* Személyes rituálé — csoportokon kívüli, "kiemelt" elem:
+                ugyanaz az accent formula, mint a Landing oldal linké lent,
+                hogy a nav-n kívül eső elemek egy közös, letisztult stílust
+                osszanak, ne három különböző egyedi megoldást. */}
             <div className="mt-4 border-t border-ivory/10 pt-3">
               <NavLink
                 item={NAV_RITUAL_ITEM}
                 active={isActive(NAV_RITUAL_ITEM)}
                 onNavigate={() => setOpen(false)}
-                ritual
+                accent
               />
             </div>
 
@@ -162,16 +162,7 @@ export default function Nav() {
 
           <div className="px-3 pb-6 lg:px-4">
             <div className="border-t border-ivory/10 pt-3">
-              <Link
-                href={NAV_LANDING_ITEM.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-bronze-light transition-colors hover:bg-forest-light/70 hover:text-ivory"
-              >
-                <NAV_LANDING_ITEM.icon size={17} strokeWidth={2} />
-                {NAV_LANDING_ITEM.label}
-              </Link>
+              <NavLink item={NAV_LANDING_ITEM} active={false} onNavigate={() => setOpen(false)} accent />
             </div>
           </div>
           <div className="hidden px-6 pb-6 text-xs leading-relaxed text-ivory/40 lg:block">
@@ -189,27 +180,34 @@ function NavLink({
   item,
   active,
   onNavigate,
-  ritual = false,
+  accent = false,
 }: {
   item: NavItem;
   active: boolean;
   onNavigate: () => void;
-  /** Személyes rituálé — gets a warm/gold treatment even while inactive. */
-  ritual?: boolean;
+  /** Csoportokon kívüli, "kiemelt" elemek (Személyes rituálé, Landing
+   * oldal) — egységes meleg bronz kiemelés, akkor is, ha épp nem
+   * aktívak, hogy egy közös stílust osszanak a rendes nav-elemektől. */
+  accent?: boolean;
 }) {
   const Icon = item.icon;
   // Active indicator (solid bronze fill + matching left border) is the
-  // one constant across every group, ritual included — see stateClasses
-  // below, where `active` is always checked first regardless of `ritual`.
+  // one constant across every group, accent items included — see
+  // stateClasses below, where `active` is always checked first.
   const baseClasses = "flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5 text-sm font-medium transition-colors duration-150";
   const stateClasses = active
     ? "border-bronze bg-bronze text-white"
-    : ritual
+    : accent
       ? "border-bronze/40 bg-bronze/10 text-ivory/90 hover:border-bronze/60 hover:bg-bronze/15"
       : "border-transparent text-ivory/75 hover:bg-white/[0.06] hover:text-ivory";
 
   return (
-    <Link href={item.href} onClick={onNavigate} className={`${baseClasses} ${stateClasses}`}>
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={`${baseClasses} ${stateClasses}`}
+      {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+    >
       <Icon size={17} strokeWidth={2} />
       {item.label}
     </Link>

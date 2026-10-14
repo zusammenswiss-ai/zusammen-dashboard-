@@ -66,17 +66,15 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    // Korábban külön "kapcsolat" csoport volt a Postaládának/Megosztásoknak,
+    // de csak 2 elemmel jóval soványabb volt a másik 3 csoportnál (6/6/4/2) —
+    // most mindhárom csoport 6 elemes, kiegyensúlyozottabb a nav.
     label: "munkafolyamat",
     items: [
       { href: "/tasks", label: "Feladatok", icon: Columns3 },
       { href: "/protocols", label: "Jegyzőkönyvek", icon: ClipboardList },
       { href: "/calendar", label: "Naptár", icon: Calendar },
       { href: "/future-plans", label: "Jövőbeli tervek", icon: Lightbulb },
-    ],
-  },
-  {
-    label: "kapcsolat",
-    items: [
       { href: "/inbox", label: "Postaláda", icon: Mail },
       { href: "/shares", label: "Megosztások", icon: Share2 },
     ],
