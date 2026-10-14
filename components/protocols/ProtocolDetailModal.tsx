@@ -61,6 +61,7 @@ export default function ProtocolDetailModal({
   const [capturingSnapshot, setCapturingSnapshot] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
   const [createdTask, setCreatedTask] = useState<{ id: string; title: string } | null>(null);
@@ -188,6 +189,18 @@ export default function ProtocolDetailModal({
     onClose();
   }
 
+  async function handleExportPdf() {
+    if (!current) return;
+    setExportingPdf(true);
+    try {
+      await downloadProtocolPdf(current);
+    } catch (err) {
+      setError(errorMessage(err, "Nem sikerült előállítani a PDF-et."));
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   async function handleCreateTask() {
     if (!current || !nextFocus.trim()) return;
     const supabase = getSupabaseClient();
@@ -232,8 +245,13 @@ export default function ProtocolDetailModal({
             <h2 className="font-serif text-xl text-forest">{isNew ? "Új jegyzőkönyv" : formatDate(current!.entry_date)}</h2>
             <div className="flex shrink-0 items-center gap-2">
               {current && (
-                <button type="button" onClick={() => downloadProtocolPdf(current)} className="btn btn-ghost !px-3 !py-1.5 text-xs">
-                  <FileDown size={14} /> Exportálás PDF-be
+                <button
+                  type="button"
+                  onClick={() => void handleExportPdf()}
+                  disabled={exportingPdf}
+                  className="btn btn-ghost !px-3 !py-1.5 text-xs"
+                >
+                  <FileDown size={14} /> {exportingPdf ? "Generálás…" : "Exportálás PDF-be"}
                 </button>
               )}
               {current && isFounder && (
