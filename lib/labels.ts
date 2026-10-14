@@ -23,6 +23,8 @@ import type {
   SupportTopic,
   SupportTicketStatus,
   SupportPriority,
+  PurchaseType,
+  PurchaseStatus,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -104,6 +106,30 @@ export const PRINT_STATUS_STYLES: Record<PrintStatus, string> = {
   "Nyomdának elküldve": "bg-bronze/15 text-walnut",
   Megrendelve: "bg-forest-light/15 text-forest",
   Megérkezett: "bg-forest/10 text-forest",
+};
+
+// Beszerzések (/suppliers "Beszerzések" fül) — status már eleve magyarul
+// tárolva (lásd a schema check constraint-ot a purchases táblán). A
+// négy "úton van" lépcső ugyanazt a brand progressziót kapja, mint
+// PRINT_STATUS_STYLES; Jóváhagyva/Elutasítva a PRIORITY_STYLES
+// piros-sürgősség konvencióját követi, mert ezek döntések, nem
+// folyamat-lépcsők.
+export const PURCHASE_TYPES: PurchaseType[] = ["Minta", "Készlet", "Csomagolóanyag", "Egyéb"];
+export const PURCHASE_STATUSES: PurchaseStatus[] = [
+  "Megrendelve",
+  "Gyártás alatt",
+  "Úton",
+  "Megérkezett",
+  "Jóváhagyva",
+  "Elutasítva",
+];
+export const PURCHASE_STATUS_STYLES: Record<PurchaseStatus, string> = {
+  Megrendelve: "bg-ivory-dim text-walnut",
+  "Gyártás alatt": "bg-bronze/15 text-walnut",
+  Úton: "bg-forest-light/15 text-forest",
+  Megérkezett: "bg-forest/10 text-forest",
+  Jóváhagyva: "bg-green-100 text-green-700",
+  Elutasítva: "bg-red-100 text-red-700",
 };
 
 // status is already stored in Hungarian (see the schema check constraint

@@ -2580,3 +2580,73 @@ create table if not exists public.telegram_invite_codes (
 );
 
 alter table public.telegram_invite_codes enable row level security;
+
+-- =====================================================================
+-- Beszerzések (purchases) — a Megrendelések modul KIZÁRÓLAG vevői
+-- rendeléseket tartalmaz (lásd public.orders); minden beszállítói
+-- vásárlás (minta, készlet, csomagolóanyag, stb.) ide kerül, a
+-- Beszállítók modul egy-egy beszállítójához kötve. Nincs user_id oszlop
+-- — ahogy egyetlen más táblának sincs ebben a sémában, ez egy
+-- egyfelhasználós (founder) dashboard, az RLS csak a bejelentkezést
+-- ellenőrzi, nem tulajdonlást.
+-- supplier_id kötelező, "on delete cascade" — ugyanaz a minta, mint a
+-- többi kötelező FK-nál ebben a sémában (pl. price_quotes.card_asset_id,
+-- card_export_versions.collection_id): egy beszállító törlésekor a hozzá
+-- kötött beszerzési előzmény is törlődik, nem marad árva rekord.
+-- =====================================================================
+create table if not exists public.purchases (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid not null references public.suppliers(id) on delete cascade,
+  item_name text not null,
+  type text not null default 'Egyéb' check (type in ('Minta', 'Készlet', 'Csomagolóanyag', 'Egyéb')),
+  quantity numeric(12, 2) not null default 1,
+  unit_price numeric(12, 2),
+  total_price numeric(12, 2),
+  currency text not null default 'CHF' check (currency in ('CHF', 'USD', 'EUR')),
+  supplier_order_number text,
+  order_date date,
+  status text not null default 'Megrendelve'
+    check (status in ('Megrendelve', 'Gyártás alatt', 'Úton', 'Megérkezett', 'Jóváhagyva', 'Elutasítva')),
+  -- Csomagkövetés — csak egy kézzel beírt azonosító + egy 17track link
+  -- az UI-ban, NINCS automatikus csomagkövető API-hívás.
+  tracking_number text,
+  shipped_date date,
+  expected_arrival_start date,
+  expected_arrival_end date,
+  actual_arrival_date date,
+  -- Hosszabb szabad szöveg, pl. ellenőrzőlista érkezéskor.
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.purchases enable row level security;
+
+drop policy if exists "authenticated full access" on public.purchases;
+create policy "authenticated full access" on public.purchases for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.purchases;
+create trigger set_updated_at before update on public.purchases
+  for each row execute function public.set_updated_at();
+
+-- QPMN mintarendelés felvétele — csak akkor fut le, ha már létezik
+-- "QPMN" nevű beszállító a suppliers táblában, és ez a rendelésszám még
+-- nincs rögzítve (idempotens, biztonságos újra futtatni).
+insert into public.purchases (
+  supplier_id, item_name, type, quantity, unit_price, currency,
+  supplier_order_number, order_date, status,
+  tracking_number, shipped_date, expected_arrival_start, expected_arrival_end,
+  notes
+)
+select
+  s.id, 'Pear Edition – mintapakli (teszt)', 'Minta', 1, 16.17, 'USD',
+  '972608290003', date '2026-09-18', 'Úton',
+  '4PX3003213452755CN', date '2026-10-02', date '2026-10-14', date '2026-10-22',
+  'Gyártási idő 12 nap (09.18→09.30). Döntési nap az 50 db-ról: okt. 15. Ellenőrizni – aug. 30-i vagy második rendelés?'
+from public.suppliers s
+where s.name = 'QPMN'
+  and not exists (
+    select 1 from public.purchases p where p.supplier_order_number = '972608290003'
+  )
+limit 1;

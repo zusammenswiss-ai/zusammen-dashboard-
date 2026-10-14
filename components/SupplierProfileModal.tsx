@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { X, Trash2, Plus, ArrowRight } from "lucide-react";
-import type { Supplier, SupplierProduct, ContractStatus, PriceQuote } from "@/lib/supabase/types";
+import type { Supplier, SupplierProduct, ContractStatus, PriceQuote, Purchase } from "@/lib/supabase/types";
 import { CONTRACT_STATUS_HU } from "@/lib/labels";
 import { ErrorBanner } from "@/components/Feedback";
 import PriceQuoteForm from "@/components/PriceQuoteForm";
 import PriceQuoteList from "@/components/PriceQuoteList";
+import PurchaseForm from "@/components/PurchaseForm";
+import PurchaseList from "@/components/PurchaseList";
 import ContactCorrespondence from "@/components/ContactCorrespondence";
 import BackButton from "@/components/BackButton";
 
@@ -62,12 +64,16 @@ export default function SupplierProfileModal({
   cardAssetLabelById,
   linkedCollections,
   quoteSignedUrls,
+  purchases,
   onClose,
   onSave,
   onDelete,
   onQuoteCreated,
   onToggleQuoteSelected,
   onDeleteQuote,
+  onPurchaseCreated,
+  onPurchaseUpdated,
+  onDeletePurchase,
   onReplyDetected,
 }: {
   supplier: Supplier | null;
@@ -80,12 +86,17 @@ export default function SupplierProfileModal({
   // screenshot_url is a getPublicUrl()-shaped string that needs
   // exchanging for a signed URL before it'll actually load.
   quoteSignedUrls: Map<string, string>;
+  /** Beszerzések — e beszállítótól eddig vásárolt minták/készletek. */
+  purchases: Purchase[];
   onClose: () => void;
   onSave: (draft: SupplierDraft) => Promise<{ error?: string } | void>;
   onDelete?: () => void;
   onQuoteCreated: (quote: PriceQuote) => void;
   onToggleQuoteSelected: (quote: PriceQuote) => void;
   onDeleteQuote: (quote: PriceQuote) => void;
+  onPurchaseCreated: (purchase: Purchase) => void;
+  onPurchaseUpdated: (purchase: Purchase) => void;
+  onDeletePurchase: (purchase: Purchase) => void;
   /** Persists reply_received=true for this supplier — the modal also
    * flips the local checkbox immediately so it doesn't wait for a
    * re-fetch. Only called when a Gmail message actually arrived from
@@ -97,6 +108,7 @@ export default function SupplierProfileModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState<Purchase | "new" | null>(null);
   const isNew = supplier === null;
 
   function set<K extends keyof SupplierDraft>(key: K, value: SupplierDraft[K]) {
@@ -302,6 +314,36 @@ export default function SupplierProfileModal({
                 signedUrls={quoteSignedUrls}
                 onToggleSelected={onToggleQuoteSelected}
                 onDelete={onDeleteQuote}
+              />
+            </Section>
+          )}
+
+          {!isNew && (
+            <Section title="Beszerzések">
+              {editingPurchase ? (
+                <PurchaseForm
+                  supplierId={supplier.id}
+                  purchase={editingPurchase === "new" ? undefined : editingPurchase}
+                  onSaved={(purchase) => {
+                    if (editingPurchase === "new") onPurchaseCreated(purchase);
+                    else onPurchaseUpdated(purchase);
+                    setEditingPurchase(null);
+                  }}
+                  onCancel={() => setEditingPurchase(null)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-ghost mb-3 !py-1.5 text-xs"
+                  onClick={() => setEditingPurchase("new")}
+                >
+                  <Plus size={13} /> Új beszerzés hozzáadása
+                </button>
+              )}
+              <PurchaseList
+                purchases={purchases}
+                onEdit={(purchase) => setEditingPurchase(purchase)}
+                onDelete={onDeletePurchase}
               />
             </Section>
           )}

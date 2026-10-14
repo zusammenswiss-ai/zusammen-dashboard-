@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -38,6 +38,7 @@ import { fetchAllCalendarEvents, type CalendarEventItem } from "@/lib/calendar-e
 import { CategoryIcon } from "@/components/CalendarCategoryBadge";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import WeeklyMonthlyStatsWidget from "@/components/WeeklyMonthlyStatsWidget";
+import DailyActionsCard from "@/components/DailyActionsCard";
 import type { CurrencyCode, PlanStatus, OrderStatus } from "@/lib/supabase/types";
 import { errorMessage } from "@/lib/errors";
 
@@ -112,190 +113,191 @@ export default function OverviewPage() {
   // independent, larger fetch that shouldn't block the rest of the page.
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventItem[]>([]);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) {
-      return;
-    }
+  const loadOverview = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [
-          suppliersRes,
-          tasksRes,
-          financeRes,
-          documentsRes,
-          plansRes,
-          ordersRes,
-          goldCardLettersRes,
-          goldCardLettersCountRes,
-          journeyMemoriesRes,
-          wildCardCompletionsRes,
-          surpriseQuestionLogRes,
-          notificationItems,
-          companySettingsRes,
-        ] = await Promise.all([
-          supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
-          supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-          supabase.from("products").select("sale_price, sale_price_currency, cogs, cogs_currency, planned_units"),
-          supabase.from("documents").select("*").order("created_at", { ascending: false }),
-          supabase.from("future_plans").select("*").order("created_at", { ascending: false }),
-          supabase.from("orders").select("*").order("created_at", { ascending: false }),
-          supabase.from("gold_card_letters").select("*").order("created_at", { ascending: false }).limit(5),
-          supabase.from("gold_card_letters").select("id", { count: "exact", head: true }),
-          supabase.from("journey_memories").select("*").order("created_at", { ascending: false }).limit(5),
-          supabase.from("wild_card_completions").select("*").order("created_at", { ascending: false }).limit(5),
-          supabase.from("surprise_question_log").select("*").order("created_at", { ascending: false }).limit(5),
-          fetchDueNotifications(supabase),
-          supabase.from("company_settings").select("gold_card_reminder_enabled, currency").maybeSingle(),
-        ]);
+    setLoading(true);
+    setError(null);
+    try {
+      const [
+        suppliersRes,
+        tasksRes,
+        financeRes,
+        documentsRes,
+        plansRes,
+        ordersRes,
+        goldCardLettersRes,
+        goldCardLettersCountRes,
+        journeyMemoriesRes,
+        wildCardCompletionsRes,
+        surpriseQuestionLogRes,
+        notificationItems,
+        companySettingsRes,
+      ] = await Promise.all([
+        supabase.from("suppliers").select("*").order("created_at", { ascending: false }),
+        supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+        supabase.from("products").select("sale_price, sale_price_currency, cogs, cogs_currency, planned_units"),
+        supabase.from("documents").select("*").order("created_at", { ascending: false }),
+        supabase.from("future_plans").select("*").order("created_at", { ascending: false }),
+        supabase.from("orders").select("*").order("created_at", { ascending: false }),
+        supabase.from("gold_card_letters").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("gold_card_letters").select("id", { count: "exact", head: true }),
+        supabase.from("journey_memories").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("wild_card_completions").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("surprise_question_log").select("*").order("created_at", { ascending: false }).limit(5),
+        fetchDueNotifications(supabase),
+        supabase.from("company_settings").select("gold_card_reminder_enabled, currency").maybeSingle(),
+      ]);
 
-        const firstError =
-          suppliersRes.error ||
-          tasksRes.error ||
-          financeRes.error ||
-          documentsRes.error ||
-          plansRes.error ||
-          ordersRes.error ||
-          goldCardLettersRes.error ||
-          goldCardLettersCountRes.error ||
-          journeyMemoriesRes.error ||
-          wildCardCompletionsRes.error ||
-          surpriseQuestionLogRes.error;
-        if (firstError) throw firstError;
+      const firstError =
+        suppliersRes.error ||
+        tasksRes.error ||
+        financeRes.error ||
+        documentsRes.error ||
+        plansRes.error ||
+        ordersRes.error ||
+        goldCardLettersRes.error ||
+        goldCardLettersCountRes.error ||
+        journeyMemoriesRes.error ||
+        wildCardCompletionsRes.error ||
+        surpriseQuestionLogRes.error;
+      if (firstError) throw firstError;
 
-        const suppliers = suppliersRes.data ?? [];
-        const tasks = tasksRes.data ?? [];
-        // Termékek katalógus rows — see the same revenue/margin math on
-        // Pénzügyek, which reads this same table now. Kept in their own
-        // state (not reduced here) so the stat card can react to
-        // exchange rates loading asynchronously — see the useMemo below.
-        setFinanceRows(financeRes.data ?? []);
-        const documents = documentsRes.data ?? [];
-        const plans = plansRes.data ?? [];
-        const orders = ordersRes.data ?? [];
-        const goldCardLetters = goldCardLettersRes.data ?? [];
-        const journeyMemories = journeyMemoriesRes.data ?? [];
-        const wildCardCompletions = wildCardCompletionsRes.data ?? [];
-        const surpriseQuestionLog = surpriseQuestionLogRes.data ?? [];
-        setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
+      const suppliers = suppliersRes.data ?? [];
+      const tasks = tasksRes.data ?? [];
+      // Termékek katalógus rows — see the same revenue/margin math on
+      // Pénzügyek, which reads this same table now. Kept in their own
+      // state (not reduced here) so the stat card can react to
+      // exchange rates loading asynchronously — see the useMemo below.
+      setFinanceRows(financeRes.data ?? []);
+      const documents = documentsRes.data ?? [];
+      const plans = plansRes.data ?? [];
+      const orders = ordersRes.data ?? [];
+      const goldCardLetters = goldCardLettersRes.data ?? [];
+      const journeyMemories = journeyMemoriesRes.data ?? [];
+      const wildCardCompletions = wildCardCompletionsRes.data ?? [];
+      const surpriseQuestionLog = surpriseQuestionLogRes.data ?? [];
+      setCurrency(companySettingsRes.data?.currency ?? DEFAULT_CURRENCY);
 
-        const todayStr = new Date().toISOString().slice(0, 10);
-        setWaitingDueCount(
-          tasks.filter((t) => !t.archived_at && t.status === "Várakozás" && t.check_date && t.check_date <= todayStr)
-            .length
-        );
+      const todayStr = new Date().toISOString().slice(0, 10);
+      setWaitingDueCount(
+        tasks.filter((t) => !t.archived_at && t.status === "Várakozás" && t.check_date && t.check_date <= todayStr)
+          .length
+      );
 
-        setStats({
-          suppliersTotal: suppliers.length,
-          suppliersContacted: suppliers.filter((s) => s.contacted).length,
-          suppliersReplied: suppliers.filter((s) => s.reply_received).length,
-          tasksTodo: tasks.filter((t) => t.status === "Teendő").length,
-          tasksInProgress: tasks.filter((t) => t.status === "Folyamatban").length,
-          tasksDone: tasks.filter((t) => t.status === "Kész").length,
-          documentsTotal: documents.length,
-          ideasTotal: plans.length,
-          ordersOpen: orders.filter((o) => o.status !== "Done").length,
-          ordersTotal: orders.length,
-          goldCardLettersTotal: goldCardLettersCountRes.count ?? goldCardLetters.length,
-        });
+      setStats({
+        suppliersTotal: suppliers.length,
+        suppliersContacted: suppliers.filter((s) => s.contacted).length,
+        suppliersReplied: suppliers.filter((s) => s.reply_received).length,
+        tasksTodo: tasks.filter((t) => t.status === "Teendő").length,
+        tasksInProgress: tasks.filter((t) => t.status === "Folyamatban").length,
+        tasksDone: tasks.filter((t) => t.status === "Kész").length,
+        documentsTotal: documents.length,
+        ideasTotal: plans.length,
+        ordersOpen: orders.filter((o) => o.status !== "Done").length,
+        ordersTotal: orders.length,
+        goldCardLettersTotal: goldCardLettersCountRes.count ?? goldCardLetters.length,
+      });
 
-        const business: ActivityItem<BusinessActivityKind>[] = [
-          ...suppliers.slice(0, 5).map((s) => ({
-            id: `supplier-${s.id}`,
-            kind: "supplier" as const,
-            title: s.name,
-            detail: s.category ? `Új beszállító · ${s.category}` : "Új beszállító",
-            timestamp: s.created_at,
-            href: "/suppliers",
-          })),
-          ...tasks.slice(0, 5).map((t) => ({
-            id: `task-${t.id}`,
-            kind: "task" as const,
-            title: t.title,
-            detail: `Feladat · ${t.status}`,
-            timestamp: t.updated_at,
-            href: `/tasks?open=${t.id}`,
-          })),
-          ...documents.slice(0, 5).map((d) => ({
-            id: `document-${d.id}`,
-            kind: "document" as const,
-            title: d.title,
-            detail: "Dokumentum hozzáadva",
-            timestamp: d.created_at,
-            href: "/documents",
-          })),
-          ...plans.slice(0, 5).map((p) => ({
-            id: `plan-${p.id}`,
-            kind: "plan" as const,
-            title: p.title,
-            detail: `Ötlet · ${PLAN_STATUS_HU[p.status as PlanStatus]}`,
-            timestamp: p.created_at,
-            href: "/future-plans",
-          })),
-          ...orders.slice(0, 5).map((o) => ({
-            id: `order-${o.id}`,
-            kind: "order" as const,
-            title: o.customer_name,
-            detail: `Megrendelés · ${ORDER_STATUS_HU[o.status as OrderStatus]}`,
-            timestamp: o.created_at,
-            href: "/orders",
-          })),
-        ]
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 8);
+      const business: ActivityItem<BusinessActivityKind>[] = [
+        ...suppliers.slice(0, 5).map((s) => ({
+          id: `supplier-${s.id}`,
+          kind: "supplier" as const,
+          title: s.name,
+          detail: s.category ? `Új beszállító · ${s.category}` : "Új beszállító",
+          timestamp: s.created_at,
+          href: "/suppliers",
+        })),
+        ...tasks.slice(0, 5).map((t) => ({
+          id: `task-${t.id}`,
+          kind: "task" as const,
+          title: t.title,
+          detail: `Feladat · ${t.status}`,
+          timestamp: t.updated_at,
+          href: `/tasks?open=${t.id}`,
+        })),
+        ...documents.slice(0, 5).map((d) => ({
+          id: `document-${d.id}`,
+          kind: "document" as const,
+          title: d.title,
+          detail: "Dokumentum hozzáadva",
+          timestamp: d.created_at,
+          href: "/documents",
+        })),
+        ...plans.slice(0, 5).map((p) => ({
+          id: `plan-${p.id}`,
+          kind: "plan" as const,
+          title: p.title,
+          detail: `Ötlet · ${PLAN_STATUS_HU[p.status as PlanStatus]}`,
+          timestamp: p.created_at,
+          href: "/future-plans",
+        })),
+        ...orders.slice(0, 5).map((o) => ({
+          id: `order-${o.id}`,
+          kind: "order" as const,
+          title: o.customer_name,
+          detail: `Megrendelés · ${ORDER_STATUS_HU[o.status as OrderStatus]}`,
+          timestamp: o.created_at,
+          href: "/orders",
+        })),
+      ]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 8);
 
-        const ritual: ActivityItem<RitualActivityKind>[] = [
-          ...goldCardLetters.map((l) => ({
-            id: `goldcard-${l.id}`,
-            kind: "goldcard" as const,
-            title: `Gold Card levél #${l.seq_number}`,
-            detail: "Gold Card levél lepecsételve",
-            timestamp: l.created_at,
-            href: "/personal-ritual",
-          })),
-          ...journeyMemories.map((m) => ({
-            id: `memory-${m.id}`,
-            kind: "memory" as const,
-            title: m.place,
-            detail: "Új emlék hozzáadva",
-            timestamp: m.created_at,
-            href: "/personal-ritual",
-          })),
-          ...wildCardCompletions.map((w) => ({
-            id: `wildcard-${w.id}`,
-            kind: "wildcard" as const,
-            title: w.wildcard_name,
-            detail: `Wild Card teljesítve: ${w.wildcard_name}`,
-            timestamp: w.created_at,
-            href: "/personal-ritual",
-          })),
-          ...surpriseQuestionLog.map((s) => ({
-            id: `surprise-${s.id}`,
-            kind: "surprise" as const,
-            title: "Meglepetés kérdés",
-            detail: "Meglepetés kérdés elküldve",
-            timestamp: s.created_at,
-            href: "/personal-ritual",
-          })),
-        ]
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 5);
+      const ritual: ActivityItem<RitualActivityKind>[] = [
+        ...goldCardLetters.map((l) => ({
+          id: `goldcard-${l.id}`,
+          kind: "goldcard" as const,
+          title: `Gold Card levél #${l.seq_number}`,
+          detail: "Gold Card levél lepecsételve",
+          timestamp: l.created_at,
+          href: "/personal-ritual",
+        })),
+        ...journeyMemories.map((m) => ({
+          id: `memory-${m.id}`,
+          kind: "memory" as const,
+          title: m.place,
+          detail: "Új emlék hozzáadva",
+          timestamp: m.created_at,
+          href: "/personal-ritual",
+        })),
+        ...wildCardCompletions.map((w) => ({
+          id: `wildcard-${w.id}`,
+          kind: "wildcard" as const,
+          title: w.wildcard_name,
+          detail: `Wild Card teljesítve: ${w.wildcard_name}`,
+          timestamp: w.created_at,
+          href: "/personal-ritual",
+        })),
+        ...surpriseQuestionLog.map((s) => ({
+          id: `surprise-${s.id}`,
+          kind: "surprise" as const,
+          title: "Meglepetés kérdés",
+          detail: "Meglepetés kérdés elküldve",
+          timestamp: s.created_at,
+          href: "/personal-ritual",
+        })),
+      ]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 5);
 
-        setBusinessActivity(business);
-        setRitualActivity(ritual);
-        setNotifications(notificationItems);
-        setGoldCardReminderEnabled(companySettingsRes.data?.gold_card_reminder_enabled ?? true);
-      } catch (err) {
-        setError(errorMessage(err, "Nem sikerült betölteni a dashboard adatait."));
-      } finally {
-        setLoading(false);
-      }
-    })();
+      setBusinessActivity(business);
+      setRitualActivity(ritual);
+      setNotifications(notificationItems);
+      setGoldCardReminderEnabled(companySettingsRes.data?.gold_card_reminder_enabled ?? true);
+    } catch (err) {
+      setError(errorMessage(err, "Nem sikerült betölteni a dashboard adatait."));
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadOverview();
+  }, [loadOverview]);
 
   useEffect(() => {
     (async () => {
@@ -390,10 +392,19 @@ export default function OverviewPage() {
         <Spinner />
       ) : stats ? (
         <>
+          {/* 0. Gyors hozzáadás — "Mit csinálunk ma?" üdvözlő-sáv, hogy ne
+              kelljen a Feladatok/Dokumentumok oldalra navigálni egy gyors
+              felvételhez. onCreated egy teljes loadOverview()-t vált ki,
+              hogy a lenti statisztikák/aktivitás-lista is frissüljön. */}
+          <DailyActionsCard
+            onTaskCreated={() => void loadOverview()}
+            onDocumentCreated={() => void loadOverview()}
+          />
+
           {/* 1. What needs attention right now — the same criteria the nav's
               NotificationBell and the daily reminder email use (lib/notifications.ts),
               surfaced up front instead of only in a dropdown. */}
-          <div className="card p-5">
+          <div className="card mt-6 p-5">
             <div className="flex items-center gap-2">
               <Bell size={17} className="text-bronze" />
               <h2 className="font-serif text-lg text-forest">Mire figyelj most</h2>

@@ -791,6 +791,40 @@ export type OrderInsert = Partial<Omit<Order, "id" | "created_at" | "updated_at"
 };
 export type OrderUpdate = Partial<Omit<Order, "id" | "created_at">>;
 
+// Beszerzések (/suppliers detail "Beszerzések" fül) — beszállítói
+// vásárlások (minta, készlet, csomagolóanyag), elkülönítve a
+// Megrendelések (Order) vevői rendeléseitől. Lásd supabase/schema.sql
+// purchases kommentjét.
+export type PurchaseType = "Minta" | "Készlet" | "Csomagolóanyag" | "Egyéb";
+export type PurchaseStatus = "Megrendelve" | "Gyártás alatt" | "Úton" | "Megérkezett" | "Jóváhagyva" | "Elutasítva";
+
+export interface Purchase {
+  id: string;
+  supplier_id: string;
+  item_name: string;
+  type: PurchaseType;
+  quantity: number;
+  unit_price: number | null;
+  total_price: number | null;
+  currency: CurrencyCode;
+  supplier_order_number: string | null;
+  order_date: string | null;
+  status: PurchaseStatus;
+  tracking_number: string | null;
+  shipped_date: string | null;
+  expected_arrival_start: string | null;
+  expected_arrival_end: string | null;
+  actual_arrival_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type PurchaseInsert = Partial<Omit<Purchase, "id" | "created_at" | "updated_at">> & {
+  supplier_id: string;
+  item_name: string;
+};
+export type PurchaseUpdate = Partial<Omit<Purchase, "id" | "created_at">>;
+
 export type PrintStatus = "Piszkozat" | "Nyomdának elküldve" | "Megrendelve" | "Megérkezett";
 
 export interface CardAssetThumbnail {
@@ -1353,6 +1387,12 @@ export interface Database {
         Update: OrderUpdate;
         Relationships: [];
       };
+      purchases: {
+        Row: Purchase;
+        Insert: PurchaseInsert;
+        Update: PurchaseUpdate;
+        Relationships: [];
+      };
       card_assets: {
         Row: CardAsset;
         Insert: CardAssetInsert;
@@ -1617,6 +1657,7 @@ export const ANON_TABLE_NAMES = [
   "documents",
   "future_plans",
   "orders",
+  "purchases",
   "card_assets",
   "price_quotes",
   "landing_letters",
