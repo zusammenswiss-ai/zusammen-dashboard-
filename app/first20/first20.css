@@ -1,0 +1,31 @@
+/*
+ * Minimal standalone styling for /first20's form controls — the rest of
+ * the page uses Tailwind utilities directly with inline brand-color
+ * style props (see First20Client.tsx), but a real <input>/<select> needs
+ * a few properties (placeholder color, focus ring, appearance reset)
+ * that are awkward to express as Tailwind utility classes alone.
+ */
+.first20-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(243, 239, 231, 0.25);
+  background: rgba(243, 239, 231, 0.06);
+  color: #f3efe7;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.first20-input::placeholder {
+  color: rgba(243, 239, 231, 0.45);
+}
+.first20-input:focus {
+  outline: none;
+  border-color: #c8a96b;
+  background: rgba(243, 239, 231, 0.1);
+}
+.first20-input option {
+  color: #233328;
+}

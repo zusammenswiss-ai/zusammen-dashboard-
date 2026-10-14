@@ -2650,3 +2650,53 @@ where s.name = 'QPMN'
     select 1 from public.purchases p where p.supplier_order_number = '972608290003'
   )
 limit 1;
+
+-- =====================================================================
+-- /first20 — nyilvános, kijelentkezve is elérhető kampányoldal
+-- jelentkezései. A beküldés mindig a saját API route-on (app/api/
+-- first20/signup) keresztül megy, service-role klienssel — a tábla
+-- RLS-e ezért a szokásos "authenticated full access" mintát kapja
+-- (ugyanaz, mint pl. suppliers/tasks-nál): a Dashboard felől olvasható/
+-- kezelhető, de közvetlen anon beszúrás nincs megengedve rajta
+-- keresztül, mert minden beszúrás a service-role kliensen át történik.
+-- Egy email csak egyszer regisztrálhat (lower(email) szerint egyedi) —
+-- ismételt beküldésnél az API route barátságos választ ad, nem hibát.
+-- =====================================================================
+create table if not exists public.first20_signups (
+  id uuid primary key default gen_random_uuid(),
+  first_name text not null,
+  email text not null,
+  partner_first_name text,
+  language_choice text not null check (language_choice in ('hu', 'de', 'en')),
+  how_heard text,
+  consent boolean not null default false check (consent = true),
+  utm_source text,
+  utm_medium text,
+  confirmation_email_sent boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists first20_signups_email_lower_idx on public.first20_signups (lower(email));
+
+alter table public.first20_signups enable row level security;
+
+drop policy if exists "authenticated full access" on public.first20_signups;
+create policy "authenticated full access" on public.first20_signups for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Kéretlen beküldés elleni IP-alapú rate-limit napló — csak a
+-- service-role kliens éri el (RLS bekapcsolva, policy nélkül, ugyanaz a
+-- minta, mint telegram_config-nál), a Dashboard sosem olvassa. Nem a
+-- nyers IP-t tárolja, hanem annak egy hash-ét (lásd lib/rate-limit.ts),
+-- összhangban azzal, hogy ebben az appban máshol (pl.
+-- landing_page_views) is tudatosan kerüljük a nyers IP/látogató-
+-- azonosító tárolását.
+create table if not exists public.first20_rate_limits (
+  id uuid primary key default gen_random_uuid(),
+  ip_hash text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists first20_rate_limits_ip_hash_idx on public.first20_rate_limits (ip_hash, created_at);
+
+alter table public.first20_rate_limits enable row level security;

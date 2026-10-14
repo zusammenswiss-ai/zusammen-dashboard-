@@ -825,6 +825,39 @@ export type PurchaseInsert = Partial<Omit<Purchase, "id" | "created_at" | "updat
 };
 export type PurchaseUpdate = Partial<Omit<Purchase, "id" | "created_at">>;
 
+// /first20 — lásd supabase/schema.sql first20_signups kommentjét.
+export type First20Language = "hu" | "de" | "en";
+
+export interface First20Signup {
+  id: string;
+  first_name: string;
+  email: string;
+  partner_first_name: string | null;
+  language_choice: First20Language;
+  how_heard: string | null;
+  consent: boolean;
+  utm_source: string | null;
+  utm_medium: string | null;
+  confirmation_email_sent: boolean;
+  created_at: string;
+}
+export type First20SignupInsert = Partial<Omit<First20Signup, "id" | "created_at">> & {
+  first_name: string;
+  email: string;
+  language_choice: First20Language;
+  consent: boolean;
+};
+export type First20SignupUpdate = Partial<Omit<First20Signup, "id" | "created_at">>;
+
+// Service-role-only — soha nem kerül a Database (anon-elérhető) típusba,
+// lásd lib/supabase/serverClient.ts.
+export interface First20RateLimit {
+  id: string;
+  ip_hash: string;
+  created_at: string;
+}
+export type First20RateLimitInsert = { ip_hash: string };
+
 export type PrintStatus = "Piszkozat" | "Nyomdának elküldve" | "Megrendelve" | "Megérkezett";
 
 export interface CardAssetThumbnail {
@@ -1310,6 +1343,12 @@ export interface ServerDatabase {
         Update: TelegramInviteCodeUpdate;
         Relationships: [];
       };
+      first20_rate_limits: {
+        Row: First20RateLimit;
+        Insert: First20RateLimitInsert;
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -1391,6 +1430,12 @@ export interface Database {
         Row: Purchase;
         Insert: PurchaseInsert;
         Update: PurchaseUpdate;
+        Relationships: [];
+      };
+      first20_signups: {
+        Row: First20Signup;
+        Insert: First20SignupInsert;
+        Update: First20SignupUpdate;
         Relationships: [];
       };
       card_assets: {
@@ -1658,6 +1703,7 @@ export const ANON_TABLE_NAMES = [
   "future_plans",
   "orders",
   "purchases",
+  "first20_signups",
   "card_assets",
   "price_quotes",
   "landing_letters",

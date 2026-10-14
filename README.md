@@ -244,6 +244,57 @@ and the preview card match.
    preview image/canonical URLs point at the default Vercel preview
    domain, which won't match wherever you actually deploy.
 
+## `/first20` — public "First 20" signup page
+
+A separate, standalone page (no dashboard chrome, no Basic Auth lock, no
+login — same treatment as `/landing`) at `/first20`, for the "First 20"
+beta-tester campaign: a single-screen editorial page (hero, a 3-step
+"how it works", a 4-suit card preview, a "why only 20" explainer, a
+signup form, FAQ) instead of `/landing`'s multi-screen interactive
+funnel. **Three** on-page languages — hu/de/en, toggled top-right — since
+the signup form itself asks which language a couple would like their
+deck in.
+
+**Hero visual**: a vector 3-card fan (`components/first20/HeroCards.tsx`),
+drawn entirely in CSS/Framer Motion with the brand palette + suit icons
+— not real product photography, since none exists yet and a signed
+Supabase Storage URL would be the wrong choice for a public page anyway
+(it expires; a private bucket's signed link going stale would quietly
+break the hero for anyone who opens the page after the URL's TTL). Swap
+`HeroCards`' `cards` prop for real photos once photography exists; the
+layout/animation doesn't need to change either way. The social-preview
+image (`app/api/og/first20/route.tsx`) draws the same vector fan.
+
+**Signups** land in `first20_signups` (own migration block at the end of
+`supabase/schema.sql` — run it the same way as every other migration in
+this README, then verify with
+`select table_name from information_schema.tables where table_name = 'first20_signups';`).
+The table has no public/anon RLS policy at all — every insert goes
+through `app/api/first20/signup/route.ts` (service-role client), which
+also: rejects a filled-in honeypot field silently (pretends success),
+caps submissions at 5/hour per IP (hashed, not stored raw — logged in
+`first20_rate_limits`, service-role-only), re-submitting the same email
+is a friendly no-op rather than an error, and — best-effort, via
+`lib/brevo.ts` — sends a confirmation email in the signup's chosen
+language; a Brevo failure (e.g. domain auth not finished) never fails
+the signup itself. The "X / 20 hely foglalt" counter on the page reads
+a live `count` from that same table (service-role, server-side — the
+page never exposes individual signup rows), falling back to a plain
+"20 hely" when nobody's signed up yet.
+
+**Two placeholders to fill in before sharing the link**:
+1. `lib/first20-i18n.ts`'s FAQ `"Kik vagytok?"` / `"Wer seid ihr?"` /
+   `"Who are you?"` answer ends with a bracketed note — replace it with
+   your own 2-3 sentence founder bio (same text, translated, in all
+   three `de`/`hu`/`en` blocks).
+2. The footer's Instagram link is plain text, not a link — there's no
+   handle recorded anywhere in this codebase yet. Give `app/first20/First20Client.tsx`'s
+   `Footer` component your real Instagram URL to wire it up.
+
+As with `/landing`, legal pages/`SITE_URL` above apply here too — the
+signup form's consent checkbox links to whatever Beállítások → Jogi
+dokumentumok currently has set for Adatvédelem.
+
 ## `/together` — shareable partner page
 
 A separate, standalone page (no dashboard chrome, no login) at
