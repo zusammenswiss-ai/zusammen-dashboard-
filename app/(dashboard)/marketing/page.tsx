@@ -51,6 +51,7 @@ import NewsletterSubscribersSection from "@/components/NewsletterSubscribersSect
 import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
 import CampaignFormModal from "@/components/CampaignFormModal";
 import First20SignupsSection from "@/components/First20SignupsSection";
+import QuickTaskModal from "@/components/QuickTaskModal";
 import CampaignDetailModal from "@/components/CampaignDetailModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
@@ -162,6 +163,11 @@ export default function MarketingPage() {
   // different tab — can open the content form pre-filled with that asset.
   const [showContentForm, setShowContentForm] = useState(false);
   const [contentPrefill, setContentPrefill] = useState<ContentPrefill | null>(null);
+
+  // Lap szintű gyors feladat-felvétel — bármikor elérhető, nem csak egy
+  // adott tartalom-naptár elemhez vagy kampányhoz kötve (azokhoz már
+  // létezik "→ Feladat létrehozása" a saját helyükön).
+  const [showQuickTask, setShowQuickTask] = useState(false);
 
   // Two separate delete-scopes on this page (content vs. assets) get
   // their own undo-hook instance each, matching this app's established
@@ -411,6 +417,11 @@ export default function MarketingPage() {
         title="Marketing"
         subtitle="Szezonális stratégia, tartalom-naptár és marketing anyagok egy helyen."
         backHref="/"
+        action={
+          <button onClick={() => setShowQuickTask(true)} className="btn btn-primary">
+            <Plus size={16} /> Feladat
+          </button>
+        }
       />
 
       {error && <ErrorBanner message={error} />}
@@ -554,6 +565,16 @@ export default function MarketingPage() {
           signedUrls={signedUrls}
           onClose={() => setOpenCampaignId(null)}
           onUpdate={(patch) => updateCampaign(openCampaign.id, patch)}
+        />
+      )}
+
+      {showQuickTask && (
+        <QuickTaskModal
+          heading="Új marketing feladat"
+          titlePlaceholder="pl. Hirdetés beállítása"
+          extraFields={{ category: "Marketing" }}
+          onClose={() => setShowQuickTask(false)}
+          onCreated={() => setShowQuickTask(false)}
         />
       )}
 

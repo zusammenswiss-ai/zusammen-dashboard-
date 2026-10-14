@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Rocket, Copy, Check, ExternalLink, Trash2, Mail, MailCheck } from "lucide-react";
+import Link from "next/link";
+import { Rocket, Copy, Check, ExternalLink, Trash2, Mail, MailCheck, ListPlus, ArrowRight } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { First20Signup } from "@/lib/supabase/types";
 import { first20T, type First20Lang, type HowHeardOption } from "@/lib/first20-i18n";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import QuickTaskModal from "@/components/QuickTaskModal";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 
@@ -38,6 +40,12 @@ export default function First20SignupsSection() {
   const [lang, setLang] = useState<First20Lang>("de");
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
+  // "Feladat létrehozása" egy adott jelentkezőhöz — nincs valódi FK a
+  // tasks táblán (mint content_id/campaign_id a többi modulnál), csak a
+  // feladat szövegébe kerül bele a jelentkező neve/emailje, ezért a
+  // "már van hozzá feladat" jelzés csak ebben a session-ben él.
+  const [taskModalFor, setTaskModalFor] = useState<First20Signup | null>(null);
+  const [createdTaskIds, setCreatedTaskIds] = useState<Map<string, string>>(new Map());
 
   const supabase = getSupabaseClient();
 
@@ -159,7 +167,13 @@ export default function First20SignupsSection() {
           <>
             <div className="mt-4 flex flex-col gap-1.5">
               {visible.map((s) => (
-                <SignupRow key={s.id} signup={s} onDelete={() => deleteSignup(s.id)} />
+                <SignupRow
+                  key={s.id}
+                  signup={s}
+                  createdTaskId={createdTaskIds.get(s.id) ?? null}
+                  onCreateTask={() => setTaskModalFor(s)}
+                  onDelete={() => deleteSignup(s.id)}
+                />
               ))}
             </div>
             {signups.length > 8 && (
@@ -170,11 +184,41 @@ export default function First20SignupsSection() {
           </>
         )}
       </section>
+
+      {taskModalFor && (
+        <QuickTaskModal
+          heading="Feladat — First 20 jelentkező"
+          defaultTitle={`Felvétel: ${taskModalFor.first_name}${
+            taskModalFor.partner_first_name ? ` & ${taskModalFor.partner_first_name}` : ""
+          }`}
+          extraFields={{
+            category: "Marketing",
+            task_type: "Kampány",
+            campaign_label: "First 20",
+            notes: `First 20 jelentkező — ${taskModalFor.email}`,
+          }}
+          onClose={() => setTaskModalFor(null)}
+          onCreated={(task) => {
+            setCreatedTaskIds((prev) => new Map(prev).set(taskModalFor.id, task.id));
+            setTaskModalFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function SignupRow({ signup, onDelete }: { signup: First20Signup; onDelete: () => void }) {
+function SignupRow({
+  signup,
+  createdTaskId,
+  onCreateTask,
+  onDelete,
+}: {
+  signup: First20Signup;
+  createdTaskId: string | null;
+  onCreateTask: () => void;
+  onDelete: () => void;
+}) {
   const howHeardLabel = signup.how_heard
     ? HOW_HEARD_LABEL_HU[signup.how_heard as HowHeardOption] ?? signup.how_heard
     : null;
@@ -205,6 +249,18 @@ function SignupRow({ signup, onDelete }: { signup: First20Signup; onDelete: () =
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <span className="text-xs text-muted">{formatDate(signup.created_at)}</span>
+        {createdTaskId ? (
+          <Link
+            href={`/tasks?open=${createdTaskId}`}
+            className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
+          >
+            ✓ Feladat <ArrowRight size={12} />
+          </Link>
+        ) : (
+          <button onClick={onCreateTask} className="flex items-center gap-1 text-xs text-muted hover:text-forest">
+            <ListPlus size={13} /> Feladat
+          </button>
+        )}
         <button onClick={onDelete} className="text-muted/70 hover:text-red-600" title="Törlés">
           <Trash2 size={13} />
         </button>
