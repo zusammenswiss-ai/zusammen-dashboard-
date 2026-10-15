@@ -135,6 +135,9 @@ export default function TasksPage() {
   // feladat esedékes" counter links here. Narrows the board down to just
   // the Várakozás tasks whose check_date is due, with a chip to clear it.
   const [waitingDueFilter, setWaitingDueFilter] = useState(false);
+  // Set via /tasks?campaign=<id> — a kampány részletoldal "Megnyitás a
+  // Feladatokban" linkje innen szűr egyetlen kampányra.
+  const [campaignFilter, setCampaignFilter] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
@@ -170,7 +173,11 @@ export default function TasksPage() {
     if (params.get("due") === "waiting") {
       setWaitingDueFilter(true);
     }
-    if (openId || params.has("due")) {
+    const campaignId = params.get("campaign");
+    if (campaignId) {
+      setCampaignFilter(campaignId);
+    }
+    if (openId || params.has("due") || campaignId) {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
@@ -319,6 +326,7 @@ export default function TasksPage() {
     return activeTasks.filter((t) => {
       if (waitingDueFilter && !isCheckDue(t)) return false;
       if (typeFilter && t.task_type !== typeFilter) return false;
+      if (campaignFilter && t.campaign_id !== campaignFilter) return false;
       if (!q) return true;
       return (
         t.title.toLowerCase().includes(q) ||
@@ -326,7 +334,7 @@ export default function TasksPage() {
         (t.assignee ?? "").toLowerCase().includes(q)
       );
     });
-  }, [activeTasks, query, typeFilter, waitingDueFilter]);
+  }, [activeTasks, query, typeFilter, waitingDueFilter, campaignFilter]);
 
   function archiveTask(id: string) {
     void updateTask(id, { archived_at: new Date().toISOString() });
@@ -428,6 +436,16 @@ export default function TasksPage() {
                 title="Szűrő törlése"
               >
                 ⏰ Csak esedékes várakozó tételek <X size={11} />
+              </button>
+            )}
+            {campaignFilter && (
+              <button
+                type="button"
+                onClick={() => setCampaignFilter(null)}
+                className="badge bg-bronze/15 text-walnut hover:bg-bronze/25"
+                title="Szűrő törlése"
+              >
+                🎯 {campaigns.find((c) => c.id === campaignFilter)?.name ?? "Kampány"} <X size={11} />
               </button>
             )}
           </div>
@@ -868,7 +886,11 @@ function TaskCard({
         </span>
         {task.task_type === "Kampány" && task.campaign_id && (
           <Link
-            href={`/marketing?campaign=${task.campaign_id}`}
+            href={
+              campaignById.get(task.campaign_id)?.slug
+                ? `/marketing/kampanyok/${campaignById.get(task.campaign_id)?.slug}`
+                : `/marketing?campaign=${task.campaign_id}`
+            }
             onClick={(e) => e.stopPropagation()}
             className="badge bg-ivory-dim text-walnut hover:underline"
           >

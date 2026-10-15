@@ -27,6 +27,7 @@ export default function EmailCampaignSendForm({
   demandCount,
   newsletterCount,
   first20Count,
+  campaignId,
   onSent,
   presetTemplateId,
 }: {
@@ -34,6 +35,10 @@ export default function EmailCampaignSendForm({
   demandCount: number;
   newsletterCount: number;
   first20Count: number;
+  // Ha meg van adva, a küldés ehhez a kampányhoz kapcsolja a létrejövő
+  // marketing_content sort — a Kampány részletoldal E-mail füle adja át,
+  // hogy a kiküldött kampányok ott is megjelenjenek.
+  campaignId?: string;
   onSent: (contentItem: MarketingContent) => void;
   // Set by EmailTemplatesSection's "Kampányhoz csatolás" button so
   // picking a sablon up there jumps straight into this form pre-selected
@@ -107,7 +112,7 @@ export default function EmailCampaignSendForm({
       const res = await fetch("/api/marketing/send-campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId, subject: subject.trim(), audiences: Array.from(audiences) }),
+        body: JSON.stringify({ templateId, subject: subject.trim(), audiences: Array.from(audiences), campaignId }),
       });
       const data = await res.json();
       if (data.ok) {

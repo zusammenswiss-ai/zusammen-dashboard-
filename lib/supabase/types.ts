@@ -14,7 +14,16 @@ export type OrderStatus = "New" | "Processing" | "Shipped" | "Done";
 export type ContractStatus = "None" | "Signed" | "Failed" | "Expired";
 export type RecurrenceType = "Napi" | "Heti" | "Havi" | "Negyedéves" | "Éves";
 export type ProductStatus = "Fejlesztés alatt" | "Tesztelés" | "Élő" | "Jövőbeli terv";
-export type CampaignStatus = "Tervezve" | "Aktív" | "Lezárva";
+export type CampaignStatus = "Ötlet" | "Tervezve" | "Aktív" | "Lezárva" | "Archivált";
+export type CampaignType =
+  | "First 20"
+  | "Szezonális"
+  | "Karácsony"
+  | "Social sorozat"
+  | "E-mail"
+  | "PR"
+  | "Együttműködés"
+  | "Egyéb";
 
 // Ügyfélszolgálat (/support) — see supabase/schema.sql's support_tickets
 // comment for why this stays independent of TaskStatus/TaskPriority.
@@ -116,11 +125,22 @@ export type TaskUpdate = Partial<Omit<TaskItem, "id" | "created_at">>;
 export interface Campaign {
   id: string;
   name: string;
+  slug: string | null;
   season: Season | null;
   status: CampaignStatus;
+  type: CampaignType;
+  goal: string | null;
+  channels: string[];
+  audience: string | null;
+  owner: string | null;
+  budget_planned: number | null;
   start_date: string | null;
   end_date: string | null;
   description: string | null;
+  retrospective_what_worked: string | null;
+  retrospective_what_not: string | null;
+  retrospective_lesson: string | null;
+  retrospective_next_step: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -128,6 +148,70 @@ export type CampaignInsert = Partial<Omit<Campaign, "id" | "created_at" | "updat
   name: string;
 };
 export type CampaignUpdate = Partial<Omit<Campaign, "id" | "created_at">>;
+
+export type CampaignPartnerChannelType = "Influencer" | "Helyi partner" | "Sajtó" | "Egyéb";
+export type CampaignPartnerStatus = "Terv" | "Megkeresve" | "Egyeztetés" | "Kész" | "Elutasítva";
+export type CampaignLogType = "Döntés" | "Tanulság" | "Esemény" | "Megjegyzés";
+
+export interface CampaignKpi {
+  id: string;
+  campaign_id: string;
+  name: string;
+  unit: string | null;
+  target: number | null;
+  current_value: number;
+  created_at: string;
+}
+export type CampaignKpiInsert = Partial<Omit<CampaignKpi, "id" | "created_at">> & {
+  campaign_id: string;
+  name: string;
+};
+export type CampaignKpiUpdate = Partial<Omit<CampaignKpi, "id" | "campaign_id" | "created_at">>;
+
+export interface CampaignKpiEntry {
+  id: string;
+  kpi_id: string;
+  entry_date: string;
+  value: number;
+  note: string | null;
+  created_at: string;
+}
+export type CampaignKpiEntryInsert = Partial<Omit<CampaignKpiEntry, "id" | "created_at">> & {
+  kpi_id: string;
+  value: number;
+};
+export type CampaignKpiEntryUpdate = Partial<Omit<CampaignKpiEntry, "id" | "kpi_id" | "created_at">>;
+
+export interface CampaignLogEntry {
+  id: string;
+  campaign_id: string;
+  entry_date: string;
+  text: string;
+  type: CampaignLogType;
+  author: string | null;
+  created_at: string;
+}
+export type CampaignLogEntryInsert = Partial<Omit<CampaignLogEntry, "id" | "created_at">> & {
+  campaign_id: string;
+  text: string;
+};
+export type CampaignLogEntryUpdate = Partial<Omit<CampaignLogEntry, "id" | "campaign_id" | "created_at">>;
+
+export interface CampaignPartner {
+  id: string;
+  campaign_id: string;
+  name: string;
+  channel_type: CampaignPartnerChannelType;
+  status: CampaignPartnerStatus;
+  contact: string | null;
+  notes: string | null;
+  created_at: string;
+}
+export type CampaignPartnerInsert = Partial<Omit<CampaignPartner, "id" | "created_at">> & {
+  campaign_id: string;
+  name: string;
+};
+export type CampaignPartnerUpdate = Partial<Omit<CampaignPartner, "id" | "campaign_id" | "created_at">>;
 
 export interface TaskTemplate {
   id: string;
@@ -524,6 +608,7 @@ export interface Expense {
   notes: string | null;
   related_supplier_id: string | null;
   related_product_id: string | null;
+  campaign_id: string | null;
   is_locked: boolean;
   locked_at: string | null;
   unlock_history: UnlockHistoryEntry[];
@@ -730,6 +815,7 @@ export interface MarketingAsset {
   season: Season | null;
   image_url: string;
   notes: string | null;
+  campaign_id: string | null;
   created_at: string;
 }
 export type MarketingAssetInsert = Partial<Omit<MarketingAsset, "id" | "created_at">> & {
@@ -749,6 +835,8 @@ export interface Document {
   file_name: string | null;
   related_task_id: string | null;
   related_supplier_id: string | null;
+  campaign_id: string | null;
+  version_label: string | null;
   created_at: string;
 }
 export type DocumentInsert = Partial<Omit<Document, "id" | "created_at">> & {
@@ -1381,6 +1469,30 @@ export interface Database {
         Update: CampaignUpdate;
         Relationships: [];
       };
+      campaign_kpis: {
+        Row: CampaignKpi;
+        Insert: CampaignKpiInsert;
+        Update: CampaignKpiUpdate;
+        Relationships: [];
+      };
+      campaign_kpi_entries: {
+        Row: CampaignKpiEntry;
+        Insert: CampaignKpiEntryInsert;
+        Update: CampaignKpiEntryUpdate;
+        Relationships: [];
+      };
+      campaign_log: {
+        Row: CampaignLogEntry;
+        Insert: CampaignLogEntryInsert;
+        Update: CampaignLogEntryUpdate;
+        Relationships: [];
+      };
+      campaign_partners: {
+        Row: CampaignPartner;
+        Insert: CampaignPartnerInsert;
+        Update: CampaignPartnerUpdate;
+        Relationships: [];
+      };
       task_templates: {
         Row: TaskTemplate;
         Insert: TaskTemplateInsert;
@@ -1697,6 +1809,10 @@ export const ANON_TABLE_NAMES = [
   "suppliers",
   "tasks",
   "campaigns",
+  "campaign_kpis",
+  "campaign_kpi_entries",
+  "campaign_log",
+  "campaign_partners",
   "task_templates",
   "finance_products",
   "marketing_campaigns",

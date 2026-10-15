@@ -44,7 +44,11 @@ export default function First20SignupsSection({
   onOpenCampaign,
 }: {
   campaignId: string | null;
-  onOpenCampaign: (id: string) => void;
+  // Hagyd el (vagy ne adj át semmit), ha ez a szekció már eleve a
+  // kampány saját részletoldalán fut — ott a "Kampány megnyitása" gomb
+  // redundáns lenne. A Marketing lap "First 20" fülén (régi hely)
+  // továbbra is átadható, amíg az a fül él.
+  onOpenCampaign?: (id: string) => void;
 }) {
   const [signups, setSignups] = useState<First20Signup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +113,7 @@ export default function First20SignupsSection({
             <Rocket size={18} className="text-bronze" />
             <h2 className="font-serif text-lg text-forest">First 20 — megosztható link</h2>
           </div>
-          {campaignId && (
+          {campaignId && onOpenCampaign && (
             <button
               type="button"
               onClick={() => onOpenCampaign(campaignId)}

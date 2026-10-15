@@ -21,6 +21,7 @@ function expense(overrides: Partial<Expense>): Expense {
     notes: null,
     related_supplier_id: null,
     related_product_id: null,
+    campaign_id: null,
     is_locked: false,
     locked_at: null,
     unlock_history: [],

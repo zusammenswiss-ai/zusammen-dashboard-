@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sprout,
   Sun,
@@ -50,9 +51,8 @@ import EmailTemplatesSection from "@/components/EmailTemplatesSection";
 import NewsletterSubscribersSection from "@/components/NewsletterSubscribersSection";
 import EmailCampaignSendForm from "@/components/EmailCampaignSendForm";
 import CampaignFormModal from "@/components/CampaignFormModal";
-import First20SignupsSection from "@/components/First20SignupsSection";
+import CampaignsListSection from "@/components/campaign/CampaignsListSection";
 import QuickTaskModal from "@/components/QuickTaskModal";
-import CampaignDetailModal from "@/components/CampaignDetailModal";
 import Lightbox from "@/components/Lightbox";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import ShowMoreButton from "@/components/ShowMoreButton";
@@ -67,12 +67,6 @@ import { errorMessage } from "@/lib/errors";
 
 const STORAGE_BUCKET = "marketing";
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
-// Seedelve supabase/schema.sql-ben (lásd a "ZUSAMMEN FIRST 20" insert
-// kommentjét) — ha mégsem létezne (régi/kihagyott migráció), a lenti
-// betöltés pótolja ugyanazokkal a mezőkkel, hogy a First 20 fülön
-// létrehozott feladatok mindig egy valódi campaign_id-hez kapcsolódjanak,
-// ne csak egy szöveges címkéhez.
-const FIRST20_CAMPAIGN_NAME = "ZUSAMMEN FIRST 20";
 
 const SEASON_META: Record<Season, { icon: typeof Sun; accent: string }> = {
   Spring: { icon: Sprout, accent: "bg-forest/10 text-forest" },
@@ -114,7 +108,7 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-type Tab = "seasons" | "calendar" | "assets" | "email" | "first20";
+type Tab = "campaigns" | "seasons" | "calendar" | "assets" | "email";
 
 // What "→ Tartalom létrehozása ebből" hands the content form: enough to
 // pre-select the asset in the gallery picker and seed a sensible title —
@@ -122,10 +116,11 @@ type Tab = "seasons" | "calendar" | "assets" | "email" | "first20";
 type ContentPrefill = { assetId: string; title: string; season: Season | null };
 
 export default function MarketingPage() {
-  const [tab, setTab] = useState<Tab>("seasons");
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>("campaigns");
   // The 4 fixed Évszakos stratégia rows (Tavasz/Nyár/Ősz/Tél) — distinct
   // from `campaigns` below, the named-marketing-push entity (e.g.
-  // "ZUSAMMEN FIRST 20"). See the comment on the Campaign type.
+  // "First 20, Print & Play"). See the comment on the Campaign type.
   const [seasonalStrategies, setSeasonalStrategies] = useState<MarketingCampaign[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [content, setContent] = useState<MarketingContent[]>([]);
@@ -137,15 +132,14 @@ export default function MarketingPage() {
   // label on EmailCampaignSendForm.
   const [demandEmailCount, setDemandEmailCount] = useState(0);
   // Csak a darabszám az Email kampányok fülön lévő "Kinek menjen ki"
-  // választóhoz — a tényleges jelentkező-sorokat a First20SignupsSection
-  // tölti be külön, lásd ott.
+  // választóhoz — a tényleges jelentkező-sorokat a kampány részletes
+  // nézetének Jelentkezők füle tölti be külön, lásd ott.
   const [first20Count, setFirst20Count] = useState(0);
   // Set by "Kampányhoz csatolás" on a template card — pre-selects that
   // sablon on EmailCampaignSendForm below.
   const [campaignTemplateId, setCampaignTemplateId] = useState<string | null>(null);
   // Lightweight — just enough to know which content items already have a
-  // linked task (and which task to deep-link to), and to render a
-  // kampány's mini Kanban in CampaignDetailModal. Not the full TaskItem
+  // linked task (and which task to deep-link to). Not the full TaskItem
   // shape; the Tasks page owns everything else about these rows.
   const [linkedTasks, setLinkedTasks] = useState<
     { id: string; title: string; status: TaskStatus; task_type: TaskType; content_id: string | null; campaign_id: string | null }[]
@@ -160,12 +154,10 @@ export default function MarketingPage() {
   // shared map since both tables' images live in the same bucket.
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
 
-  // Kampány részletes nézet state: which campaigns.id is open (set by
-  // clicking a kampány mini-card under a season, or by the
-  // /marketing?campaign=<id> deep link a Feladatok Kanban card's
-  // kampány-badge jumps to), and the "+ Új kampány" quick-add form
-  // (defaultSeason null when opened without a season prefill).
-  const [openCampaignId, setOpenCampaignId] = useState<string | null>(null);
+  // "+ Új kampány hozzáadása" az Évszakos stratégia egy season-kártyáján
+  // (defaultSeason null, ha nincs season-előtöltés) — maga a kampány
+  // részletes nézete mostantól egy külön oldal (/marketing/kampanyok/
+  // [slug]), nem ez a modal csinálja.
   const [campaignFormSeason, setCampaignFormSeason] = useState<Season | "" | null>(null);
 
   // Lifted out of ContentCalendarSection (rather than kept local there) so
@@ -188,17 +180,33 @@ export default function MarketingPage() {
 
   const supabase = getSupabaseClient();
 
-  // Deep link support: /marketing?campaign=<id>, jumped to from a
-  // Feladatok Kanban card's kampány-badge. Read via window.location
-  // instead of useSearchParams to avoid needing a Suspense boundary just
-  // for this one-time check (same convention as /tasks?open=<id>).
+  // Régi deep link: /marketing?campaign=<id> — a kampány részletes nézete
+  // mostantól egy külön oldal (/marketing/kampanyok/[slug]), ezért ez
+  // csak átirányít oda, slug feloldás után (visszafelé kompatibilitás a
+  // korábban kiküldött/elmentett linkekkel).
   useEffect(() => {
     const campaignId = new URLSearchParams(window.location.search).get("campaign");
-    if (campaignId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setOpenCampaignId(campaignId);
-      setTab("seasons");
+    if (!campaignId || !supabase) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    void supabase
+      .from("campaigns")
+      .select("slug")
+      .eq("id", campaignId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.slug) router.replace(`/marketing/kampanyok/${data.slug}`);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  // ⌘K-ból ("Marketing anyagok" találat) vagy bármilyen mentett linkből
+  // érkező fül-választás — pl. /marketing?tab=assets.
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+    if (requestedTab && ["campaigns", "seasons", "calendar", "assets", "email"].includes(requestedTab)) {
       window.history.replaceState(null, "", window.location.pathname);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab(requestedTab);
     }
   }, []);
 
@@ -236,18 +244,7 @@ export default function MarketingPage() {
         setSeasonalStrategies(sorted);
       }
       if (kampanyokRes.error) setError(kampanyokRes.error.message);
-      else {
-        let campaignRows = kampanyokRes.data ?? [];
-        if (!campaignRows.some((c) => c.name === FIRST20_CAMPAIGN_NAME)) {
-          const { data: created } = await supabase
-            .from("campaigns")
-            .insert({ name: FIRST20_CAMPAIGN_NAME, season: "Autumn", status: "Tervezve" })
-            .select()
-            .single();
-          if (created) campaignRows = [created, ...campaignRows];
-        }
-        setCampaigns(campaignRows);
-      }
+      else setCampaigns(kampanyokRes.data ?? []);
       if (contentRes.error) setError(contentRes.error.message);
       else setContent(contentRes.data ?? []);
       if (assetsRes.error) setError(assetsRes.error.message);
@@ -290,8 +287,12 @@ export default function MarketingPage() {
     return map;
   }, [campaigns]);
 
-  const openCampaign = openCampaignId ? campaignById.get(openCampaignId) ?? null : null;
-  const first20CampaignId = campaigns.find((c) => c.name === FIRST20_CAMPAIGN_NAME)?.id ?? null;
+  // A kampány részletes nézete mostantól egy külön oldal
+  // (/marketing/kampanyok/[slug]) — ide navigálunk a slug alapján.
+  function openCampaign(id: string) {
+    const c = campaignById.get(id);
+    if (c?.slug) router.push(`/marketing/kampanyok/${c.slug}`);
+  }
 
   async function updateSeasonalStrategy(id: string, patch: Partial<MarketingCampaign>) {
     setSeasonalStrategies((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -302,13 +303,6 @@ export default function MarketingPage() {
 
   function addCampaign(campaign: Campaign) {
     setCampaigns((prev) => [campaign, ...prev]);
-  }
-
-  async function updateCampaign(id: string, patch: Partial<Campaign>) {
-    setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-    if (!supabase) return;
-    const { error } = await supabase.from("campaigns").update(patch).eq("id", id);
-    if (error) setError(error.message);
   }
 
   async function addContent(item: MarketingContent) {
@@ -395,6 +389,23 @@ export default function MarketingPage() {
     );
   }
 
+  // Tömeges "Kampányhoz rendelés" — a Tartalom-naptár és a Marketing
+  // anyagok fülön kijelölt elemek egy kattintásra egy kampányhoz
+  // kerülnek, lásd BulkCampaignAssignBar.
+  async function bulkAssignContentCampaign(ids: string[], campaignId: string) {
+    setContent((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, campaign_id: campaignId } : c)));
+    if (!supabase) return;
+    const { error } = await supabase.from("marketing_content").update({ campaign_id: campaignId }).in("id", ids);
+    if (error) setError(error.message);
+  }
+
+  async function bulkAssignAssetCampaign(ids: string[], campaignId: string) {
+    setAssets((prev) => prev.map((a) => (ids.includes(a.id) ? { ...a, campaign_id: campaignId } : a)));
+    if (!supabase) return;
+    const { error } = await supabase.from("marketing_assets").update({ campaign_id: campaignId }).in("id", ids);
+    if (error) setError(error.message);
+  }
+
   function createContentFromAsset(asset: MarketingAsset) {
     setTab("calendar");
     setContentPrefill({ assetId: asset.id, title: asset.title, season: asset.season });
@@ -460,6 +471,9 @@ export default function MarketingPage() {
       {error && <ErrorBanner message={error} />}
 
       <div className="mb-5 flex flex-wrap gap-2">
+        <button onClick={() => setTab("campaigns")} className={`btn ${tab === "campaigns" ? "btn-bronze" : "btn-ghost"}`}>
+          <Rocket size={15} /> Kampányok
+        </button>
         <button
           onClick={() => setTab("seasons")}
           className={`btn ${tab === "seasons" ? "btn-bronze" : "btn-ghost"}`}
@@ -480,15 +494,14 @@ export default function MarketingPage() {
         <button onClick={() => setTab("email")} className={`btn ${tab === "email" ? "btn-bronze" : "btn-ghost"}`}>
           <Send size={15} /> Email kampányok
         </button>
-        <button onClick={() => setTab("first20")} className={`btn ${tab === "first20" ? "btn-bronze" : "btn-ghost"}`}>
-          <Rocket size={15} /> First 20
-        </button>
       </div>
 
       {loading ? (
         <Spinner />
       ) : (
         <>
+          {tab === "campaigns" && <CampaignsListSection />}
+
           {tab === "seasons" && (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {seasonalStrategies.map((strategy) => (
@@ -498,7 +511,7 @@ export default function MarketingPage() {
                   onUpdate={(patch) => updateSeasonalStrategy(strategy.id, patch)}
                   onEmail={() => setComposeFor(strategy)}
                   relatedCampaigns={campaigns.filter((k) => k.season === strategy.season)}
-                  onOpenCampaign={setOpenCampaignId}
+                  onOpenCampaign={openCampaign}
                   onAddCampaign={() => setCampaignFormSeason(strategy.season)}
                 />
               ))}
@@ -522,17 +535,20 @@ export default function MarketingPage() {
               onDelete={deleteContent}
               onStatusChange={updateContentStatus}
               onCreateTask={createTaskFromContent}
-              onOpenCampaign={setOpenCampaignId}
+              onOpenCampaign={openCampaign}
+              onBulkAssignCampaign={bulkAssignContentCampaign}
             />
           )}
 
           {tab === "assets" && (
             <AssetLibrarySection
               assets={assets}
+              campaigns={campaigns}
               signedUrls={signedUrls}
               onAdd={addAsset}
               onDelete={deleteAsset}
               onCreateContent={createContentFromAsset}
+              onBulkAssignCampaign={bulkAssignAssetCampaign}
             />
           )}
 
@@ -562,10 +578,6 @@ export default function MarketingPage() {
               </div>
             </div>
           )}
-
-          {tab === "first20" && (
-            <First20SignupsSection campaignId={first20CampaignId} onOpenCampaign={setOpenCampaignId} />
-          )}
         </>
       )}
 
@@ -585,22 +597,10 @@ export default function MarketingPage() {
           defaultSeason={campaignFormSeason || null}
           onClose={() => setCampaignFormSeason(null)}
           onCreated={(campaign) => {
-            addCampaign(campaign);
             setCampaignFormSeason(null);
-            setOpenCampaignId(campaign.id);
+            if (campaign.slug) router.push(`/marketing/kampanyok/${campaign.slug}`);
+            else addCampaign(campaign);
           }}
-        />
-      )}
-
-      {openCampaign && (
-        <CampaignDetailModal
-          campaign={openCampaign}
-          tasks={linkedTasks.filter((t) => t.campaign_id === openCampaign.id)}
-          content={content.filter((c) => c.campaign_id === openCampaign.id)}
-          assetById={assetById}
-          signedUrls={signedUrls}
-          onClose={() => setOpenCampaignId(null)}
-          onUpdate={(patch) => updateCampaign(openCampaign.id, patch)}
         />
       )}
 
@@ -815,6 +815,50 @@ const EMPTY_CONTENT_FORM = {
  * date first (the initial Supabase fetch is already ordered that way and
  * every client-side update re-sorts to match), with month/type/status
  * filters and a "→ Feladat létrehozása" link per item. */
+/** Lebegő sáv a kijelölt tartalom-naptár elemek / marketing anyagok
+ * tömeges kampányhoz rendeléséhez — ugyanaz a kis komponens mindkét
+ * fülön, csak a kampánylistát és a callbacket kapja kívülről. */
+function BulkCampaignAssignBar({
+  count,
+  campaigns,
+  onAssign,
+  onClear,
+}: {
+  count: number;
+  campaigns: Campaign[];
+  onAssign: (campaignId: string) => void;
+  onClear: () => void;
+}) {
+  const [campaignId, setCampaignId] = useState("");
+  if (count === 0) return null;
+  return (
+    <div className="sticky bottom-3 z-10 mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-bronze/30 bg-ivory px-4 py-3 shadow-lg">
+      <span className="text-sm font-medium text-forest">{count} kiválasztva</span>
+      <select className="select !py-1.5 text-xs" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+        <option value="">Válassz kampányt…</option>
+        {campaigns.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+      <button
+        className="btn btn-bronze !py-1.5 text-xs"
+        disabled={!campaignId}
+        onClick={() => {
+          onAssign(campaignId);
+          setCampaignId("");
+        }}
+      >
+        Kampányhoz rendelés
+      </button>
+      <button className="btn btn-ghost !py-1.5 text-xs" onClick={onClear}>
+        Mégse
+      </button>
+    </div>
+  );
+}
+
 function ContentCalendarSection({
   content,
   assets,
@@ -832,6 +876,7 @@ function ContentCalendarSection({
   onStatusChange,
   onCreateTask,
   onOpenCampaign,
+  onBulkAssignCampaign,
 }: {
   content: MarketingContent[];
   assets: MarketingAsset[];
@@ -849,11 +894,23 @@ function ContentCalendarSection({
   onStatusChange: (id: string, status: MarketingContentStatus) => void;
   onCreateTask: (item: MarketingContent) => void;
   onOpenCampaign: (id: string) => void;
+  onBulkAssignCampaign: (ids: string[], campaignId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | MarketingContentType>("");
   const [statusFilter, setStatusFilter] = useState<"" | MarketingContentStatus>("");
+  // Tömeges "Kampányhoz rendelés" — bármelyik tartalom-naptár elemen
+  // kijelölhető, a lebegő sáv a kampányra rendeli az összeset egyszerre.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function resolvedImageUrlFor(item: MarketingContent): string | null {
     const raw = item.asset_id ? assetById.get(item.asset_id)?.image_url ?? null : item.image_url;
@@ -968,6 +1025,8 @@ function ContentCalendarSection({
               resolvedImageUrlFor={resolvedImageUrlFor}
               taskIdByContentId={taskIdByContentId}
               campaignById={campaignById}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
               onDelete={onDelete}
               onStatusChange={onStatusChange}
               onCreateTask={onCreateTask}
@@ -976,6 +1035,16 @@ function ContentCalendarSection({
           ))}
         </div>
       )}
+
+      <BulkCampaignAssignBar
+        count={selectedIds.size}
+        campaigns={campaigns}
+        onAssign={(campaignId) => {
+          onBulkAssignCampaign([...selectedIds], campaignId);
+          setSelectedIds(new Set());
+        }}
+        onClear={() => setSelectedIds(new Set())}
+      />
     </div>
   );
 }
@@ -1007,6 +1076,8 @@ function ContentMonthGroup({
   resolvedImageUrlFor,
   taskIdByContentId,
   campaignById,
+  selectedIds,
+  onToggleSelect,
   onDelete,
   onStatusChange,
   onCreateTask,
@@ -1017,6 +1088,8 @@ function ContentMonthGroup({
   resolvedImageUrlFor: (item: MarketingContent) => string | null;
   taskIdByContentId: Map<string, string>;
   campaignById: Map<string, Campaign>;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: MarketingContentStatus) => void;
   onCreateTask: (item: MarketingContent) => void;
@@ -1039,6 +1112,8 @@ function ContentMonthGroup({
               resolvedImageUrl={resolvedImageUrlFor(item)}
               linkedTaskId={taskIdByContentId.get(item.id) ?? null}
               linkedCampaign={item.campaign_id ? campaignById.get(item.campaign_id) ?? null : null}
+              selected={selectedIds.has(item.id)}
+              onToggleSelect={() => onToggleSelect(item.id)}
               onDelete={() => onDelete(item.id)}
               onStatusChange={(status) => onStatusChange(item.id, status)}
               onCreateTask={() => onCreateTask(item)}
@@ -1309,6 +1384,8 @@ function ContentCard({
   resolvedImageUrl,
   linkedTaskId,
   linkedCampaign,
+  selected,
+  onToggleSelect,
   onDelete,
   onStatusChange,
   onCreateTask,
@@ -1318,6 +1395,8 @@ function ContentCard({
   resolvedImageUrl: string | null;
   linkedTaskId: string | null;
   linkedCampaign: Campaign | null;
+  selected: boolean;
+  onToggleSelect: () => void;
   onDelete: () => void;
   onStatusChange: (status: MarketingContentStatus) => void;
   onCreateTask: () => void;
@@ -1325,7 +1404,14 @@ function ContentCard({
 }) {
   const [showLightbox, setShowLightbox] = useState(false);
   return (
-    <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+    <div className={`card flex flex-col gap-3 p-4 sm:flex-row sm:items-start ${selected ? "ring-2 ring-bronze" : ""}`}>
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggleSelect}
+        className="mt-1 h-4 w-4 shrink-0 accent-bronze"
+        aria-label="Kijelölés tömeges kampányhoz rendeléshez"
+      />
       {resolvedImageUrl ? (
         <button
           type="button"
@@ -1416,19 +1502,34 @@ const EMPTY_ASSET_FORM = {
 /** c) Marketing anyagok — the image library, grouped by language. */
 function AssetLibrarySection({
   assets,
+  campaigns,
   signedUrls,
   onAdd,
   onDelete,
   onCreateContent,
+  onBulkAssignCampaign,
 }: {
   assets: MarketingAsset[];
+  campaigns: Campaign[];
   signedUrls: Map<string, string>;
   onAdd: (asset: MarketingAsset) => void;
   onDelete: (id: string) => void;
   onCreateContent: (asset: MarketingAsset) => void;
+  onBulkAssignCampaign: (ids: string[], campaignId: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [query, setQuery] = useState("");
+  // Tömeges "Kampányhoz rendelés", lásd ContentCalendarSection — ugyanaz a
+  // minta, csak itt marketing_assets sorokra.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Cím, megjegyzés, platform és típus szerint keres, a találatok utána
   // ugyanúgy nyelvenként csoportosítva jelennek meg.
@@ -1488,12 +1589,24 @@ function AssetLibrarySection({
               lang={lang}
               items={items}
               signedUrls={signedUrls}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
               onDelete={onDelete}
               onCreateContent={onCreateContent}
             />
           ))}
         </div>
       )}
+
+      <BulkCampaignAssignBar
+        count={selectedIds.size}
+        campaigns={campaigns}
+        onAssign={(campaignId) => {
+          onBulkAssignCampaign([...selectedIds], campaignId);
+          setSelectedIds(new Set());
+        }}
+        onClear={() => setSelectedIds(new Set())}
+      />
     </div>
   );
 }
@@ -1502,12 +1615,16 @@ function AssetLanguageGroup({
   lang,
   items,
   signedUrls,
+  selectedIds,
+  onToggleSelect,
   onDelete,
   onCreateContent,
 }: {
   lang: string;
   items: MarketingAsset[];
   signedUrls: Map<string, string>;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onCreateContent: (asset: MarketingAsset) => void;
 }) {
@@ -1526,6 +1643,8 @@ function AssetLanguageGroup({
               key={asset.id}
               asset={asset}
               imageUrl={signedUrls.get(asset.image_url) ?? null}
+              selected={selectedIds.has(asset.id)}
+              onToggleSelect={() => onToggleSelect(asset.id)}
               onDelete={() => onDelete(asset.id)}
               onCreateContent={() => onCreateContent(asset)}
             />
@@ -1693,17 +1812,21 @@ function AssetForm({
 function AssetCard({
   asset,
   imageUrl,
+  selected,
+  onToggleSelect,
   onDelete,
   onCreateContent,
 }: {
   asset: MarketingAsset;
   imageUrl: string | null;
+  selected: boolean;
+  onToggleSelect: () => void;
   onDelete: () => void;
   onCreateContent: () => void;
 }) {
   const [showLightbox, setShowLightbox] = useState(false);
   return (
-    <div className="card overflow-hidden">
+    <div className={`card overflow-hidden ${selected ? "ring-2 ring-bronze" : ""}`}>
       <button
         type="button"
         onClick={() => setShowLightbox(true)}
@@ -1722,6 +1845,14 @@ function AssetCard({
         >
           {asset.asset_type}
         </span>
+        <input
+          type="checkbox"
+          checked={selected}
+          onClick={(e) => e.stopPropagation()}
+          onChange={onToggleSelect}
+          className="absolute right-1.5 top-1.5 h-4 w-4 accent-bronze"
+          aria-label="Kijelölés tömeges kampányhoz rendeléshez"
+        />
       </button>
       {showLightbox && imageUrl && <Lightbox src={imageUrl} alt={asset.title} onClose={() => setShowLightbox(false)} />}
       <div className="p-2.5">

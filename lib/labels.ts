@@ -26,6 +26,10 @@ import type {
   SupportFaqLanguage,
   PurchaseType,
   PurchaseStatus,
+  CampaignType,
+  CampaignPartnerChannelType,
+  CampaignPartnerStatus,
+  CampaignLogType,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -147,11 +151,70 @@ export const PRODUCT_STATUS_STYLES: Record<ProductStatus, string> = {
 // status is already stored in Hungarian (see the schema check constraint
 // on campaigns) — just display order + badge color, same convention as
 // print_status/product status above.
-export const CAMPAIGN_STATUSES: CampaignStatus[] = ["Tervezve", "Aktív", "Lezárva"];
+export const CAMPAIGN_STATUSES: CampaignStatus[] = ["Ötlet", "Tervezve", "Aktív", "Lezárva", "Archivált"];
 export const CAMPAIGN_STATUS_STYLES: Record<CampaignStatus, string> = {
-  Tervezve: "bg-ivory-dim text-walnut",
+  Ötlet: "bg-ivory-dim text-muted",
+  Tervezve: "bg-bronze/15 text-walnut",
   Aktív: "bg-forest/10 text-forest",
   Lezárva: "bg-forest-light/15 text-forest",
+  Archivált: "bg-gray-200 text-gray-600",
+};
+
+export const CAMPAIGN_TYPES: CampaignType[] = [
+  "First 20",
+  "Szezonális",
+  "Karácsony",
+  "Social sorozat",
+  "E-mail",
+  "PR",
+  "Együttműködés",
+  "Egyéb",
+];
+
+// Szabad lista, nem DB check constraint (a `campaigns.channels` egy
+// text[] oszlop) — ez csak a form választóját tölti fel, hogy
+// egységesen ugyanazokat a neveket írjuk be mindenhol.
+export const CAMPAIGN_CHANNELS = [
+  "Instagram",
+  "TikTok",
+  "Pinterest",
+  "Facebook",
+  "LinkedIn",
+  "E-mail",
+  "PR",
+  "Influencer",
+  "Helyi együttműködés",
+  "Weboldal",
+];
+
+export const CAMPAIGN_PARTNER_CHANNEL_TYPES: CampaignPartnerChannelType[] = [
+  "Influencer",
+  "Helyi partner",
+  "Sajtó",
+  "Egyéb",
+];
+
+export const CAMPAIGN_PARTNER_STATUSES: CampaignPartnerStatus[] = [
+  "Terv",
+  "Megkeresve",
+  "Egyeztetés",
+  "Kész",
+  "Elutasítva",
+];
+export const CAMPAIGN_PARTNER_STATUS_STYLES: Record<CampaignPartnerStatus, string> = {
+  Terv: "bg-ivory-dim text-walnut",
+  Megkeresve: "bg-bronze/15 text-walnut",
+  Egyeztetés: "bg-forest-light/15 text-forest",
+  Kész: "bg-forest/10 text-forest",
+  Elutasítva: "bg-red-100 text-red-700",
+};
+
+export const CAMPAIGN_LOG_TYPES: CampaignLogType[] = ["Döntés", "Tanulság", "Esemény", "Megjegyzés"];
+export const CAMPAIGN_LOG_TYPE_STYLES: Record<CampaignLogType, string> = {
+  Döntés: "bg-forest/10 text-forest",
+  Tanulság: "bg-bronze/15 text-walnut",
+  Esemény: "bg-ivory-dim text-walnut",
+  Megjegyzés: "bg-ivory-dim text-muted",
 };
 
 // Fixed preview slots a card-asset ZIP is scanned for on upload — shared

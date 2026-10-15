@@ -37,7 +37,7 @@ function bySortOrder(a: CollectionCard, b: CollectionCard) {
 /** Kollekció részletes nézete — szerkeszthető adatok (állapot, sablon,
  * nyelvek) + a hozzá tartozó kártyalista CRUD-ja. Ugyanaz a fejléc/
  * görgethető-törzs/rögzített-lábléc szerkezet, mint minden más modalban
- * ebben az appban (lásd CampaignDetailModal). */
+ * ebben az appban. */
 export default function CollectionDetailModal({
   collection,
   templates,
