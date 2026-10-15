@@ -2873,4 +2873,13 @@ cross join (
 where c.type = 'First 20'
   and not exists (select 1 from public.campaign_kpis where campaign_id = c.id);
 
+-- Kampányok — "Rögzítés lezárása" / "Zárolás feloldása", ugyanaz a minta,
+-- mint a Pénzügyek modulban az kiadásoknál/bevételeknél (lásd azok
+-- is_locked/locked_at/unlock_history kommentjét fentebb): egy lezárt
+-- kampány fejléc-mezői védettek a véletlen módosítás ellen, amíg valaki
+-- explicit nem oldja fel.
+alter table public.campaigns add column if not exists is_locked boolean not null default false;
+alter table public.campaigns add column if not exists locked_at timestamptz;
+alter table public.campaigns add column if not exists unlock_history jsonb not null default '[]'::jsonb;
+
 NOTIFY pgrst, 'reload schema';
