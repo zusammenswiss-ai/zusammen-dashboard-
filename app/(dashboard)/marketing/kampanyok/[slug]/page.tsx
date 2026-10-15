@@ -14,9 +14,9 @@ import {
   LineChart,
   NotebookPen,
   Rocket,
-  Lock,
   Unlock,
   Check,
+  Trash2,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
@@ -32,10 +32,12 @@ import type {
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_STYLES, CAMPAIGN_TYPES, SEASON_HU } from "@/lib/labels";
 import { CAMPAIGN_CHANNELS } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 import { resolveSignedUrls, resolveSignedUrlsForPaths } from "@/lib/signed-storage-url";
 import PageHeader from "@/components/PageHeader";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
+import LockControls from "@/components/finance/LockControls";
 import CampaignClosureForm from "@/components/campaign/CampaignClosureForm";
 import CampaignOverviewTab from "@/components/campaign/CampaignOverviewTab";
 import CampaignTasksTab from "@/components/campaign/CampaignTasksTab";
@@ -220,6 +222,44 @@ export default function CampaignDetailPage() {
     if (wasNotClosed && nowClosed) setShowClosureForm(true);
   }
 
+  async function handleLockCampaign() {
+    if (!supabase || !campaign) return;
+    const { data, error: lockError } = await supabase
+      .from("campaigns")
+      .update({ is_locked: true, locked_at: new Date().toISOString() })
+      .eq("id", campaign.id)
+      .select()
+      .single();
+    if (lockError) throw new Error(errorMessage(lockError, "Nem sikerült lezárni a rögzítést."));
+    if (data) setCampaign(data);
+  }
+
+  async function handleUnlockCampaign(reason: string | null) {
+    if (!supabase || !campaign) return;
+    const nextHistory = [...campaign.unlock_history, { unlocked_at: new Date().toISOString(), reason }];
+    const { data, error: unlockError } = await supabase
+      .from("campaigns")
+      .update({ is_locked: false, unlock_history: nextHistory })
+      .eq("id", campaign.id)
+      .select()
+      .single();
+    if (unlockError) throw new Error(errorMessage(unlockError, "Nem sikerült feloldani a zárolást."));
+    if (data) setCampaign(data);
+  }
+
+  async function handleDeleteCampaign() {
+    if (!supabase || !campaign) return;
+    if (!window.confirm(`Biztosan törlöd a "${campaign.name}" kampányt? A hozzá tartozó feladatok, anyagok, tartalmak és kiadások megmaradnak, csak a kampány-kapcsolatuk szakad meg. Ez nem vonható vissza.`)) {
+      return;
+    }
+    const { error: deleteError } = await supabase.from("campaigns").delete().eq("id", campaign.id);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+    router.push("/marketing");
+  }
+
   function toggleChannel(ch: string) {
     setDraft((d) => {
       if (!d) return d;
@@ -289,20 +329,40 @@ export default function CampaignDetailPage() {
           </div>
           {campaign.goal && <p className="mt-2 max-w-xl text-sm text-muted">{campaign.goal}</p>}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {saved && (
             <span className="flex items-center gap-1 text-xs font-medium text-forest">
               <Check size={13} /> Mentve
             </span>
           )}
-          {locked ? (
-            <button onClick={unlock} className="btn btn-ghost text-xs">
-              <Unlock size={13} /> Szerkesztés
-            </button>
+          {campaign.is_locked ? (
+            <LockControls
+              isLocked
+              lockedAt={campaign.locked_at}
+              unlockHistory={campaign.unlock_history}
+              onLock={handleLockCampaign}
+              onUnlock={handleUnlockCampaign}
+            />
+          ) : locked ? (
+            <>
+              <button onClick={unlock} className="btn btn-ghost text-xs">
+                <Unlock size={13} /> Szerkesztés
+              </button>
+              <LockControls
+                isLocked={false}
+                lockedAt={null}
+                unlockHistory={campaign.unlock_history}
+                onLock={handleLockCampaign}
+                onUnlock={handleUnlockCampaign}
+              />
+              <button onClick={handleDeleteCampaign} className="flex items-center gap-1 text-xs text-muted/70 hover:text-red-600" title="Kampány törlése">
+                <Trash2 size={13} /> Törlés
+              </button>
+            </>
           ) : (
             <>
               <button onClick={commitAndLock} className="btn btn-bronze text-xs" disabled={saving}>
-                <Lock size={13} /> {saving ? "Rögzítés…" : "Rögzítés"}
+                <Check size={13} /> {saving ? "Mentés…" : "Mentés"}
               </button>
               <button onClick={() => setLocked(true)} className="btn btn-ghost text-xs" disabled={saving}>
                 Mégse

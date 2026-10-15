@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { LayoutGrid, List, Plus, Target, Archive } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LayoutGrid, List, Plus, Target, Archive, Trash2, Lock } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Campaign, CampaignStatus, CampaignType, Season } from "@/lib/supabase/types";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_STYLES, CAMPAIGN_TYPES, CAMPAIGN_CHANNELS, SEASON_HU } from "@/lib/labels";
@@ -10,6 +11,8 @@ import { formatDate } from "@/lib/format";
 import EmptyState from "@/components/EmptyState";
 import SearchBar from "@/components/SearchBar";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
+import UndoToast from "@/components/UndoToast";
+import { useUndoAction } from "@/lib/useUndoAction";
 import NewCampaignModal from "@/components/campaign/NewCampaignModal";
 
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
@@ -20,6 +23,7 @@ type TaskSummary = { campaign_id: string | null; status: string; due_date: strin
  * kampány egy helyen, kártya/tábla nézettel, szűrőkkel, kereséssel, és
  * egy "+ Új kampány" gombbal, ami sablonból indít. */
 export default function CampaignsListSection() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [expenseByCampaign, setExpenseByCampaign] = useState<Map<string, number>>(new Map());
@@ -35,6 +39,7 @@ export default function CampaignsListSection() {
   const [showArchived, setShowArchived] = useState(false);
   const [sortBy, setSortBy] = useState<"start_date" | "updated_at">("start_date");
   const [showNewModal, setShowNewModal] = useState(false);
+  const { pending: pendingUndo, schedule: scheduleUndo, undoNow } = useUndoAction();
 
   const load = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -103,6 +108,24 @@ export default function CampaignsListSection() {
         return bv.localeCompare(av);
       });
   }, [campaigns, query, statusFilter, typeFilter, seasonFilter, channelFilter, yearFilter, showArchived, sortBy]);
+
+  function deleteCampaign(campaign: Campaign) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setCampaigns((prev) => prev.filter((c) => c.id !== campaign.id));
+    scheduleUndo(
+      `"${campaign.name}" kampány törölve.`,
+      async () => {
+        // A campaign_kpis/campaign_log/campaign_partners sorok CASCADE-del
+        // törlődnek; a hozzá kapcsolt feladatok/anyagok/tartalmak/kiadások
+        // campaign_id-ja null-ra áll (on delete set null) — ők maguk
+        // megmaradnak, csak a kampány-kapcsolatuk szakad meg.
+        const { error: deleteError } = await supabase.from("campaigns").delete().eq("id", campaign.id);
+        if (deleteError) console.error(deleteError.message);
+      },
+      () => setCampaigns((prev) => [campaign, ...prev.filter((c) => c.id !== campaign.id)])
+    );
+  }
 
   if (loading) return <Spinner />;
 
@@ -215,7 +238,13 @@ export default function CampaignsListSection() {
       ) : view === "card" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((c) => (
-            <CampaignCard key={c.id} campaign={c} taskStats={taskStatsByCampaign.get(c.id)} cost={expenseByCampaign.get(c.id) ?? 0} />
+            <CampaignCard
+              key={c.id}
+              campaign={c}
+              taskStats={taskStatsByCampaign.get(c.id)}
+              cost={expenseByCampaign.get(c.id) ?? 0}
+              onDelete={() => deleteCampaign(c)}
+            />
           ))}
         </div>
       ) : (
@@ -229,6 +258,7 @@ export default function CampaignsListSection() {
                 <th className="px-3 py-2 font-medium">Feladatok</th>
                 <th className="px-3 py-2 font-medium">Köv. határidő</th>
                 <th className="px-3 py-2 font-medium">Költség</th>
+                <th className="px-3 py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -250,6 +280,21 @@ export default function CampaignsListSection() {
                     <td className="px-3 py-2 text-xs text-muted">{stats ? `${stats.done}/${stats.total}` : "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted">{stats?.nextDue ? formatDate(stats.nextDue) : "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted">{(expenseByCampaign.get(c.id) ?? 0).toLocaleString("de-CH")} CHF</td>
+                    <td className="px-3 py-2 text-right">
+                      {c.is_locked ? (
+                        <span title="Rögzítve">
+                          <Lock size={13} className="inline text-muted/50" />
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => deleteCampaign(c)}
+                          className="text-muted/70 hover:text-red-600"
+                          title="Kampány törlése"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -261,12 +306,20 @@ export default function CampaignsListSection() {
       {showNewModal && (
         <NewCampaignModal
           onClose={() => setShowNewModal(false)}
-          onCreated={() => {
+          onCreated={(campaign) => {
             setShowNewModal(false);
-            void load();
+            // Egyenesen a részletoldalra, ahol minden fül (Feladatok,
+            // Dokumentumok, Tartalom, E-mail, Partnerek, Költségek,
+            // Eredmények, Napló) ugyanúgy elérhető, mint a First 20-nál —
+            // ne a listára térjünk vissza, ahonnan ezt külön meg kéne
+            // keresni.
+            if (campaign.slug) router.push(`/marketing/kampanyok/${campaign.slug}`);
+            else void load();
           }}
         />
       )}
+
+      {pendingUndo && <UndoToast message={pendingUndo.message} onUndo={undoNow} />}
     </div>
   );
 }
@@ -275,14 +328,33 @@ function CampaignCard({
   campaign,
   taskStats,
   cost,
+  onDelete,
 }: {
   campaign: Campaign;
   taskStats: { done: number; total: number; nextDue: string | null } | undefined;
   cost: number;
+  onDelete: () => void;
 }) {
   return (
-    <Link href={`/marketing/kampanyok/${campaign.slug}`} className="card flex flex-col gap-2 p-4 hover:border-bronze/40">
-      <div className="flex items-start justify-between gap-2">
+    <Link href={`/marketing/kampanyok/${campaign.slug}`} className="card group relative flex flex-col gap-2 p-4 hover:border-bronze/40">
+      {campaign.is_locked ? (
+        <span className="absolute right-3 top-3" title="Rögzítve">
+          <Lock size={13} className="text-muted/50" />
+        </span>
+      ) : (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute right-3 top-3 text-muted/40 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+          title="Kampány törlése"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
+      <div className="flex items-start justify-between gap-2 pr-5">
         <h3 className="font-serif text-lg text-forest">{campaign.name}</h3>
         <span className={`badge shrink-0 ${CAMPAIGN_STATUS_STYLES[campaign.status]}`}>{campaign.status}</span>
       </div>

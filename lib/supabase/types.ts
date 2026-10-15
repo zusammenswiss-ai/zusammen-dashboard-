@@ -141,6 +141,11 @@ export interface Campaign {
   retrospective_what_not: string | null;
   retrospective_lesson: string | null;
   retrospective_next_step: string | null;
+  // "Rögzítés lezárása" / "Zárolás feloldása" — ugyanaz a minta, mint
+  // Expense/Revenue-nál, lásd UnlockHistoryEntry lejjebb.
+  is_locked: boolean;
+  locked_at: string | null;
+  unlock_history: UnlockHistoryEntry[];
   created_at: string;
   updated_at: string;
 }
