@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Campaign, Season } from "@/lib/supabase/types";
 import { SEASON_HU } from "@/lib/labels";
+import { slugify } from "@/lib/slug";
 import BackButton from "@/components/BackButton";
 
 const SEASON_ORDER: Season[] = ["Spring", "Summer", "Autumn", "Winter"];
@@ -39,7 +40,7 @@ export default function CampaignFormModal({
     setError(null);
     const { data, error: insertError } = await supabase
       .from("campaigns")
-      .insert({ name: name.trim(), season: season || null })
+      .insert({ name: name.trim(), slug: slugify(name.trim()), season: season || null })
       .select()
       .single();
     setSaving(false);
@@ -80,7 +81,7 @@ export default function CampaignFormModal({
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder='pl. "ZUSAMMEN FIRST 20"'
+                placeholder='pl. "Karácsonyi ajándékcsomagok"'
               />
             </div>
             <div>

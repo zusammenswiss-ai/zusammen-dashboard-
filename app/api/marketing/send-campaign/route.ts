@@ -29,6 +29,7 @@ type SendCampaignBody = {
   templateId?: string;
   subject?: string;
   audiences?: CampaignAudience[];
+  campaignId?: string;
 };
 
 function todayISO() {
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   const templateId = body?.templateId?.trim();
   const subject = body?.subject?.trim();
   const audiences = body?.audiences ?? [];
+  const campaignId = body?.campaignId?.trim() || null;
   if (!templateId || !subject || audiences.length === 0) {
     return NextResponse.json(
       { ok: false, error: "Hiányzó sablon, tárgy, vagy nincs kiválasztva címzett-kör." },
@@ -101,6 +103,7 @@ export async function POST(request: Request) {
         scheduled_date: todayISO(),
         copy_text: `Email kampány kiküldve ${sent} címzettnek (${audiences.join(", ")}).`,
         status: "Kiküldve",
+        campaign_id: campaignId,
       })
       .select()
       .single();

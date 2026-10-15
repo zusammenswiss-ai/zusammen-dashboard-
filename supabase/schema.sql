@@ -2711,3 +2711,166 @@ alter table public.first20_rate_limits enable row level security;
 -- =====================================================================
 alter table public.support_faqs add column if not exists language text not null default 'hu'
   check (language in ('hu', 'de', 'en'));
+
+-- =====================================================================
+-- Marketing — kampány-központú átszervezés. A meglévő `campaigns` tábla
+-- (a "named marketing push" entitás, pl. "ZUSAMMEN FIRST 20" — lásd a
+-- fenti kommentet a létrehozásánál) már pontosan ez a fogalom, ezért ezt
+-- BŐVÍTJÜK új mezőkkel, nem hozunk létre egy második, párhuzamos
+-- "marketing_campaigns" táblát — az a névvel már foglalt (a 4 fixed
+-- Évszakos stratégia sor, teljesen más célra).
+--
+-- status: a meglévő 'Tervezve'/'Aktív'/'Lezárva' szóhasználatot
+-- megtartottuk (nem 'Tervezés'/'Lezárt'-ra cseréltük), hogy a már
+-- élesben lévő sorok és a rájuk hivatkozó UI-szövegek ne törjenek — csak
+-- két új állapotot adtunk hozzá: 'Ötlet' (még kampány előtti fázis) és
+-- 'Archivált' (lezárt, de a listából is elrejthető).
+-- =====================================================================
+alter table public.campaigns add column if not exists slug text;
+alter table public.campaigns add column if not exists type text not null default 'Egyéb'
+  check (type in ('First 20', 'Szezonális', 'Karácsony', 'Social sorozat', 'E-mail', 'PR', 'Együttműködés', 'Egyéb'));
+alter table public.campaigns add column if not exists goal text;
+alter table public.campaigns add column if not exists channels text[] not null default '{}';
+alter table public.campaigns add column if not exists audience text;
+alter table public.campaigns add column if not exists owner text;
+alter table public.campaigns add column if not exists budget_planned numeric;
+alter table public.campaigns add column if not exists retrospective_what_worked text;
+alter table public.campaigns add column if not exists retrospective_what_not text;
+alter table public.campaigns add column if not exists retrospective_lesson text;
+alter table public.campaigns add column if not exists retrospective_next_step text;
+
+alter table public.campaigns drop constraint if exists campaigns_status_check;
+alter table public.campaigns add constraint campaigns_status_check
+  check (status in ('Ötlet', 'Tervezve', 'Aktív', 'Lezárva', 'Archivált'));
+
+-- First 20 — a korábban "ZUSAMMEN FIRST 20" néven seedelt kampányt
+-- átnevezzük a kért névre, és a terméktesztelés sablon szerinti
+-- mezőkkel + a kért KPI-célokkal egészítjük ki. Csak akkor fut, ha a
+-- sor még a régi nevén van, hogy újrafuttatás ne írja felül, ha a
+-- founder már saját maga átírta valamelyik mezőt.
+update public.campaigns
+set
+  name = 'First 20, Print & Play (2026 ősz)',
+  slug = 'first-20-print-play-2026-osz',
+  type = 'First 20',
+  goal = coalesce(goal, '20 jelentkező 7 nap alatt'),
+  start_date = coalesce(start_date, '2026-10-16'),
+  end_date = coalesce(end_date, '2026-10-21'),
+  channels = case when channels = '{}' then array['Instagram', 'E-mail', 'Weboldal'] else channels end
+where name = 'ZUSAMMEN FIRST 20';
+
+-- Slugök pótlása minden más meglévő kampánysorhoz — egyszerű,
+-- ékezet-eltávolításos generálás, csak az induló értékekhez; új sorok
+-- az alkalmazásból kapott, már kész sluggal érkeznek.
+update public.campaigns
+set slug = lower(regexp_replace(
+  translate(name,
+    'áéíóöőúüűÁÉÍÓÖŐÚÜŰ',
+    'aeiooouuuAEIOOOUUU'
+  ),
+  '[^a-zA-Z0-9]+', '-', 'g'
+))
+where slug is null;
+
+update public.campaigns set slug = trim(both '-' from slug) where slug is not null;
+
+create unique index if not exists campaigns_slug_idx on public.campaigns (slug);
+
+create table if not exists public.campaign_kpis (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  name text not null,
+  unit text,
+  target numeric,
+  current_value numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists campaign_kpis_campaign_id_idx on public.campaign_kpis (campaign_id);
+
+alter table public.campaign_kpis enable row level security;
+drop policy if exists "authenticated full access" on public.campaign_kpis;
+create policy "authenticated full access" on public.campaign_kpis for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Egy KPI értékének előzménye — minden heti/alkalmankénti mérés egy sor,
+-- a KPI "current_value"-ja a legutóbbi bejegyzésre mutat (az app tartja
+-- szinkronban beíráskor, nincs trigger rá).
+create table if not exists public.campaign_kpi_entries (
+  id uuid primary key default gen_random_uuid(),
+  kpi_id uuid not null references public.campaign_kpis(id) on delete cascade,
+  entry_date date not null default current_date,
+  value numeric not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists campaign_kpi_entries_kpi_id_idx on public.campaign_kpi_entries (kpi_id);
+
+alter table public.campaign_kpi_entries enable row level security;
+drop policy if exists "authenticated full access" on public.campaign_kpi_entries;
+create policy "authenticated full access" on public.campaign_kpi_entries for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+create table if not exists public.campaign_log (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  entry_date date not null default current_date,
+  text text not null,
+  type text not null default 'Megjegyzés' check (type in ('Döntés', 'Tanulság', 'Esemény', 'Megjegyzés')),
+  author text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists campaign_log_campaign_id_idx on public.campaign_log (campaign_id);
+
+alter table public.campaign_log enable row level security;
+drop policy if exists "authenticated full access" on public.campaign_log;
+create policy "authenticated full access" on public.campaign_log for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+create table if not exists public.campaign_partners (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  name text not null,
+  channel_type text not null default 'Egyéb' check (channel_type in ('Influencer', 'Helyi partner', 'Sajtó', 'Egyéb')),
+  status text not null default 'Terv' check (status in ('Terv', 'Megkeresve', 'Egyeztetés', 'Kész', 'Elutasítva')),
+  contact text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists campaign_partners_campaign_id_idx on public.campaign_partners (campaign_id);
+
+alter table public.campaign_partners enable row level security;
+drop policy if exists "authenticated full access" on public.campaign_partners;
+create policy "authenticated full access" on public.campaign_partners for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Kampány-kapcsolat a meglévő táblákhoz — ugyanaz a nullable FK + "on
+-- delete set null" minta, mint tasks.campaign_id / marketing_content.
+-- campaign_id fentebb. Nincs külön "campaign_documents" vagy
+-- "campaign_assets" tábla — a kampány Dokumentumok füle ezeket a
+-- meglévő táblákat szűri campaign_id szerint.
+alter table public.marketing_assets add column if not exists campaign_id uuid references public.campaigns(id) on delete set null;
+alter table public.documents add column if not exists campaign_id uuid references public.campaigns(id) on delete set null;
+alter table public.documents add column if not exists version_label text;
+alter table public.expenses add column if not exists campaign_id uuid references public.campaigns(id) on delete set null;
+
+-- First 20 KPI-k — csak akkor szúrjuk be, ha a kampány létezik és még
+-- nincs rajta egyetlen KPI sem (így ha a founder már felvett sajátokat,
+-- ez a migráció nem duplikálja/írja felül őket).
+insert into public.campaign_kpis (campaign_id, name, unit, target, current_value)
+select c.id, kpi.name, kpi.unit, kpi.target, 0
+from public.campaigns c
+cross join (
+  values
+    ('Jelentkezők száma', 'fő', 20),
+    ('Ismeretlen jelentkezők', 'fő', 8),
+    ('Az estét végigcsinálók aránya', '%', 50),
+    ('Az este után rendelők aránya', '%', 50)
+) as kpi(name, unit, target)
+where c.type = 'First 20'
+  and not exists (select 1 from public.campaign_kpis where campaign_id = c.id);
+
+NOTIFY pgrst, 'reload schema';
