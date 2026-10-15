@@ -26,7 +26,7 @@ export const SURPRISE_QUESTIONS: readonly string[] = [
   "Ha egy szóval kellene leírnom, milyen érzés veled lenni, melyiket választanám?",
   "Mi az, amiben a legjobban támogatsz, még ha ezt sosem mondtam is ki?",
   "Melyik közös álmunk áll most a legközelebb ahhoz, hogy valóra váljon?",
-  "Mi az a apró rituálénk, amit sosem szeretnék elhagyni?",
+  "Mi az az apró rituálénk, amit sosem szeretnék elhagyni?",
   "Mikor éreztem úgy utoljára, hogy pontosan értesz, szavak nélkül is?",
   "Mi az, amit szeretnék, ha tudnál rólam, de még sosem mondtam el?",
   "Ha visszamehetnénk az első közös évünkbe, mit mondanék akkori magamnak rólad?",
