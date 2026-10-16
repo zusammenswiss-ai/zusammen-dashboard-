@@ -22,6 +22,21 @@ export function isBrevoConfigured(): boolean {
   return Boolean(process.env.BREVO_API_KEY?.trim());
 }
 
+/** Named, in order of what to set first — used by the "Brevo nincs
+ * beállítva" warning banner (Jelentkezők fül, Email kampányok) to name
+ * exactly which variable is missing instead of a generic message. The
+ * sender address falls back to a hardcoded default (see sendBrevoEmail),
+ * so it's never "missing" in the sense of blocking a send — only the API
+ * key does that. */
+export function missingBrevoEnvVars(): string[] {
+  const missing: string[] = [];
+  if (!process.env.BREVO_API_KEY?.trim()) missing.push("BREVO_API_KEY");
+  if (!process.env.BREVO_SENDER_EMAIL?.trim() && !process.env.BREVO_FROM_EMAIL?.trim()) {
+    missing.push("BREVO_SENDER_EMAIL");
+  }
+  return missing;
+}
+
 export type BrevoSendResult = { ok: true } | { ok: false; error: string };
 
 export async function sendBrevoEmail(params: {
@@ -43,9 +58,14 @@ export async function sendBrevoEmail(params: {
       Accept: "application/json",
     },
     body: JSON.stringify({
+      // BREVO_SENDER_EMAIL/BREVO_SENDER_NAME are the names this app's own
+      // docs/setup instructions use going forward; BREVO_FROM_EMAIL/
+      // BREVO_FROM_NAME are kept as a fallback so an already-configured
+      // deployment (the existing Email kampányok feature) doesn't need
+      // re-setting.
       sender: {
-        email: process.env.BREVO_FROM_EMAIL || "zusammen.swiss@gmail.com",
-        name: process.env.BREVO_FROM_NAME || "Zusammen",
+        email: process.env.BREVO_SENDER_EMAIL || process.env.BREVO_FROM_EMAIL || "zusammen.swiss@gmail.com",
+        name: process.env.BREVO_SENDER_NAME || process.env.BREVO_FROM_NAME || "Zusammen",
       },
       to: [{ email: params.to, name: params.toName || undefined }],
       subject: params.subject,

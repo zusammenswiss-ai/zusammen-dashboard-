@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { sendBrevoEmail, isBrevoConfigured } from "@/lib/brevo";
 import { isFirst20Lang, first20T, type First20Lang } from "@/lib/first20-i18n";
@@ -128,6 +128,12 @@ export async function POST(request: Request) {
       consent: true,
       utm_source: body.utmSource?.trim() || null,
       utm_medium: body.utmMedium?.trim() || null,
+      // A /first20/feedback/{token} link és a Jelentkezők fül "egyedi
+      // visszajelzési link" mezője ettől a pillanattól kezdve működik,
+      // nem csak a Készlet-levél kiküldésekor — lásd
+      // lib/first20-send.ts ensureSignupToken biztonsági hálóját a
+      // már korábban (még token nélkül) felvett sorokhoz.
+      token: randomBytes(16).toString("hex"),
     })
     .select("id")
     .single();
