@@ -110,21 +110,19 @@ export default function SignupDetailModal({
           </button>
         </div>
 
-        <div className="flex gap-1 overflow-x-auto border-b border-border px-3 pt-2 sm:px-5">
+        <div className="flex flex-wrap gap-1.5 border-b border-border bg-ivory-dim/40 p-3 sm:px-5">
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 py-2 text-xs font-medium transition-colors ${
-                tab === key ? "border-bronze text-forest" : "border-transparent text-muted hover:text-forest"
-              }`}
+              className={`btn !py-1.5 text-xs ${tab === key ? "btn-bronze" : "btn-ghost"}`}
             >
               <Icon size={13} /> {label}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+        <div className="flex-1 overflow-y-auto bg-white p-4 sm:p-5">
           {error && <ErrorBanner message={error} />}
           {loading || !signup ? (
             <Spinner />
