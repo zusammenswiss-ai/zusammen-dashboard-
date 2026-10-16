@@ -127,10 +127,6 @@ export default function MarketingPage() {
   const [assets, setAssets] = useState<MarketingAsset[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
-  // Just a count — the send-campaign route resolves the actual addresses
-  // server-side at send time, so this only needs to inform the checkbox
-  // label on EmailCampaignSendForm.
-  const [demandEmailCount, setDemandEmailCount] = useState(0);
   // Csak a darabszám az Email kampányok fülön lévő "Kinek menjen ki"
   // választóhoz — a tényleges jelentkező-sorokat a kampány részletes
   // nézetének Jelentkezők füle tölti be külön, lásd ott.
@@ -223,7 +219,6 @@ export default function MarketingPage() {
         tasksRes,
         templatesRes,
         newsletterRes,
-        demandRes,
         first20Res,
       ] = await Promise.all([
         supabase.from("marketing_campaigns").select("*"),
@@ -233,7 +228,6 @@ export default function MarketingPage() {
         supabase.from("tasks").select("id, title, status, task_type, content_id, campaign_id"),
         supabase.from("email_templates").select("*").order("created_at", { ascending: false }),
         supabase.from("newsletter_subscribers").select("*").order("subscribed_at", { ascending: false }),
-        supabase.from("landing_responses").select("email").not("email", "is", null),
         supabase.from("first20_signups").select("id", { count: "exact", head: true }),
       ]);
       if (strategiesRes.error) setError(strategiesRes.error.message);
@@ -259,10 +253,6 @@ export default function MarketingPage() {
       else setTemplates(templatesRes.data ?? []);
       if (newsletterRes.error) setError(newsletterRes.error.message);
       else setNewsletterSubscribers(newsletterRes.data ?? []);
-      if (!demandRes.error) {
-        const demandRows: { email: string | null }[] = demandRes.data ?? [];
-        setDemandEmailCount(new Set(demandRows.map((r) => r.email?.trim().toLowerCase()).filter(Boolean)).size);
-      }
       if (!first20Res.error) setFirst20Count(first20Res.count ?? 0);
       setLoading(false);
     })();
@@ -569,7 +559,6 @@ export default function MarketingPage() {
               <div id="email-campaign-send-form">
                 <EmailCampaignSendForm
                   templates={templates}
-                  demandCount={demandEmailCount}
                   newsletterCount={newsletterSubscribers.filter((s) => !s.unsubscribed).length}
                   first20Count={first20Count}
                   onSent={addContent}

@@ -15,7 +15,6 @@ import { Send } from "lucide-react";
  * létrejövő tartalom automatikusan ehhez a kampányhoz kapcsolódik. */
 export default function CampaignEmailTab({ campaign, content }: { campaign: Campaign; content: MarketingContent[] }) {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [demandCount, setDemandCount] = useState(0);
   const [newsletterCount, setNewsletterCount] = useState(0);
   const [first20Count, setFirst20Count] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -26,17 +25,12 @@ export default function CampaignEmailTab({ campaign, content }: { campaign: Camp
     if (!supabase) return;
     (async () => {
       setLoading(true);
-      const [templatesRes, demandRes, newsletterRes, first20Res] = await Promise.all([
+      const [templatesRes, newsletterRes, first20Res] = await Promise.all([
         supabase.from("email_templates").select("*").order("created_at", { ascending: false }),
-        supabase.from("landing_responses").select("email").not("email", "is", null),
         supabase.from("newsletter_subscribers").select("id").eq("unsubscribed", false),
         supabase.from("first20_signups").select("id", { count: "exact", head: true }),
       ]);
       if (!templatesRes.error) setTemplates(templatesRes.data ?? []);
-      if (!demandRes.error) {
-        const rows: { email: string | null }[] = demandRes.data ?? [];
-        setDemandCount(new Set(rows.map((r) => r.email?.trim().toLowerCase()).filter(Boolean)).size);
-      }
       if (!newsletterRes.error) setNewsletterCount((newsletterRes.data ?? []).length);
       if (!first20Res.error) setFirst20Count(first20Res.count ?? 0);
       setLoading(false);
@@ -65,7 +59,6 @@ export default function CampaignEmailTab({ campaign, content }: { campaign: Camp
 
       <EmailCampaignSendForm
         templates={templates}
-        demandCount={demandCount}
         newsletterCount={newsletterCount}
         first20Count={first20Count}
         campaignId={campaign.id}

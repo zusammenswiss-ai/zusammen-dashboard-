@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * here). Optional "?lang=de"/"?lang=en" renders the matching
  * content_de/content_en column (see lib/supabase/types.ts's
  * LegalDocument comment) — without it, this stays the magyar default,
- * exactly as before. */
+ * exactly as before. The back-link points at /first20, the only
+ * remaining public-facing page, now that /landing is gone. */
 export default async function AdatvedelemPage({
   searchParams,
 }: {
@@ -40,7 +41,7 @@ export default async function AdatvedelemPage({
   return (
     <div className="landing-root">
       <div className="legal-page">
-        <Link href="/landing" className="back">
+        <Link href="/first20" className="back">
           {t.back}
         </Link>
         <LandingMark size={64} />

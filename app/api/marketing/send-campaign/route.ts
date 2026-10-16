@@ -24,7 +24,7 @@ import {
 // only from an authenticated Marketing page (behind proxy.ts's login
 // redirect), but that doesn't carry the browser's session JWT through
 // to Postgres, and email_templates/marketing_content/newsletter_
-// subscribers/landing_responses now all require auth.uid().
+// subscribers/first20_signups now all require auth.uid().
 type SendCampaignBody = {
   templateId?: string;
   subject?: string;

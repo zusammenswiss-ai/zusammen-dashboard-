@@ -26,7 +26,8 @@ export const dynamic = "force-dynamic";
  * with (see lib/legal-links.ts), not where this page itself lives. Also
  * excluded from proxy.ts's auth gate (same matcher entry as `landing`).
  * Optional "?lang=de"/"?lang=en" — see app/adatvedelem/page.tsx's
- * comment for the full story. */
+ * comment for the full story. The back-link points at /first20, the
+ * only remaining public-facing page, now that /landing is gone. */
 export default async function ImpresszumPage({
   searchParams,
 }: {
@@ -47,7 +48,7 @@ export default async function ImpresszumPage({
   return (
     <div className="landing-root">
       <div className="legal-page">
-        <Link href="/landing" className="back">
+        <Link href="/first20" className="back">
           {t.back}
         </Link>
         <LandingMark size={64} />

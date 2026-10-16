@@ -6,7 +6,7 @@ import type { EmailTemplate, MarketingContent } from "@/lib/supabase/types";
 import { errorMessage } from "@/lib/errors";
 import BackButton from "@/components/BackButton";
 
-type Audience = "demand" | "newsletter" | "first20";
+type Audience = "newsletter" | "first20";
 
 type PreviewData = {
   recipient: { email: string; name: string | null };
@@ -24,7 +24,6 @@ type PreviewData = {
  * API-n keresztül (app/api/marketing/send-campaign). */
 export default function EmailCampaignSendForm({
   templates,
-  demandCount,
   newsletterCount,
   first20Count,
   campaignId,
@@ -32,7 +31,6 @@ export default function EmailCampaignSendForm({
   presetTemplateId,
 }: {
   templates: EmailTemplate[];
-  demandCount: number;
   newsletterCount: number;
   first20Count: number;
   // Ha meg van adva, a küldés ehhez a kampányhoz kapcsolja a létrejövő
@@ -71,7 +69,6 @@ export default function EmailCampaignSendForm({
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const totalRecipients =
-    (audiences.has("demand") ? demandCount : 0) +
     (audiences.has("newsletter") ? newsletterCount : 0) +
     (audiences.has("first20") ? first20Count : 0);
 
@@ -170,10 +167,6 @@ export default function EmailCampaignSendForm({
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Kinek menjen ki *</label>
             <div className="flex flex-wrap gap-3">
-              <label className="flex items-center gap-1.5 text-sm text-forest">
-                <input type="checkbox" checked={audiences.has("demand")} onChange={() => toggleAudience("demand")} />
-                Demand-test feliratkozók ({demandCount})
-              </label>
               <label className="flex items-center gap-1.5 text-sm text-forest">
                 <input type="checkbox" checked={audiences.has("newsletter")} onChange={() => toggleAudience("newsletter")} />
                 Hírlevél feliratkozók ({newsletterCount})

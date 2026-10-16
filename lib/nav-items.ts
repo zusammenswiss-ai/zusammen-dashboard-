@@ -6,7 +6,6 @@ import {
   Truck,
   Package,
   Calculator,
-  BarChart3,
   Layers,
   Tag,
   Megaphone,
@@ -18,7 +17,6 @@ import {
   Share2,
   Heart,
   Settings,
-  Rocket,
   CreditCard,
   Sparkles,
   Palette,
@@ -31,8 +29,6 @@ export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Opens in a new tab instead of navigating in place — just the Landing oldal link today. */
-  external?: boolean;
 };
 export type NavGroup = { label: string; items: NavItem[] };
 
@@ -47,7 +43,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/orders", label: "Vevői rendelések", icon: Package },
       { href: "/support", label: "Ügyfélszolgálat", icon: Headset },
       { href: "/finance", label: "Pénzügyek", icon: Calculator },
-      { href: "/demand", label: "Igényfelmérés", icon: BarChart3 },
     ],
   },
   {
@@ -88,18 +83,10 @@ export const NAV_RITUAL_ITEM: NavItem = { href: "/personal-ritual", label: "Szem
 
 export const NAV_SETTINGS_ITEM: NavItem = { href: "/settings", label: "Beállítások", icon: Settings };
 
-export const NAV_LANDING_ITEM: NavItem = {
-  href: "/landing",
-  label: "Landing oldal",
-  icon: Rocket,
-  external: true,
-};
-
 /** Flattened, in display order — what the Cmd+K command palette lists. */
 export const ALL_NAV_ITEMS: NavItem[] = [
   NAV_TOP_ITEM,
   ...NAV_GROUPS.flatMap((group) => group.items),
   NAV_RITUAL_ITEM,
   NAV_SETTINGS_ITEM,
-  NAV_LANDING_ITEM,
 ];

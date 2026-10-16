@@ -18,7 +18,6 @@ type RawContentRow = { created_at: string; content_type: string; status: string 
 export type RawStatsData = {
   supplierReplies: RawRow[]; // updated_at of suppliers with reply_received=true
   tasks: RawTaskRow[];
-  demandResponses: RawRow[];
   campaignContent: RawContentRow[];
   revenue: RawMoneyRow[];
   expenses: RawMoneyRow[];
@@ -29,7 +28,6 @@ export type PeriodStats = {
   supplierReplies: number;
   tasksClosed: number;
   tasksOpened: number;
-  demandSignups: number;
   campaignsSent: number;
   revenueTotal: number;
   expenseTotal: number;
@@ -88,7 +86,6 @@ export function computeStats(
   const supplierReplies = data.supplierReplies.filter((r) => inRange(r.date, start, end)).length;
   const tasksClosed = data.tasks.filter((t) => t.status === "Kész" && inRange(t.updated_at, start, end)).length;
   const tasksOpened = data.tasks.filter((t) => inRange(t.created_at, start, end)).length;
-  const demandSignups = data.demandResponses.filter((r) => inRange(r.date, start, end)).length;
   const campaignsSent = data.campaignContent.filter(
     (c) => c.content_type === "Email" && c.status === "Kiküldve" && inRange(c.created_at, start, end)
   ).length;
@@ -102,7 +99,7 @@ export function computeStats(
     data.activityDates.filter((d) => inRange(d, start, end)).length +
     data.tasks.filter((t) => inRange(t.created_at, start, end)).length;
 
-  return { supplierReplies, tasksClosed, tasksOpened, demandSignups, campaignsSent, revenueTotal, expenseTotal, activityEntries };
+  return { supplierReplies, tasksClosed, tasksOpened, campaignsSent, revenueTotal, expenseTotal, activityEntries };
 }
 
 /** null = no meaningful % (previous period was 0); callers show an "Új"
@@ -113,11 +110,10 @@ export function pctChange(curr: number, prev: number): number | null {
 }
 
 export async function loadRawStatsData(supabase: SupabaseClient<Database>): Promise<RawStatsData> {
-  const [suppliersRes, tasksRes, demandRes, contentRes, revenueRes, expensesRes, documentsRes, plansRes, ordersRes] =
+  const [suppliersRes, tasksRes, contentRes, revenueRes, expensesRes, documentsRes, plansRes, ordersRes] =
     await Promise.all([
       supabase.from("suppliers").select("reply_received, updated_at"),
       supabase.from("tasks").select("status, created_at, updated_at"),
-      supabase.from("landing_responses").select("created_at"),
       supabase.from("marketing_content").select("content_type, status, created_at"),
       supabase.from("revenue").select("amount, currency, revenue_date"),
       supabase.from("expenses").select("amount, currency, expense_date"),
@@ -131,7 +127,6 @@ export async function loadRawStatsData(supabase: SupabaseClient<Database>): Prom
       .filter((s) => s.reply_received)
       .map((s) => ({ date: s.updated_at })),
     tasks: (tasksRes.data ?? []).map((t) => ({ created_at: t.created_at, updated_at: t.updated_at, status: t.status })),
-    demandResponses: (demandRes.data ?? []).map((r) => ({ date: r.created_at })),
     campaignContent: (contentRes.data ?? []).map((c) => ({
       created_at: c.created_at,
       content_type: c.content_type,
@@ -186,7 +181,6 @@ export const STATS_ROW_LABELS: { key: keyof PeriodStats; label: string }[] = [
   { key: "supplierReplies", label: "Új beszállítói válaszok" },
   { key: "tasksClosed", label: "Lezárt feladatok" },
   { key: "tasksOpened", label: "Új feladatok" },
-  { key: "demandSignups", label: "Demand-test / First 20 új jelentkezők" },
   { key: "campaignsSent", label: "Kiküldött kampányok" },
   { key: "revenueTotal", label: "Rögzített bevétel" },
   { key: "expenseTotal", label: "Rögzített kiadás" },
