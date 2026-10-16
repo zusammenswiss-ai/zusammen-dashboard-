@@ -423,6 +423,9 @@ function SignupSection({
             >
               {status === "submitting" ? t.signup.submitting : t.signup.submit}
             </button>
+            <p className="mt-1 text-center text-xs leading-relaxed" style={{ color: "#ddd3c4" }}>
+              {t.signup.footnote}
+            </p>
           </motion.form>
         ) : (
           <motion.div

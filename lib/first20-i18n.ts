@@ -57,6 +57,7 @@ type T = {
     consentSuffix: string;
     submit: string;
     submitting: string;
+    footnote: string;
     success: string;
     alreadyRegistered: string;
     errors: {
@@ -86,23 +87,27 @@ export const first20T: Record<First20Lang, T> = {
       title: "Wann habt ihr euch das letzte Mal wirklich zugehört?",
       subtitle:
         "Ein Kartenspiel für zwei Menschen. Ein Abend ohne Handy und ohne Lärm — nur ihr beide.",
-      cta: "Platz sichern",
-      microline: "20 Paare · Testen gegen ehrliches Feedback · keine Verpflichtung",
+      cta: "Set anfordern",
+      microline: "20 Gründerplätze · das Erste-Abend-Set ist gratis · das ganze Spiel zum Gründerpreis: CHF 24",
     },
     steps: {
-      title: "Ein Abend. Drei Schritte.",
+      title: "So funktioniert's",
       items: [
         {
-          title: "Legt die Handys weg.",
-          body: "Keine Strafe, sondern ein Geschenk: eine Stunde, in die sich nichts und niemand zwischen euch drängt.",
+          title: "Anmelden",
+          body: "Ein paar Angaben, ohne Zahlung.",
         },
         {
-          title: "Zieht eine Karte.",
-          body: "Vier Farbfamilien, zweiundfünfzig Fragen zur Liebe, zum Alltag, zu Träumen und Erinnerungen.",
+          title: "Set erhalten",
+          body: "Sofort per E-Mail: Anleitung, 9 Karten und ein Handy-Parkplatz als druckbares PDF.",
         },
         {
-          title: "Hört einander zu.",
-          body: "Es gibt keine richtige oder falsche Antwort — nur zwei Menschen, die einander endlich zuhören.",
+          title: "Einen Abend erleben",
+          body: "Eine Stunde, ohne Handy.",
+        },
+        {
+          title: "Erzähl uns, wie es war",
+          body: "Danach kannst du das ganze Spiel mit 58 Karten zum Gründerpreis bestellen (CHF 24, Rechnung erst beim Versand).",
         },
       ],
     },
@@ -129,9 +134,9 @@ export const first20T: Record<First20Lang, T> = {
       title: "Warum nur 20 Paare?",
       body: "Weil wir gerade lernen. Gemeinsam mit den ersten zwanzig Paaren feilen wir das Kartenspiel zur Perfektion — ihr sagt uns, was funktioniert, was nicht, und welche Frage am tiefsten berührt hat.",
       youGetLabel: "Ihr bekommt:",
-      youGet: "das Kartenspiel gratis.",
+      youGet: "sofort das Erste-Abend-Set, und die ersten 20 Bestellungen erhalten das ganze Spiel zum Gründerpreis (CHF 24).",
       weAskLabel: "Wir bitten um:",
-      weAsk: "einen Abend und 10 Minuten ehrliches Feedback. Ein Foto nur, wenn ihr möchtet.",
+      weAsk: "einen Abend und 10 Minuten ehrliches Feedback. Ein Foto nur, wenn ihr das möchtet.",
     },
     signup: {
       title: "Sichert euch euren Platz.",
@@ -155,10 +160,12 @@ export const first20T: Record<First20Lang, T> = {
       consentPrefix: "Ich stimme zu, dass Zusammen mich per E-Mail über das First-20-Programm informiert. Ich kann mich jederzeit abmelden. ",
       consentLinkText: "Datenschutzerklärung",
       consentSuffix: "",
-      submit: "Jetzt anmelden",
+      submit: "Set anfordern",
       submitting: "Wird gesendet…",
+      footnote:
+        "Die Anmeldung ist kostenlos und unverbindlich. Das ganze Spiel kannst du erst nach dem Abend bestellen, auch das ist unverbindlich: Die Rechnung kommt erst beim Versand.",
       success:
-        "Danke, wir haben eure Anmeldung erhalten. Wir schreiben allen Bewerberinnen und Bewerbern, auch wenn die 20 Plätze inzwischen vergeben sind.",
+        "Danke! Wir haben dir das Erste-Abend-Set per E-Mail geschickt. Schau bitte auch im Spam-Ordner nach.",
       alreadyRegistered: "Diese E-Mail-Adresse ist schon angemeldet — wir haben euch nicht vergessen.",
       errors: {
         firstName: "Bitte gib deinen Vornamen ein.",
@@ -171,14 +178,21 @@ export const first20T: Record<First20Lang, T> = {
     faq: {
       title: "Häufige Fragen",
       items: [
-        { q: "Was kostet es?", a: "Die ersten 20 Paare erhalten das Kartenspiel kostenlos." },
+        {
+          q: "Was kostet es?",
+          a: "Das Erste-Abend-Set ist gratis. Das ganze Spiel mit 58 Karten gibt es für die ersten 20 Bestellungen zum Gründerpreis von CHF 24. Bestellen kannst du nach dem Abend, unverbindlich; die Rechnung schicken wir erst beim Versand.",
+        },
         {
           q: "Wann bekommen wir es?",
-          a: "Einen genauen Termin wissen wir noch nicht. Wer sich anmeldet, erfährt es als Erstes — per E-Mail.",
+          a: "Das Set kommt direkt nach der Anmeldung per E-Mail. Den genauen Liefertermin für das ganze Spiel können wir noch nicht nennen; wer bestellt, erfährt ihn als Erstes.",
+        },
+        {
+          q: "Was passiert, wenn die 20 Plätze voll sind?",
+          a: "Das Set bekommst du trotzdem. Ab der 21. Bestellung kommst du auf die Warteliste und erfährst als Erstes von der nächsten Runde.",
         },
         {
           q: "In welcher Sprache?",
-          a: "Die erste Runde ist auf Deutsch. Ungarisch und Englisch folgen je nach Anmeldungen.",
+          a: "Das Erste-Abend-Set gibt es auf Deutsch, Ungarisch und Englisch, bei der Anmeldung kannst du wählen. Die erste Runde des ganzen Spiels erscheint auf Deutsch; Ungarisch und Englisch folgen je nach Nachfrage.",
         },
         {
           q: "Was macht ihr mit meinen Daten?",
@@ -191,7 +205,7 @@ export const first20T: Record<First20Lang, T> = {
       ],
     },
     footer: { tagline: "Zusammen · das-zusammen.ch" },
-    stickyCta: "Platz sichern",
+    stickyCta: "Set anfordern",
   },
   hu: {
     langLabel: "HU",
@@ -200,23 +214,27 @@ export const first20T: Record<First20Lang, T> = {
       eyebrow: "ZUSAMMEN · FIRST 20",
       title: "Mikor volt utoljára, hogy igazán egymásra figyeltetek?",
       subtitle: "Egy beszélgetőkártya-pakli két embernek. Egy este telefon és zaj nélkül, csak ti ketten.",
-      cta: "Kérem a helyem",
-      microline: "20 pár · kipróbálás cserébe őszinte visszajelzésért · nincs kötelezettség",
+      cta: "Kérem a készletet",
+      microline: "20 alapítói hely · az Első este készlet ingyenes · a teljes pakli alapítói áron: 24 CHF",
     },
     steps: {
-      title: "Egy este. Három mozdulat.",
+      title: "Így működik",
       items: [
         {
-          title: "Tegyétek le a telefont.",
-          body: "Nem büntetés, hanem ajándék: egy óra, amibe senki és semmi nem fér be kettőtök közé.",
+          title: "Jelentkezz",
+          body: "Pár adat, fizetés nélkül.",
         },
         {
-          title: "Húzzatok egy kártyát.",
-          body: "Négy színcsalád, ötvenkét kérdés a szerelemről, a hétköznapokról, az álmokról és az emlékekről.",
+          title: "Kapd meg a készletet",
+          body: "Azonnal e-mailben: útmutató, 9 kártya és egy telefon-parkoló cédula nyomtatható PDF-ben.",
         },
         {
-          title: "Hallgassátok meg egymást.",
-          body: "Nincs jó vagy rossz válasz, csak két ember, aki végre végighallgatja a másikat.",
+          title: "Töltsetek el egy estét",
+          body: "Egy óra, telefon nélkül.",
+        },
+        {
+          title: "Mondd el, milyen volt",
+          body: "Utána megrendelheted a teljes, 58 lapos paklit alapítói áron (24 CHF, számla a feladáskor).",
         },
       ],
     },
@@ -239,7 +257,7 @@ export const first20T: Record<First20Lang, T> = {
       title: "Miért csak 20 pár?",
       body: "Mert most tanulunk. Az első húsz párral együtt csiszoljuk tökéletesre a paklit: ti mondjátok meg, mi működik, mi nem, és melyik kérdés ért a legmélyebbre.",
       youGetLabel: "Ti kaptok:",
-      youGet: "a paklit ingyen.",
+      youGet: "azonnal az Első este készletet, és az első 20 megrendelő alapítói áron (24 CHF) kapja a teljes paklit.",
       weAskLabel: "Mi kérünk:",
       weAsk: "egy estét és 10 perc őszinte visszajelzést. Fotót csak akkor, ha ti is szeretnétek.",
     },
@@ -265,10 +283,12 @@ export const first20T: Record<First20Lang, T> = {
       consentPrefix: "Hozzájárulok, hogy a Zusammen e-mailben értesítsen a First 20 programról. Bármikor leiratkozhatok. ",
       consentLinkText: "Adatvédelmi tájékoztató",
       consentSuffix: "",
-      submit: "Jelentkezünk",
+      submit: "Kérem a készletet",
       submitting: "Küldés…",
+      footnote:
+        "A jelentkezés díjmentes és nem kötelező. A teljes pakli megrendelése csak az este után lehetséges, az sem kötelező érvényű: a számlát a feladáskor küldjük.",
       success:
-        "Köszönjük, megkaptuk a jelentkezésteket. Minden jelentkezőnek írunk, akkor is, ha időközben betelt a 20 hely.",
+        "Köszönjük! Elküldtük az Első este készletet az e-mail címedre. Nézd meg a spam mappát is.",
       alreadyRegistered: "Ez az e-mail cím már jelentkezett — nem felejtettünk el titeket.",
       errors: {
         firstName: "Kérjük, add meg a keresztneved.",
@@ -281,11 +301,21 @@ export const first20T: Record<First20Lang, T> = {
     faq: {
       title: "GYIK",
       items: [
-        { q: "Mibe kerül?", a: "Az első 20 pár ingyen kapja a paklit." },
-        { q: "Mikor kapjuk meg?", a: "Pontos időpontot még nem tudunk. A jelentkezők elsőként értesülnek, e-mailben." },
+        {
+          q: "Mibe kerül?",
+          a: "Az Első este készlet ingyenes. A teljes, 58 lapos pakli az első 20 megrendelőnek alapítói áron kapható: 24 CHF. A rendelés az este után lehetséges és nem kötelező érvényű; a számlát a feladáskor küldjük.",
+        },
+        {
+          q: "Mikor kapjuk meg?",
+          a: "A készletet a jelentkezés után azonnal e-mailben kapod. A teljes pakli szállításának pontos időpontját még nem tudjuk; erről a megrendelőket elsőként értesítjük.",
+        },
+        {
+          q: "Mi történik, ha betelik a 20 hely?",
+          a: "A készletet ilyenkor is megkapod. A 21. megrendeléstől várólistára kerülsz, és elsőként értesülsz a következő körről.",
+        },
         {
           q: "Milyen nyelven?",
-          a: "Az első kör német nyelvű, a magyar és az angol a jelentkezések alapján következik.",
+          a: "Az Első este készlet magyarul, németül és angolul is elérhető, a jelentkezéskor választhatsz. A teljes pakli első köre német nyelvű lesz; a magyar és az angol a jelentkezések alapján következik.",
         },
         {
           q: "Mit kezdtek az adataimmal?",
@@ -298,7 +328,7 @@ export const first20T: Record<First20Lang, T> = {
       ],
     },
     footer: { tagline: "Zusammen · das-zusammen.ch" },
-    stickyCta: "Kérem a helyem",
+    stickyCta: "Kérem a készletet",
   },
   en: {
     langLabel: "EN",
@@ -307,23 +337,27 @@ export const first20T: Record<First20Lang, T> = {
       eyebrow: "ZUSAMMEN · FIRST 20",
       title: "When did you last really listen to each other?",
       subtitle: "A conversation card deck for two people. One evening without phones or noise — just the two of you.",
-      cta: "Claim my spot",
-      microline: "20 couples · try it in exchange for honest feedback · no commitment",
+      cta: "Get the kit",
+      microline: "20 founders' spots · the First Evening Kit is free · the full deck at the founders' price: CHF 24",
     },
     steps: {
-      title: "One evening. Three moves.",
+      title: "How it works",
       items: [
         {
-          title: "Put your phones away.",
-          body: "Not a punishment — a gift: one hour where nothing and no one comes between you.",
+          title: "Sign up",
+          body: "A few details, no payment.",
         },
         {
-          title: "Draw a card.",
-          body: "Four suits, fifty-two questions about love, everyday life, dreams, and memories.",
+          title: "Get your kit",
+          body: "Right away by email: a guide, 9 cards and a phone parking slip as a printable PDF.",
         },
         {
-          title: "Listen to each other.",
-          body: "There's no right or wrong answer — just two people who finally hear one another.",
+          title: "Spend an evening",
+          body: "One hour, no phones.",
+        },
+        {
+          title: "Tell us how it went",
+          body: "Afterwards you can order the full 58-card deck at the founders' price (CHF 24, invoice only when it ships).",
         },
       ],
     },
@@ -342,9 +376,9 @@ export const first20T: Record<First20Lang, T> = {
       title: "Why only 20 couples?",
       body: "Because we're still learning. Together with the first twenty couples, we're refining the deck until it's right — you tell us what works, what doesn't, and which question went deepest.",
       youGetLabel: "You get:",
-      youGet: "the deck, free.",
+      youGet: "the First Evening Kit right away, and the first 20 orders get the full deck at the founders' price (CHF 24).",
       weAskLabel: "We ask for:",
-      weAsk: "one evening and 10 minutes of honest feedback. A photo only if you'd like to share one.",
+      weAsk: "one evening and 10 minutes of honest feedback. A photo only if you'd like to.",
     },
     signup: {
       title: "Reserve your spot.",
@@ -363,9 +397,11 @@ export const first20T: Record<First20Lang, T> = {
       consentPrefix: "I agree that Zusammen may email me about the First 20 program. I can unsubscribe anytime. ",
       consentLinkText: "Privacy policy",
       consentSuffix: "",
-      submit: "Count us in",
+      submit: "Get the kit",
       submitting: "Sending…",
-      success: "Thank you — we've received your registration. We'll write to every applicant, even if the 20 spots fill up before then.",
+      footnote:
+        "Signing up is free and non-binding. You can order the full deck only after the evening, and that is non-binding too: the invoice comes when it ships.",
+      success: "Thank you! We've emailed you the First Evening Kit. Please check your spam folder too.",
       alreadyRegistered: "This email is already registered — we haven't forgotten you.",
       errors: {
         firstName: "Please enter your first name.",
@@ -378,9 +414,22 @@ export const first20T: Record<First20Lang, T> = {
     faq: {
       title: "FAQ",
       items: [
-        { q: "What does it cost?", a: "The first 20 couples receive the deck for free." },
-        { q: "When will we get it?", a: "We don't have an exact date yet. Everyone who signs up hears first — by email." },
-        { q: "What language?", a: "The first round is in German. Hungarian and English follow based on sign-ups." },
+        {
+          q: "What does it cost?",
+          a: "The First Evening Kit is free. The full 58-card deck is available to the first 20 orders at the founders' price of CHF 24. You can order after the evening, non-binding; we send the invoice only when it ships.",
+        },
+        {
+          q: "When will we get it?",
+          a: "You get the kit by email right after signing up. We can't give an exact delivery date for the full deck yet; everyone who orders hears first.",
+        },
+        {
+          q: "What happens if the 20 spots fill up?",
+          a: "You still get the kit. From the 21st order on, you join the waiting list and hear first about the next round.",
+        },
+        {
+          q: "What language?",
+          a: "The First Evening Kit is available in German, Hungarian and English; you choose when you sign up. The first run of the full deck will be in German; Hungarian and English follow depending on demand.",
+        },
         {
           q: "What do you do with my data?",
           a: "We only write about the program and never share it with third parties. You can unsubscribe anytime.",
@@ -392,7 +441,7 @@ export const first20T: Record<First20Lang, T> = {
       ],
     },
     footer: { tagline: "Zusammen · das-zusammen.ch" },
-    stickyCta: "Claim my spot",
+    stickyCta: "Get the kit",
   },
 };
 

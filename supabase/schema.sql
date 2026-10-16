@@ -2895,3 +2895,51 @@ alter table public.campaigns add column if not exists locked_at timestamptz;
 alter table public.campaigns add column if not exists unlock_history jsonb not null default '[]'::jsonb;
 
 NOTIFY pgrst, 'reload schema';
+
+-- =====================================================================
+-- First 20 — "Print & Play" folyamat. A tesztpárok nem kapnak postázott
+-- paklit: jelentkezéskor azonnal egy nyomtatható "Első este készlet" PDF-et
+-- kapnak e-mailben, egy hét múlva visszajelzést kérünk tőlük egy egyedi,
+-- token alapú linken, és a visszajelzés után megrendelhetik a teljes,
+-- 58 lapos paklit alapítói áron (CHF 24, az első 20 rendelőnek — a 21.
+-- rendelőtől "Várólista a következő körre").
+--
+-- NINCS külön "demand"/"survey" tábla ehhez — ugyanazt a
+-- first20_signups sort bővítjük státusz- és visszajelzés-mezőkkel, a
+-- dashboard a meglévő kampány "Jelentkezők" fülén (First20SignupsSection)
+-- innen olvas majd tovább.
+-- =====================================================================
+alter table public.first20_signups add column if not exists status text not null default 'Jelentkezett'
+  check (status in ('Jelentkezett', 'Kit elküldve', 'Visszajelzett', 'Megrendelte', 'Várólista', 'Számlázva', 'Kifizetve'));
+alter table public.first20_signups add column if not exists token text;
+alter table public.first20_signups add column if not exists kit_sent_at timestamptz;
+alter table public.first20_signups add column if not exists reminder_sent_at timestamptz;
+alter table public.first20_signups add column if not exists feedback_mail_sent_at timestamptz;
+alter table public.first20_signups add column if not exists feedback_received_at timestamptz;
+alter table public.first20_signups add column if not exists ordered_at timestamptz;
+alter table public.first20_signups add column if not exists email_error text;
+
+-- Visszajelzés (/first20/feedback/{token})
+alter table public.first20_signups add column if not exists evening_done boolean;
+alter table public.first20_signups add column if not exists best_card_or_change text;
+alter table public.first20_signups add column if not exists would_buy text check (would_buy is null or would_buy in ('igen', 'talan', 'nem'));
+alter table public.first20_signups add column if not exists would_buy_why text;
+
+-- Rendelés (a visszajelzés után, nem kötelező érvényű foglalás — nincs
+-- online fizetés, a számlát kézzel küldjük a feladáskor).
+alter table public.first20_signups add column if not exists order_language text check (order_language is null or order_language in ('hu', 'de', 'en'));
+alter table public.first20_signups add column if not exists ship_name text;
+alter table public.first20_signups add column if not exists street text;
+alter table public.first20_signups add column if not exists zip text;
+alter table public.first20_signups add column if not exists city text;
+alter table public.first20_signups add column if not exists country text;
+alter table public.first20_signups add column if not exists founders_price boolean;
+alter table public.first20_signups add column if not exists invoice_status text not null default 'nincs' check (invoice_status in ('nincs', 'elküldve', 'kifizetve'));
+
+-- A token egyedi kell legyen, de csak azoknál a soroknál, ahol már
+-- kiosztottuk (a régebbi, még token nélküli sorokon null marad) —
+-- a sima unique index engedi a több null értéket, csak a tényleges
+-- tokenek között véd az ütközés ellen.
+create unique index if not exists first20_signups_token_idx on public.first20_signups (token) where token is not null;
+
+NOTIFY pgrst, 'reload schema';
