@@ -51,6 +51,15 @@ export default function First20Client({
   const t = first20T[lang];
   const signupRef = useRef<HTMLDivElement>(null);
 
+  // A jogi oldalak (Adatvédelem/Impresszum) "hu" nélkül is elérik a
+  // magyar verziót (ez marad az alapértelmezett, paraméter nélküli
+  // nézet máshol, pl. a /landing footerén) — itt viszont kövessük az
+  // aktuálisan választott first20-nyelvet, a LangToggle-lal élőben
+  // váltva, nem csak a kezdeti (szerver-oldali) nyelvet.
+  const langQuery = lang === "hu" ? "" : `?lang=${lang}`;
+  const localizedPrivacyHref = `${privacyHref}${langQuery}`;
+  const localizedImpressumHref = `${privacyHref.replace(/\/[^/]*$/, "/impresszum")}${langQuery}`;
+
   function scrollToSignup() {
     signupRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -68,12 +77,12 @@ export default function First20Client({
         t={t}
         lang={lang}
         signupCount={signupCount}
-        privacyHref={privacyHref}
+        privacyHref={localizedPrivacyHref}
         utmSource={utmSource}
         utmMedium={utmMedium}
       />
       <Faq t={t} />
-      <Footer t={t} privacyHref={privacyHref} />
+      <Footer t={t} privacyHref={localizedPrivacyHref} impressumHref={localizedImpressumHref} />
       <StickyMobileCta label={t.stickyCta} onClick={scrollToSignup} />
     </div>
   );
@@ -497,8 +506,15 @@ function Faq({ t }: { t: (typeof first20T)[First20Lang] }) {
   );
 }
 
-function Footer({ t, privacyHref }: { t: (typeof first20T)[First20Lang]; privacyHref: string }) {
-  const impressumHref = privacyHref.replace(/\/[^/]*$/, "/impresszum");
+function Footer({
+  t,
+  privacyHref,
+  impressumHref,
+}: {
+  t: (typeof first20T)[First20Lang];
+  privacyHref: string;
+  impressumHref: string;
+}) {
   return (
     <footer className="px-5 pb-28 pt-10 text-center sm:pb-10" style={{ backgroundColor: FOREST }}>
       <div className="flex items-center justify-center gap-1.5 text-sm" style={{ color: GOLD }}>

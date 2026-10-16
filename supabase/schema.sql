@@ -2943,3 +2943,266 @@ alter table public.first20_signups add column if not exists invoice_status text 
 create unique index if not exists first20_signups_token_idx on public.first20_signups (token) where token is not null;
 
 NOTIFY pgrst, 'reload schema';
+
+-- =====================================================================
+-- Jogi dokumentumok — valódi, kész szöveg mindhárom nyelven (a korábbi
+-- "[TÖLTSD KI]" placeholder helyett), mert a /first20 oldal (és a
+-- /landing is) mindhárom/mindkét nyelven elérhető, de az Impresszum/
+-- Adatvédelem oldal eddig mindig csak magyarul jelent meg, bármelyik
+-- nyelvről is jött a látogató.
+--
+-- A meglévő `content`/`title` oszlopok maradnak a magyar az
+-- alapértelmezett verzió (ezt látja, aki közvetlenül az /impresszum
+-- vagy /adatvedelem oldalra megy, "?lang=" paraméter nélkül — ez nem
+-- változik, a /landing footer linkjei is ide mutatnak továbbra is).
+-- Az új content_de/content_en (+ title_de/title_en) oszlopok opcionális
+-- fordítások — az oldal csak akkor rendereli őket, ha valaki kifejezetten
+-- "?lang=de" vagy "?lang=en" paraméterrel érkezik (lásd app/adatvedelem/
+-- page.tsx és app/impresszum/page.tsx), pl. a /first20 oldal aktuális
+-- nyelvválasztásából.
+alter table public.legal_documents add column if not exists title_de text;
+alter table public.legal_documents add column if not exists title_en text;
+alter table public.legal_documents add column if not exists content_de text;
+alter table public.legal_documents add column if not exists content_en text;
+
+insert into public.legal_documents (type, title, slug, content, title_de, content_de, title_en, content_en)
+values (
+  'Adatvédelem',
+  'Adatvédelmi tájékoztató',
+  'adatvedelem',
+  $hu$## 1. Adatkezelő
+
+Barbara Friedrich-Keresztesi (üzleti néven: Zusammen)
+Schwandenstrasse 100
+3657 Sigriswil, Svájc
+E-mail: connect@das-zusammen.ch
+
+## 2. Milyen adatokat gyűjtünk?
+
+Csak olyan adatokat, amelyeket te magad adsz meg:
+
+- First 20 jelentkezés: név, e-mail cím és a választott nyelv. Ezekkel küldjük el a nyomtatható Első este készletet és az emlékeztető levelet.
+- Visszajelzés: az estével kapcsolatos válaszaid (megvolt-e az este, melyik kérdés érte a legmélyebbre, megvennéd-e a paklit, és ha nem, miért).
+- Megrendelés: név, szállítási cím (utca, irányítószám, város, ország) és a pakli nyelve. A megrendelés nem kötelező érvényű, a számlát a feladáskor küldjük.
+- Technikai adatok: a tárhelyszolgáltató a kapcsolat létrehozásakor rövid ideig naplózhatja az IP-címedet. Ezt a célt kizárólag az oldal biztonságos működése szolgálja.
+- Rövid kérdőív: a válaszaid (pl. vásárlási szándék, árelképzelés, kívánt doboztartalom, opcionális szabadszöveg) és, ha megadod, az e-mail címed.
+- Levél/ígéret (Gold Card gyakorlat): az általad írt szöveget tároljuk, hogy anonim módon megmutassuk más látogatóknak, név, e-mail vagy egyéb azonosító adat nélkül. Ezt a szöveget nem tudjuk senkihez hozzárendelni.
+- „Küldd el magadnak e-mailben": a saját e-mail-kliensedet nyitja meg előre kitöltött szöveggel. Ez nem megy át a szervereinken, ezt az e-mailt nem látjuk és nem tároljuk.
+
+Cookie-kat és nyomkövetést vagy analitikát nem használunk ezen az oldalon.
+
+## 3. Az adatkezelés célja és jogalapja
+
+- A készlet elküldése, az emlékeztető és a visszajelzés kérése: a jelentkezésed alapján, szerződés előtti lépésként és a hozzájárulásod alapján.
+- A megrendelés kezelése, a számlázás és a szállítás: a szerződés teljesítéséhez szükséges.
+- A termékfejlesztés (piaci érdeklődés, árazás, csomagtartalom): a hozzájárulásod alapján.
+- Hírlevél vagy további termékhírek: csak akkor, ha ehhez külön, kifejezetten hozzájárulsz. Ezt bármikor visszavonhatod.
+
+## 4. Adatfeldolgozók és tárhely
+
+Az adataidat a következő szolgáltatók kezelik a megbízásunkból:
+
+- Supabase (adatbázis; szerverhely: EU, Írország): itt tároljuk a jelentkezéseket, visszajelzéseket és megrendeléseket.
+- Brevo (Sendinblue SAS, Franciaország): ezen keresztül küldjük az e-maileket. A Brevo megkapja a nevedet, az e-mail címedet és a levelek tartalmát.
+- Vercel Inc. (USA): az oldal tárhelye. A Vercel az USA-ban is feldolgozhat adatot (pl. az IP-címedet). Az adatok továbbítása megfelelő szerződéses garanciák mellett történik.
+
+A szolgáltatók az adatokat kizárólag a megbízásunkból és az utasításaink szerint kezelik.
+
+## 5. Harmadik felek részére történő továbbítás
+
+Az adataidat nem adjuk el és nem adjuk tovább harmadik feleknek, a 4. pontban említett szolgáltatókon kívül. Ha pakli szállítása szükséges, a szállítási címet a postai vagy futárszolgáltatónak adjuk át a kézbesítéshez.
+
+## 6. Tárolási idő
+
+- Jelentkezés és visszajelzés: a kampány lezárásától számított legfeljebb 12 hónapig, vagy amíg a törlésüket nem kéred.
+- Megrendelés és számlázási adatok: a svájci jogszabályok szerinti megőrzési ideig, jelenleg 10 évig.
+- Hírlevélre való feliratkozás: a leiratkozásig.
+
+## 7. Jogaid
+
+Bármikor jogod van:
+
+- tájékoztatást kérni a rólad tárolt adatokról
+- a pontatlan adatok helyesbítését kérni
+- az adataid törlését kérni
+- az adatkezelés korlátozását kérni
+- tiltakozni az adatkezelés ellen
+- a hozzájárulásodat visszavonni
+- az adataidat kiadatni (hordozhatóság)
+
+Ehhez írj nekünk: connect@das-zusammen.ch. Mivel a leveleket/ígéreteket anonim módon tároljuk, további adatok (pl. hozzávetőleges dátum és szövegrészlet) nélkül nem tudjuk senkihez hozzárendelni őket.
+
+Panaszt a svájci adatvédelmi hatóságnál is tehetsz: Eidgenössischer Datenschutz- und Öffentlichkeitsbeauftragter (EDÖB), www.edoeb.admin.ch.$hu$,
+  'Datenschutzerklärung',
+  $de$## 1. Verantwortliche
+
+Barbara Friedrich-Keresztesi (Geschäftsbezeichnung: Zusammen)
+Schwandenstrasse 100
+3657 Sigriswil, Schweiz
+E-Mail: connect@das-zusammen.ch
+
+## 2. Welche Daten wir erheben
+
+Wir erheben nur Daten, die du selbst angibst:
+
+- First-20-Anmeldung: Name, E-Mail-Adresse und die gewählte Sprache. Damit senden wir dir das druckbare Erste-Abend-Set und die Erinnerungs-Mail.
+- Feedback: deine Antworten zum Abend (ob ihr den Abend hattet, welche Frage dich am meisten berührt hat, ob du das Spiel kaufen würdest und, falls nicht, warum).
+- Bestellung: Name, Lieferadresse (Strasse, PLZ, Ort, Land) und die Sprache des Spiels. Die Bestellung ist unverbindlich, die Rechnung schicken wir erst beim Versand.
+- Technische Daten: Der Hosting-Anbieter kann beim Seitenaufruf kurzzeitig deine IP-Adresse protokollieren. Dies dient ausschliesslich dem sicheren Betrieb der Seite.
+- Kurzer Fragebogen: deine Antworten (z. B. Kaufabsicht, Preisvorstellung, gewünschter Boxinhalt, optionales Freitextfeld) und, wenn du sie angibst, deine E-Mail-Adresse.
+- Brief/Versprechen (Gold-Card-Übung): Den Text, den du schreibst, speichern wir, um ihn anonym anderen Besuchern zu zeigen, ohne Name, E-Mail oder andere Kennzeichnung. Wir können diesen Text niemandem zuordnen.
+- „Schick es dir per E-Mail": Das öffnet dein eigenes E-Mail-Programm mit vorausgefülltem Text. Das läuft nicht über unsere Server, wir sehen und speichern diese E-Mail nicht.
+
+Wir verwenden auf dieser Seite keine Cookies, kein Tracking und keine Analyse-Tools.
+
+## 3. Zweck und Rechtsgrundlage
+
+- Versand des Sets, Erinnerung und Bitte um Feedback: auf Grundlage deiner Anmeldung und deiner Einwilligung.
+- Abwicklung der Bestellung, Rechnungsstellung und Versand: zur Erfüllung des Vertrags erforderlich.
+- Produktentwicklung (Marktinteresse, Preisgestaltung, Inhalt): auf Grundlage deiner Einwilligung.
+- Newsletter oder weitere Produktneuigkeiten: nur, wenn du dem ausdrücklich und separat zustimmst. Du kannst die Einwilligung jederzeit widerrufen.
+
+## 4. Auftragsbearbeiter und Hosting
+
+Deine Daten werden in unserem Auftrag von folgenden Anbietern bearbeitet:
+
+- Supabase (Datenbank; Serverstandort: EU, Irland): Hier speichern wir Anmeldungen, Feedback und Bestellungen.
+- Brevo (Sendinblue SAS, Frankreich): Über Brevo versenden wir die E-Mails. Brevo erhält deinen Namen, deine E-Mail-Adresse und den Inhalt der Mails.
+- Vercel Inc. (USA): Hosting der Website. Vercel kann Daten (z. B. deine IP-Adresse) auch in den USA bearbeiten. Die Übermittlung erfolgt mit angemessenen vertraglichen Garantien.
+
+Die Anbieter bearbeiten die Daten ausschliesslich in unserem Auftrag und nach unseren Weisungen.
+
+## 5. Weitergabe an Dritte
+
+Wir verkaufen deine Daten nicht und geben sie nicht an Dritte weiter, ausser an die unter Punkt 4 genannten Anbieter. Für den Versand eines Spiels geben wir die Lieferadresse an den Post- oder Paketdienst weiter.
+
+## 6. Aufbewahrungsdauer
+
+- Anmeldung und Feedback: höchstens 12 Monate nach Abschluss der Kampagne oder bis du die Löschung verlangst.
+- Bestellungen und Rechnungsdaten: so lange, wie das Schweizer Recht es verlangt, derzeit 10 Jahre.
+- Newsletter-Anmeldung: bis zur Abmeldung.
+
+## 7. Deine Rechte
+
+Du hast jederzeit das Recht,
+
+- Auskunft über die zu dir gespeicherten Daten zu verlangen
+- unrichtige Daten berichtigen zu lassen
+- die Löschung deiner Daten zu verlangen
+- die Einschränkung der Bearbeitung zu verlangen
+- der Bearbeitung zu widersprechen
+- deine Einwilligung zu widerrufen
+- deine Daten herauszuverlangen (Datenübertragbarkeit)
+
+Schreib uns dazu einfach: connect@das-zusammen.ch. Da wir Briefe/Versprechen anonym speichern, können wir sie ohne weitere Angaben (z. B. ungefähres Datum und Textauszug) leider niemandem zuordnen.
+
+Du kannst dich auch beim Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) beschweren: www.edoeb.admin.ch.$de$,
+  'Privacy notice',
+  $en$## 1. Controller
+
+Barbara Friedrich-Keresztesi (trading as Zusammen)
+Schwandenstrasse 100
+3657 Sigriswil, Switzerland
+Email: connect@das-zusammen.ch
+
+## 2. What data we collect
+
+Only data you give us yourself:
+
+- First 20 signup: name, email address and your chosen language. We use them to send the printable First Evening Kit and the reminder email.
+- Feedback: your answers about the evening (whether you had it, which question reached you most, whether you would buy the deck and, if not, why).
+- Order: name, shipping address (street, postcode, city, country) and the deck language. The order is non-binding; we send the invoice when the deck ships.
+- Technical data: our hosting provider may briefly log your IP address when you visit the site. This serves only the secure operation of the site.
+- Short questionnaire: your answers (e.g. purchase intent, price expectations, preferred box contents, an optional free-text field) and, if you give it, your email address.
+- Letter/promise (Gold Card exercise): we store the text you write so that we can show it anonymously to other visitors, without a name, email or other identifier. We cannot link this text to anyone.
+- "Send it to yourself by email": this opens your own email program with pre-filled text. It does not go through our servers; we neither see nor store this email.
+
+We do not use cookies, tracking or analytics tools on this site.
+
+## 3. Purpose and legal basis
+
+- Sending the kit, the reminder and the feedback request: based on your signup and your consent.
+- Handling the order, invoicing and shipping: necessary to perform the contract.
+- Product development (market interest, pricing, contents): based on your consent.
+- Newsletter or further product news: only if you consent to this explicitly and separately. You can withdraw your consent at any time.
+
+## 4. Processors and hosting
+
+The following providers process your data on our behalf:
+
+- Supabase (database; server location: EU, Ireland): we store signups, feedback and orders here.
+- Brevo (Sendinblue SAS, France): we send emails through Brevo. Brevo receives your name, email address and the content of the emails.
+- Vercel Inc. (USA): hosts the website. Vercel may also process data (e.g. your IP address) in the USA. Transfers take place under appropriate contractual safeguards.
+
+The providers process the data only on our behalf and on our instructions.
+
+## 5. Disclosure to third parties
+
+We do not sell your data and do not pass it on to third parties, other than the providers named in section 4. To ship a deck, we pass the delivery address to the postal or courier service.
+
+## 6. Retention
+
+- Signup and feedback: for up to 12 months after the campaign closes, or until you ask us to delete them.
+- Orders and invoice data: for as long as Swiss law requires, currently 10 years.
+- Newsletter signup: until you unsubscribe.
+
+## 7. Your rights
+
+You have the right at any time to
+
+- request information about the data we hold about you
+- have inaccurate data corrected
+- have your data deleted
+- have processing restricted
+- object to processing
+- withdraw your consent
+- receive your data (portability)
+
+Just write to us: connect@das-zusammen.ch. Because we store letters/promises anonymously, we cannot link them to anyone without further details (e.g. approximate date and an excerpt of the text).
+
+You can also lodge a complaint with the Swiss Federal Data Protection and Information Commissioner (FDPIC): www.edoeb.admin.ch.$en$
+)
+on conflict (type) do update set
+  title = excluded.title,
+  slug = excluded.slug,
+  content = excluded.content,
+  title_de = excluded.title_de,
+  content_de = excluded.content_de,
+  title_en = excluded.title_en,
+  content_en = excluded.content_en,
+  last_updated = current_date;
+
+insert into public.legal_documents (type, title, slug, content, title_de, content_de, title_en, content_en)
+values (
+  'Impresszum',
+  'Impresszum',
+  'impresszum',
+  $hu$Zusammen
+Barbara Friedrich-Keresztesi
+Schwandenstrasse 100
+3657 Sigriswil, Svájc
+E-mail: connect@das-zusammen.ch$hu$,
+  'Impressum',
+  $de$Zusammen
+Barbara Friedrich-Keresztesi
+Schwandenstrasse 100
+3657 Sigriswil, Schweiz
+E-Mail: connect@das-zusammen.ch$de$,
+  'Imprint',
+  $en$Zusammen
+Barbara Friedrich-Keresztesi
+Schwandenstrasse 100
+3657 Sigriswil, Switzerland
+Email: connect@das-zusammen.ch$en$
+)
+on conflict (type) do update set
+  title = excluded.title,
+  slug = excluded.slug,
+  content = excluded.content,
+  title_de = excluded.title_de,
+  content_de = excluded.content_de,
+  title_en = excluded.title_en,
+  content_en = excluded.content_en,
+  last_updated = current_date;
+
+NOTIFY pgrst, 'reload schema';

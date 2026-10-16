@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
-import { Search, CornerDownLeft, ExternalLink, Rocket as CampaignIcon, ListTodo, Images } from "lucide-react";
+import { Search, CornerDownLeft, Rocket as CampaignIcon, ListTodo, Images } from "lucide-react";
 import { ALL_NAV_ITEMS, type NavItem } from "@/lib/nav-items";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -85,11 +85,7 @@ export default function CommandPalette() {
 
   function go(item: NavItem) {
     close();
-    if (item.external) {
-      window.open(item.href, "_blank", "noopener,noreferrer");
-    } else {
-      router.push(item.href);
-    }
+    router.push(item.href);
   }
 
   function goTo(href: string) {
@@ -192,11 +188,7 @@ export default function CommandPalette() {
               >
                 <Icon size={16} className="shrink-0 text-bronze" />
                 <span className="flex-1">{item.label}</span>
-                {item.external ? (
-                  <ExternalLink size={13} className="shrink-0 text-muted/50" />
-                ) : (
-                  <CornerDownLeft size={13} className="shrink-0 text-muted/50" />
-                )}
+                <CornerDownLeft size={13} className="shrink-0 text-muted/50" />
               </Command.Item>
             );
           })}

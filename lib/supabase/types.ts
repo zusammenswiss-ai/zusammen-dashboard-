@@ -1277,6 +1277,14 @@ export interface LegalDocument {
   title: string;
   slug: string;
   content: string;
+  // Opcionális fordítások — csak a /first20 (és jövőbeli többnyelvű
+  // oldalak) "?lang=de"/"?lang=en" paraméterrel érkező látogatóinak
+  // jelennek meg; a magyar `title`/`content` marad az alapértelmezett,
+  // paraméter nélküli nézet mindenhol máshol (pl. /landing footer).
+  title_de: string | null;
+  title_en: string | null;
+  content_de: string | null;
+  content_en: string | null;
   last_updated: string;
   is_locked: boolean;
   locked_at: string | null;

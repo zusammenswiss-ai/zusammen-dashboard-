@@ -13,7 +13,6 @@ import {
   NAV_GROUPS,
   NAV_RITUAL_ITEM,
   NAV_SETTINGS_ITEM,
-  NAV_LANDING_ITEM,
   type NavItem,
 } from "@/lib/nav-items";
 
@@ -142,10 +141,8 @@ export default function Nav() {
               );
             })}
 
-            {/* Személyes rituálé — csoportokon kívüli, "kiemelt" elem:
-                ugyanaz az accent formula, mint a Landing oldal linké lent,
-                hogy a nav-n kívül eső elemek egy közös, letisztult stílust
-                osszanak, ne három különböző egyedi megoldást. */}
+            {/* Személyes rituálé — csoportokon kívüli, "kiemelt" elem, egy
+                meleg bronz accent stílussal a rendes nav-elemektől. */}
             <div className="mt-4 border-t border-ivory/10 pt-3">
               <NavLink
                 item={NAV_RITUAL_ITEM}
@@ -160,11 +157,6 @@ export default function Nav() {
             </div>
           </nav>
 
-          <div className="px-3 pb-6 lg:px-4">
-            <div className="border-t border-ivory/10 pt-3">
-              <NavLink item={NAV_LANDING_ITEM} active={false} onNavigate={() => setOpen(false)} accent />
-            </div>
-          </div>
           <div className="hidden px-6 pb-6 text-xs leading-relaxed text-ivory/40 lg:block">
             Zusammen — prémium svájci beszélgetőkártyák. Alapítói dashboard, v1.
           </div>
@@ -185,9 +177,9 @@ function NavLink({
   item: NavItem;
   active: boolean;
   onNavigate: () => void;
-  /** Csoportokon kívüli, "kiemelt" elemek (Személyes rituálé, Landing
-   * oldal) — egységes meleg bronz kiemelés, akkor is, ha épp nem
-   * aktívak, hogy egy közös stílust osszanak a rendes nav-elemektől. */
+  /** Csoportokon kívüli, "kiemelt" elemek (pl. Személyes rituálé) —
+   * egységes meleg bronz kiemelés, akkor is, ha épp nem aktívak, hogy
+   * egy közös stílust osszanak a rendes nav-elemektől. */
   accent?: boolean;
 }) {
   const Icon = item.icon;
@@ -206,7 +198,6 @@ function NavLink({
       href={item.href}
       onClick={onNavigate}
       className={`${baseClasses} ${stateClasses}`}
-      {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
     >
       <Icon size={17} strokeWidth={2} />
       {item.label}

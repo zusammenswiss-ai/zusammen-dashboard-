@@ -8,7 +8,7 @@ import type { Database } from "@/lib/supabase/types";
 import { SITE_URL } from "@/lib/site-url";
 import { legalDocumentUrl } from "@/lib/legal-links";
 
-export type CampaignAudience = "demand" | "newsletter" | "first20";
+export type CampaignAudience = "newsletter" | "first20";
 
 export type CampaignRecipient = {
   email: string;
@@ -17,8 +17,7 @@ export type CampaignRecipient = {
 
 /**
  * Resolves the deduped, suppression-filtered recipient list for one or
- * both audiences. Names only ever come from newsletter_subscribers —
- * landing_responses (demand-test) has no name field, just an email.
+ * both audiences.
  *
  * email_unsubscribes is checked regardless of source (see the comment on
  * that table in supabase/schema.sql) — this is OUR OWN db-side
@@ -34,16 +33,6 @@ export async function resolveCampaignRecipients(
   audiences: CampaignAudience[]
 ): Promise<{ recipients: CampaignRecipient[]; error?: string }> {
   const recipients = new Map<string, CampaignRecipient>();
-
-  if (audiences.includes("demand")) {
-    const demandRes = await supabase.from("landing_responses").select("email").not("email", "is", null);
-    if (demandRes.error) return { recipients: [], error: demandRes.error.message };
-    const rows: { email: string | null }[] = demandRes.data ?? [];
-    for (const row of rows) {
-      const email = row.email?.trim().toLowerCase();
-      if (email) recipients.set(email, { email, name: null });
-    }
-  }
 
   if (audiences.includes("newsletter")) {
     const newsletterRes = await supabase
@@ -77,11 +66,10 @@ export async function resolveCampaignRecipients(
 }
 
 /**
- * First name to substitute for {{first_name}}. newsletter_subscribers has
- * a real name field; demand-test subscribers (landing_responses) only
- * ever gave an email address, so this falls back to a capitalized guess
- * from the local part of the address rather than leaving the greeting
- * blank.
+ * First name to substitute for {{first_name}}. newsletter_subscribers and
+ * first20_signups both have a real name field, but this falls back to a
+ * capitalized guess from the local part of the address rather than
+ * leaving the greeting blank if one is ever missing.
  */
 export function firstNameFor(recipient: CampaignRecipient): string {
   const fromName = recipient.name?.trim().split(/\s+/)[0];

@@ -7,10 +7,6 @@ import { createServerClient } from "@supabase/ssr";
 // unset, this extra network-level layer is skipped (useful for local dev) —
 // the Supabase Auth login below is the mandatory gate either way.
 //
-// /landing is the public, customer-facing page and is always excluded — see
-// the matcher below — so it (and the fonts/images it loads) stays reachable
-// by visitors even when the dashboard itself is locked down.
-//
 // /first20 is excluded the same way — the public "First 20" signup
 // campaign page (app/first20/page.tsx), reachable logged out, with its
 // own simple layout (no dashboard chrome). /api/first20 is its signup
@@ -31,12 +27,13 @@ import { createServerClient } from "@supabase/ssr";
 // job's request before it ever reaches that check, silently breaking the
 // daily reminder email.
 //
-// /api/og is excluded for the same reason /landing is: it's the social-
-// preview image for that public page (app/landing/page.tsx's
-// generateMetadata points og:image/twitter:image at it) — Facebook/Twitter/
-// Slack's link-preview crawlers can't send Basic Auth credentials, so
-// without this exclusion every shared /landing link would show a broken
-// image the moment DASHBOARD_USER/DASHBOARD_PASSWORD are set.
+// /api/og is excluded for the same reason /first20 is: it's the social-
+// preview image for that public page (app/first20/page.tsx's
+// generateMetadata points og:image/twitter:image at /api/og/first20, which
+// lives under this same prefix) — Facebook/Twitter/Slack's link-preview
+// crawlers can't send Basic Auth credentials, so without this exclusion
+// every shared /first20 link would show a broken image the moment
+// DASHBOARD_USER/DASHBOARD_PASSWORD are set.
 //
 // /api/calendar/ics is excluded too: it's the Naptár .ics subscription
 // feed (Beállítások → "Naptár feliratkozás"), meant to be pasted into
@@ -160,5 +157,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher:
-    "/((?!_next/static|_next/image|favicon.ico|landing|first20|impresszum|adatvedelem|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe|api/first20).*)",
+    "/((?!_next/static|_next/image|favicon.ico|first20|impresszum|adatvedelem|fonts|images|api/reminder-email|api/og|api/calendar/ics|api/newsletter/unsubscribe|api/first20).*)",
 };

@@ -4,6 +4,7 @@ import LandingMark from "@/components/LandingMark";
 import LegalDocumentContent from "@/components/LegalDocumentContent";
 import { getSupabasePublicClient } from "@/lib/supabase/publicClient";
 import { formatDate } from "@/lib/format";
+import { LEGAL_PAGE_T, isLegalPageLang, type LegalPageLang } from "@/lib/legal-page-i18n";
 import "../landing/landing.css";
 
 export const metadata: Metadata = { title: "Impresszum — Zusammen" };
@@ -24,29 +25,45 @@ export const dynamic = "force-dynamic";
  * is currently set to — `slug` only drives what OTHER pages link to it
  * with (see lib/legal-links.ts), not where this page itself lives. Also
  * excluded from proxy.ts's auth gate (same matcher entry as `landing`).
- */
-export default async function ImpresszumPage() {
+ * Optional "?lang=de"/"?lang=en" — see app/adatvedelem/page.tsx's
+ * comment for the full story. The back-link points at /first20, the
+ * only remaining public-facing page, now that /landing is gone. */
+export default async function ImpresszumPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lang?: string }>;
+}) {
+  const { lang: langParam } = await searchParams;
+  const lang: LegalPageLang = isLegalPageLang(langParam) ? langParam : "hu";
+  const t = LEGAL_PAGE_T[lang];
+
   const supabase = getSupabasePublicClient();
   const { data } = supabase
     ? await supabase.from("legal_documents").select("*").eq("type", "Impresszum").maybeSingle()
     : { data: null };
 
+  const title = (lang === "de" ? data?.title_de : lang === "en" ? data?.title_en : data?.title) ?? t.impressumTitle;
+  const content = lang === "de" ? data?.content_de : lang === "en" ? data?.content_en : data?.content;
+
   return (
     <div className="landing-root">
       <div className="legal-page">
-        <Link href="/landing" className="back">
-          ← Vissza a ZUSAMMEN-hez
+        <Link href="/first20" className="back">
+          {t.back}
         </Link>
         <LandingMark size={64} />
-        <h1>{data?.title ?? "Impresszum"}</h1>
-        {data?.last_updated && <p className="updated">Utolsó módosítás: {formatDate(data.last_updated)}</p>}
-        {data ? (
-          <LegalDocumentContent content={data.content} />
-        ) : (
-          <p>A tartalom hamarosan elérhető.</p>
+        <h1>{title}</h1>
+        {data?.last_updated && (
+          <p className="updated">
+            {t.updated}: {formatDate(data.last_updated)}
+          </p>
         )}
+        {content ? <LegalDocumentContent content={content} /> : <p>{t.notYetAvailable}</p>}
         <p>
-          Lásd még: <Link href="/adatvedelem" className="inline">Adatvédelmi tájékoztató</Link>
+          {t.seeAlso}:{" "}
+          <Link href={lang === "hu" ? "/adatvedelem" : `/adatvedelem?lang=${lang}`} className="inline">
+            {t.privacyTitle}
+          </Link>
         </p>
       </div>
     </div>
