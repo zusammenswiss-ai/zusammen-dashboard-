@@ -1,19 +1,63 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Send, Eye, X, CheckCircle2, XCircle, Clock, RotateCcw } from "lucide-react";
+import {
+  AlertTriangle,
+  Package,
+  Clock,
+  MessageSquareText,
+  ReceiptText,
+  PenLine,
+  Send,
+  FlaskConical,
+  X,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  Mail,
+} from "lucide-react";
 import type { First20Signup, First20Email, First20EmailType } from "@/lib/supabase/types";
 import { renderFirst20Email } from "@/lib/first20-emails";
 import { FIRST20_EMAIL_TYPE_LABEL } from "@/lib/first20-signup-status";
 import { formatDate } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 
-const SEND_BUTTONS: { type: First20EmailType; label: (signup: First20Signup) => string }[] = [
-  { type: "kit", label: (s) => (s.kit_sent_at ? "Készlet újraküldése" : "Készlet küldése") },
-  { type: "reminder", label: () => "Emlékeztető küldése" },
-  { type: "feedback", label: () => "Visszajelzés kérése" },
-  { type: "order_confirmation", label: () => "Rendelés visszaigazolása" },
-  { type: "custom", label: () => "Saját levél" },
+const SEND_BUTTONS: {
+  type: First20EmailType;
+  icon: typeof Package;
+  label: (signup: First20Signup) => string;
+  hint: (signup: First20Signup) => string | null;
+}[] = [
+  {
+    type: "kit",
+    icon: Package,
+    label: (s) => (s.kit_sent_at ? "Készlet újraküldése" : "Készlet küldése"),
+    hint: (s) => (s.kit_sent_at ? `Elküldve: ${formatDate(s.kit_sent_at)}` : null),
+  },
+  {
+    type: "reminder",
+    icon: Clock,
+    label: () => "Emlékeztető küldése",
+    hint: (s) => (s.reminder_sent_at ? `Elküldve: ${formatDate(s.reminder_sent_at)}` : null),
+  },
+  {
+    type: "feedback",
+    icon: MessageSquareText,
+    label: () => "Visszajelzés kérése",
+    hint: (s) => (s.feedback_mail_sent_at ? `Elküldve: ${formatDate(s.feedback_mail_sent_at)}` : null),
+  },
+  {
+    type: "order_confirmation",
+    icon: ReceiptText,
+    label: () => "Rendelés visszaigazolása",
+    hint: () => null,
+  },
+  {
+    type: "custom",
+    icon: PenLine,
+    label: () => "Saját levél",
+    hint: () => null,
+  },
 ];
 
 const STATUS_BADGE: Record<First20Email["status"], { icon: typeof CheckCircle2; style: string; label: string }> = {
@@ -42,7 +86,7 @@ export default function SignupEmailsTab({
   }, []);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       {brevoStatus && !brevoStatus.configured && (
         <div className="flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
@@ -54,15 +98,32 @@ export default function SignupEmailsTab({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {SEND_BUTTONS.map(({ type, label }) => (
-          <button key={type} type="button" className="btn btn-ghost text-xs" onClick={() => setActiveType(type)}>
-            <Eye size={13} /> {label(signup)}
-          </button>
-        ))}
-      </div>
+      <section>
+        <h3 className="mb-3 flex items-center gap-1.5 font-serif text-base text-forest">
+          <Mail size={16} className="text-bronze" /> Levél küldése
+        </h3>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {SEND_BUTTONS.map(({ type, icon: Icon, label, hint }) => {
+            const hintText = hint(signup);
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setActiveType(type)}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-white p-4 text-center transition-colors hover:border-bronze/50 hover:bg-ivory-dim/60"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-bronze/10 text-bronze">
+                  <Icon size={18} />
+                </span>
+                <span className="text-xs font-medium leading-tight text-forest">{label(signup)}</span>
+                {hintText && <span className="text-[10px] text-muted">{hintText}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-      <div>
+      <section>
         <h3 className="mb-2 font-serif text-base text-forest">E-mail napló</h3>
         {emails.length === 0 ? (
           <p className="text-sm text-muted">Még nem küldtünk e-mailt ennek a jelentkezőnek.</p>
@@ -101,7 +162,7 @@ export default function SignupEmailsTab({
             })}
           </div>
         )}
-      </div>
+      </section>
 
       {activeType && (
         <EmailPreviewModal
@@ -118,6 +179,8 @@ export default function SignupEmailsTab({
     </div>
   );
 }
+
+const FOUNDER_TEST_EMAIL = "keresztesibarbara5@gmail.com";
 
 function EmailPreviewModal({
   signup,
@@ -177,7 +240,7 @@ function EmailPreviewModal({
       }
       if (!data.ok) throw new Error(data.error || "Nem sikerült elküldeni.");
       if (mode === "test") {
-        setResult({ ok: true, message: "Teszt levél elküldve: keresztesibarbara5@gmail.com" });
+        setResult({ ok: true, message: `Teszt levél elküldve: ${FOUNDER_TEST_EMAIL}` });
       } else {
         onSent();
       }
@@ -189,13 +252,16 @@ function EmailPreviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 px-4 py-8 backdrop-blur-[2px]" onClick={onClose}>
-      <div className="animate-fade-in card flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-border p-4">
-          <h3 className="font-serif text-lg text-forest">
-            {FIRST20_EMAIL_TYPE_LABEL[type]} — előnézet ({signup.language_choice.toUpperCase()})
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8" onClick={onClose}>
+      <div
+        className="animate-fade-in card flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border bg-ivory-dim/40 p-4">
+          <h3 className="flex items-center gap-2 font-serif text-lg text-forest">
+            <Mail size={17} className="text-bronze" /> {FIRST20_EMAIL_TYPE_LABEL[type]}
           </h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-ivory-dim" aria-label="Bezárás">
+          <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-white" aria-label="Bezárás">
             <X size={18} />
           </button>
         </div>
@@ -212,11 +278,29 @@ function EmailPreviewModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
-          <p className="border-b border-border px-4 py-2 text-xs text-muted">
-            Tárgy: <span className="font-medium text-forest">{preview.subject}</span>
-          </p>
-          <iframe title="E-mail előnézet" srcDoc={preview.html} className="min-h-[50vh] w-full flex-1" sandbox="" />
+        <div className="flex-1 overflow-y-auto bg-ivory-dim/30 p-3 sm:p-5">
+          {/* Email-kliens-szerű fejléc, hogy ez egyértelműen egy valódi
+              levél előnézete legyen, ne csak egy nyers HTML-dobozka. */}
+          <div className="rounded-t-lg border border-border bg-white px-4 py-3 text-xs">
+            <div className="flex gap-2">
+              <span className="w-14 shrink-0 text-muted">Feladó</span>
+              <span className="text-forest">Zusammen</span>
+            </div>
+            <div className="mt-1 flex gap-2">
+              <span className="w-14 shrink-0 text-muted">Címzett</span>
+              <span className="text-forest">
+                {signup.first_name}
+                {signup.partner_first_name ? ` & ${signup.partner_first_name}` : ""} &lt;{signup.email}&gt;
+              </span>
+            </div>
+            <div className="mt-1 flex gap-2 border-t border-border pt-1.5">
+              <span className="w-14 shrink-0 text-muted">Tárgy</span>
+              <span className="font-medium text-forest">{preview.subject}</span>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-b-lg border border-t-0 border-border bg-white shadow-sm">
+            <iframe title="E-mail előnézet" srcDoc={preview.html} className="h-[50vh] w-full sm:h-[55vh]" sandbox="" />
+          </div>
         </div>
 
         {!brevoConfigured && (
@@ -236,8 +320,13 @@ function EmailPreviewModal({
         {result && <p className="border-t border-border px-4 py-2 text-xs text-forest">{result.message}</p>}
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border p-4">
-          <button type="button" className="btn btn-ghost" onClick={() => send("test")} disabled={sending !== null || (type === "custom" && !customSubject.trim())}>
-            {sending === "test" ? "Küldés…" : "Teszt küldés magamnak"}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => send("test")}
+            disabled={sending !== null || (type === "custom" && !customSubject.trim())}
+          >
+            <FlaskConical size={14} /> {sending === "test" ? "Küldés…" : "Teszt küldés magamnak"}
           </button>
           <button
             type="button"
