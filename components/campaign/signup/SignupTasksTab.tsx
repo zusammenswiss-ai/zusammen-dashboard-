@@ -123,7 +123,7 @@ export default function SignupTasksTab({
                 <X size={18} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
               {unassigned.length === 0 ? (
                 <p className="p-3 text-xs text-muted">Nincs szabad (ehhez a kampányhoz tartozó, jelentkezőhöz még nem rendelt) feladat.</p>
               ) : (

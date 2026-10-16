@@ -278,8 +278,13 @@ function EmailPreviewModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto bg-ivory-dim/30 p-3 sm:p-5">
-          {/* Email-kliens-szerű fejléc, hogy ez egyértelműen egy valódi
+        <div className="min-h-0 flex-1 overflow-y-auto bg-ivory-dim/30 p-3 sm:p-5">
+          {/* min-h-0 kell, különben egy flex-1 gyerek nem zsugorodik a
+              rendelkezésre álló hely alá (a böngésző alapértelmezett
+              min-height: auto miatt) — az iframe fix magassága emiatt
+              kitolta a modal alját a kártya max-h-[92vh] korlátja és
+              overflow-hidden-je alól, és levágta a Küldés/Teszt gombokat.
+              Email-kliens-szerű fejléc, hogy ez egyértelműen egy valódi
               levél előnézete legyen, ne csak egy nyers HTML-dobozka. */}
           <div className="rounded-t-lg border border-border bg-white px-4 py-3 text-xs">
             <div className="flex gap-2">
