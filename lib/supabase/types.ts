@@ -924,6 +924,12 @@ export type PurchaseUpdate = Partial<Omit<Purchase, "id" | "created_at">>;
 // /first20 — lásd supabase/schema.sql first20_signups kommentjét.
 export type First20Language = "hu" | "de" | "en";
 
+// "Print & Play" folyamat állapotai — lásd a schema.sql kommentjét a
+// first20_signups bővítésénél.
+export type First20Status = "Jelentkezett" | "Kit elküldve" | "Visszajelzett" | "Megrendelte" | "Várólista" | "Számlázva" | "Kifizetve";
+export type First20WouldBuy = "igen" | "talan" | "nem";
+export type First20InvoiceStatus = "nincs" | "elküldve" | "kifizetve";
+
 export interface First20Signup {
   id: string;
   first_name: string;
@@ -935,6 +941,26 @@ export interface First20Signup {
   utm_source: string | null;
   utm_medium: string | null;
   confirmation_email_sent: boolean;
+  status: First20Status;
+  token: string | null;
+  kit_sent_at: string | null;
+  reminder_sent_at: string | null;
+  feedback_mail_sent_at: string | null;
+  feedback_received_at: string | null;
+  ordered_at: string | null;
+  email_error: string | null;
+  evening_done: boolean | null;
+  best_card_or_change: string | null;
+  would_buy: First20WouldBuy | null;
+  would_buy_why: string | null;
+  order_language: First20Language | null;
+  ship_name: string | null;
+  street: string | null;
+  zip: string | null;
+  city: string | null;
+  country: string | null;
+  founders_price: boolean | null;
+  invoice_status: First20InvoiceStatus;
   created_at: string;
 }
 export type First20SignupInsert = Partial<Omit<First20Signup, "id" | "created_at">> & {
