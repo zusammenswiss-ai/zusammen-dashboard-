@@ -41,7 +41,10 @@ export default function LockControls({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const reversedHistory = [...unlockHistory].reverse();
+  // Defenzív — ha a hívó fél egy olyan táblából adja át ezt, amin a
+  // migráció még nem futott le (pl. campaigns.unlock_history), a mező
+  // undefined lehet; enélkül a lenti spread összeomlasztaná az oldalt.
+  const reversedHistory = [...(unlockHistory ?? [])].reverse();
   const { visible: visibleHistory, hiddenCount, showAll, setShowAll } = useShowMore(reversedHistory, 8);
 
   async function handleLock(e: React.MouseEvent) {
@@ -93,7 +96,7 @@ export default function LockControls({
       >
         <Lock size={10} className="mr-0.5 inline" /> Lezárva
       </span>
-      {unlockHistory.length > 0 && (
+      {reversedHistory.length > 0 && (
         <button
           type="button"
           onClick={() => setShowHistory(true)}
