@@ -115,8 +115,14 @@ export default function SignupTasksTab({
       )}
 
       {showPicker && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 px-4 py-8 backdrop-blur-[2px]" onClick={() => setShowPicker(false)}>
-          <div className="animate-fade-in card flex max-h-[70vh] w-full max-w-md flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[60] overflow-y-auto bg-forest/40 px-4 py-8 backdrop-blur-[2px]"
+          onClick={() => setShowPicker(false)}
+        >
+          <div
+            className="animate-fade-in card mx-auto flex max-h-[calc(100vh-4rem)] w-full max-w-md flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border p-4">
               <h3 className="font-serif text-lg text-forest">Meglévő feladat hozzárendelése</h3>
               <button onClick={() => setShowPicker(false)} className="rounded-md p-1.5 text-muted hover:bg-ivory-dim" aria-label="Bezárás">
