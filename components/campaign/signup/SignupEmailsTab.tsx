@@ -252,9 +252,12 @@ function EmailPreviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[60] overflow-y-auto bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8"
+      onClick={onClose}
+    >
       <div
-        className="animate-fade-in card flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden"
+        className="animate-fade-in card mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden sm:max-h-[calc(100vh-4rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border bg-ivory-dim/40 p-4">

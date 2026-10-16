@@ -93,9 +93,12 @@ export default function SignupDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8"
+      onClick={onClose}
+    >
       <div
-        className="animate-fade-in card flex h-full max-h-full w-full max-w-3xl flex-col overflow-hidden sm:h-auto sm:max-h-[90vh]"
+        className="animate-fade-in card mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden sm:max-h-[calc(100vh-4rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b border-border p-4 sm:p-5">
