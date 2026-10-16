@@ -89,6 +89,7 @@ export default function CampaignDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  const [openSignupId, setOpenSignupId] = useState<string | null>(null);
   const [locked, setLocked] = useState(true);
   const [draft, setDraft] = useState<{
     status: CampaignStatus;
@@ -165,6 +166,25 @@ export default function CampaignDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (supabase) void load();
   }, [supabase, load]);
+
+  // Deep link a Feladatok Kanban-kártya jelentkező-badge-jéhez:
+  // /marketing/kampanyok/<slug>?tab=signups&signup=<id> — ugyanaz a
+  // "?open="-szerű minta, mint /tasks-on.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab");
+    const signupId = params.get("signup");
+    if (requestedTab === "signups") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab("signups");
+    }
+    if (signupId) {
+      setOpenSignupId(signupId);
+    }
+    if (requestedTab || signupId) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   function unlock() {
     if (!campaign) return;
@@ -528,7 +548,14 @@ export default function CampaignDetailPage() {
       {tab === "costs" && <CampaignCostsTab campaign={campaign} expenses={expenses} />}
       {tab === "kpis" && <CampaignKpiTab campaign={campaign} />}
       {tab === "log" && <CampaignLogTab campaign={campaign} />}
-      {tab === "signups" && campaign.type === "First 20" && <First20SignupsSection campaignId={campaign.id} />}
+      {tab === "signups" && campaign.type === "First 20" && (
+        <First20SignupsSection
+          campaign={campaign}
+          onCampaignUpdated={setCampaign}
+          openSignupId={openSignupId}
+          onSignupOpened={() => setOpenSignupId(null)}
+        />
+      )}
     </>
   );
 }

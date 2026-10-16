@@ -4,7 +4,7 @@ A personal launch-tracking dashboard for **Zusammen**, a Swiss premium
 conversation-card brand. Built for a single user (the founder) — no
 login system, just a private tool to track suppliers, tasks, finances,
 marketing, documents, and future ideas in one place. The dashboard UI is
-in Hungarian; the public `/landing` page (below) is German/English.
+in Hungarian; the public `/first20` page (below) is Hungarian/German/English.
 
 **Stack:** Next.js (App Router) + TypeScript + Tailwind CSS · Supabase
 (Postgres + Storage) · deploy target: Vercel.
@@ -19,29 +19,26 @@ in Hungarian; the public `/landing` page (below) is German/English.
 | **Feladatok** (Tasks) | Kanban board — Teendő / Folyamatban / Kész, drag & drop, priority, due date, assignee, keresés, CSV export. Overdue cards (past due date, not yet Kész) get a red border and a **Lejárt** badge so they stand out on the board itself, not just in the daily reminder email. Independent of the free-text kategória, every task also carries a **Típus** — Egyszeri (neutral gray) / Ismétlődő (🔁 blue) / Kampány (🎯 bronze, with a **clickable kampány name** shown right next to it, jumping to that kampány's részletes nézet on Marketing) — always visible as its own badge on the card. Picking Kampány on the "Feladat hozzáadása" form, a card's detail view, or "Sablonból hozzáadás" reveals a second dropdown, **"Melyik kampányhoz tartozik?"**, sourced from the real `campaigns` table (a "+ Új kampány" quick-add option in that dropdown creates one on the spot, everywhere except the batch Sablonból form). Set automatically where it can be — the recurring-template engine tags its own tasks Ismétlődő, "→ Feladat létrehozása" on a Marketing tartalom-naptár item inherits that item's kampány if it has one — and otherwise defaults to Egyszeri. A **Típus szűrő** narrows the board same as keresés, and a **Csoportosítás: Állapot szerint / Típus szerint** toggle above the board switches between the normal 3-status Kanban and an Egyszeri/Ismétlődő/Kampány view (every task regardless of status) — drag & drop in either view updates whichever dimension that view groups by. Click a card to open its full detail view (all fields + a free-form Megjegyzés/notes field, with Mentés/Mégse/Törlés buttons). **Sablonból hozzáadás**: pick any number of preset task templates (grouped by category, checkboxes) and add them all as Teendő tasks in one go; **Sablonok kezelése** (gear icon) is the full CRUD editor for those templates — create/edit/delete, with categories chosen from existing ones or typed fresh, plus an **Ismétlődő feladat** toggle (típus: Napi/Heti/Havi/Negyedéves/Éves, gyakoriság, első esedékesség) — a 🔁 badge and the next due date show right in the list. A recurring template whose due date has arrived or passed auto-generates its next Teendő task the moment Feladatok is opened (no cron — see `lib/recurring-templates.ts`), and rolls its own next_due_date forward on the same schedule; the seeded set already has 7 of them turned on (havi pénzügyi áttekintés, negyedéves fedezeti pont, éves AHV/Treuhand + domain ellenőrzés, heti Instagram/Feedback/Founder Wall). **Archiválás**: every Kész card gets an archive icon (next to Törlés) to take it off the board without deleting it — an "Összes archiválása" link in the Kész column header archives every Kész card currently shown there in one go (only offered on the Kész status column, not in Típus-grouped view, since a type column can mix statuses). Archived tasks live in a separate **Archívum** view (header button, shows a count) with a Visszaállítás button per row to bring one back, or a real Törlés if you're done with it for good |
 | **Vevői rendelések** (nav label; route still `/orders`, page title still "Megrendelések") | Customer orders ONLY — beszállítói beszerzések (minták, készlet, csomagolóanyag) live separately, under each supplier's **Beszerzések** tab on Beszállítók (see above), so this list never mixes the two. vevő, termék (free text, plus an optional **Kapcsolt termék** dropdown into the Termékek catalog so Pénzügyek can compute a real, COGS-aware árrés for that order, not just revenue), mennyiség, egységár + pénznem, szállítási határidő, státusz (Új → Feldolgozás alatt → Kiszállítva → Teljesítve), optional notes, **Email küldése**, keresés, CSV export |
 | **Pénzügyek** (Finance) | Pénzügy & Számvitel modul, 9 al-fülben. **Áttekintés**: a régi tartalom változatlanul (Tervezési kalkulátor a Termékek COGS/ár adataiból, Tényleges bevétel Megrendelésekből, Havi trend grafikon, Fedezeti pont), plusz egy új, idei-évi (YTD) Fix/Változó költség/Bevétel/Eredmény összesítő sáv. **Fix költségek** / **Változó költségek**: ugyanaz az `expenses` tábla, `type` szerint szűrve — teljes szerkeszthetőség (kattintásra inline szerkeszthetővé váló sor, Mentés/Mégse), kategória, leírás, összeg + pénznem, dátum, ismétlődő + gyakoriság (a Fix listán az éves összeget is kiszámolja, havi × 12), fizetési mód, opcionális nyugta/számla-feltöltés (privát Storage bucket, aláírt linkkel megnyitva), opcionális kapcsolt beszállító/termék (utóbbinál egy "Termék COGS beszúrása" gyorsválasztó előtölti a leírást/összeget egy Termékek-katalógusbeli COGS-ból), keresés + kategória/dátum szűrő a Változó listán, CSV export. **Bevételek**: ugyanaz a szerkeszthetőségi minta a `revenue` táblán (dátum, forrás, összeg + pénznem, opcionális kapcsolt termék, kiállított számlából érkező sorok Kiállítva/Kifizetve státusszal), CSV export. **Költségvetés**: `budgets` tábla, kategóriánként/időszakonként (Havi/Negyedéves/Éves) tervezett összeg, Tervezett vs. Tényleges táblázat (szín szerint zöld/piros), és egy "Éves célegyenleg" kártya (a "Bevétel" kategóriájú Éves sorok mínusz minden más Éves sor, a tényleges YTD adatokkal összevetve). **Cash Flow**: kézzel frissíthető "Jelenlegi bankegyenleg" + egy 6 hónapos előre vetített egyenleg-grafikon (ismétlődő fix költségek havi egyenértéke + az elmúlt hónapok bevétel-átlaga alapján). **ÁFA/MWST**: vizuális küszöb-mérő a CHF 100'000-os svájci MWST-regisztrációs határhoz (a Bevételek CHF-re átváltott YTD összege alapján), plusz egy előkészített (nem bevalláshoz kötött) negyedéves beszedett/fizetett ÁFA rögzítő, ha be van kapcsolva a "Regisztrálva vagyok" jelölőnégyzet. **Számlázás**: svájci QR-számla (QR-Rechnung) — egy "Számlázási adatok" kártya (IBAN + kiállítói cím) rögzíti egyszer a kiállító adatait, utána vevő + tételek megadásával létrehozott számla PDF-ként letölthető (a [`swissqrbill`](https://www.npmjs.com/package/swissqrbill) csomaggal generált, hivatalos elrendezésű QR-kóddal), és "Kiállítás"-kor automatikusan bekerül a Bevételek közé Kiállítva státusszal, amíg "Kifizetve"-re nem állítod. **Export**: minden al-fülön saját CSV export a látható/szűrt sorokra, plusz egy "Teljes pénzügyi export" — egy `.xlsx` fájl, 4 munkalappal (Fix költségek, Változó költségek, Bevételek, Költségvetés), amit egy könyvelőnek átadhatsz. Minden mixed-currency összeg **live exchange rates**-szel van átváltva (lásd lentebb), nem csak relabelezve — kivéve ha maga az élő árfolyam-lekérés hibázik, ekkor a régi, átváltás nélküli-egy-⚠-figyelmeztetéssel viselkedésre esik vissza |
-| **Marketing** | Four tabs. **Évszakos stratégia**: the original 4 fixed seasonal strategy cards (Tavasz/Nyár/Ősz/Tél, `marketing_campaigns` table) — editable theme & product focus, **Email küldése**, and, below that, its **Kampányok** — real named marketing pushes (`campaigns` table, e.g. "ZUSAMMEN FIRST 20") tagged with that season, each a clickable mini-card (name, státusz-jelvény, dátumtartomány), plus a **"+ Új kampány hozzáadása"** button that pre-fills the season. Clicking a kampány mini-card (or its badge anywhere else it appears — a Feladatok Kanban card's kampány-badge, a Tartalom-naptár item's 🎯-badge, jumping there via `/marketing?campaign=<id>`) opens its **részletes nézet**: alapadatok (leírás/dátumok/státusz, lightly editable), a status-grouped mini Kanban of every linked Feladat (Teendő/Folyamatban/Kész, each opening straight into Feladatok), and any linked Marketing tartalom + the Marketing anyagok (images) those content items point at. **Tartalom-naptár**: every scheduled post/story/email/campaign as a card (type + season + color-coded status badges, image preview, copy-text preview, and — when set — a clickable 🎯 kampány badge), nearest date first, with month/type/status filters and a "+ Új tartalom" form (title, type, optional season, optional kampány, date, copy text, status, and either an image upload **or** "Válassz a mentett anyagokból" — a gallery picker of already-uploaded Marketing anyagok, so the same image never gets uploaded twice); each card's **"→ Feladat létrehozása"** spins off a linked Kanban task (due date = the scheduled date, category "Marketing", inheriting the content item's kampány if it has one) — marking that task Kész automatically flips the content item's status to "Kiküldve". **Marketing anyagok**: an image library grouped by language (HU/EN/DE), each asset tagged with an optional platform and season, and a **kép-típus** — Koncepció / Valódi termékfotó / Lifestyle, shown as a loud color-coded badge (yellow/green/blue) directly on the thumbnail so a mockup is never mistaken for a real product photo (e.g. only "Valódi termékfotó" should ever go out on the webshop) — each asset's **"→ Tartalom létrehozása ebből"** opens the naptár form pre-filled with that image, so the chain Marketing anyag → Tartalom → Feladat stays fully linked without duplicating data at any level. **Email kampányok**: upload raw HTML email templates (an attached `.html` file or pasted straight in, editable/renameable in place) with an optional logo upload that auto-replaces every `YOUR_LOGO_URL` placeholder in the template — and, at preview/send time, every `{{first_name}}` (the recipient's name, or a capitalized guess from their email if none), `{{ritual_link}}` (the live `/together` Közös tér link, same `?code=` Beállítások generates), `{{privacy_link}}` (the existing `/landing/datenschutz` page), and `{{unsubscribe_link}}` placeholder is filled in automatically — the last one becomes [Brevo](https://brevo.com)'s own `{unsubscribe}` merge tag rather than a link this app builds, so Brevo enforces that suppression account-wide the moment it's clicked, no webhook needed to sync it back; each template card also has a **"Kampányhoz csatolás"** button that jumps straight to the send form below with that sablon preselected. A minimal **Hírlevél feliratkozók** list (name/email, add/delete) — this is exactly the list the "Hírlevél feliratkozók" checkbox below sends to. **"Email kampány küldése"**: pick a sablon, tárgy, and who it goes to (demand-test feliratkozók from the Igényfelmérés survey emails, hírlevél feliratkozók, or both) — **Előnézet** resolves the actual recipient list and shows the template filled in with a real subscriber's data (falling back to a labeled sample only if that list is empty), **Küldés** actually sends it through Brevo, personalized per recipient, and the sent campaign is logged on the Tartalom-naptár with status "Kiküldve". `BREVO_API_KEY` is a server-only Vercel environment variable (never written to Supabase, never exposed to the browser) — see [Set up Brevo](#2c-optional-email-campaigns-brevo) below |
-| **Igényfelmérés** (Demand) | Live results from the `/landing` survey and Gold Card letters — bar charts for "would you buy?", price sensitivity and package-item popularity, plus lists of ideas and emails. A **Landing oldal megtekintések** card at the top shows a minimal, privacy-friendly visit counter (one row per `/landing` page load — no IP, no visitor id, just a timestamp + language) and the last-7-days count, so you can see a rough visits→survey conversion rate |
+| **Marketing** | Four tabs. **Évszakos stratégia**: the original 4 fixed seasonal strategy cards (Tavasz/Nyár/Ősz/Tél, `marketing_campaigns` table) — editable theme & product focus, **Email küldése**, and, below that, its **Kampányok** — real named marketing pushes (`campaigns` table, e.g. "ZUSAMMEN FIRST 20") tagged with that season, each a clickable mini-card (name, státusz-jelvény, dátumtartomány), plus a **"+ Új kampány hozzáadása"** button that pre-fills the season. Clicking a kampány mini-card (or its badge anywhere else it appears — a Feladatok Kanban card's kampány-badge, a Tartalom-naptár item's 🎯-badge, jumping there via `/marketing?campaign=<id>`) opens its **részletes nézet**: alapadatok (leírás/dátumok/státusz, lightly editable), a status-grouped mini Kanban of every linked Feladat (Teendő/Folyamatban/Kész, each opening straight into Feladatok), and any linked Marketing tartalom + the Marketing anyagok (images) those content items point at. **Tartalom-naptár**: every scheduled post/story/email/campaign as a card (type + season + color-coded status badges, image preview, copy-text preview, and — when set — a clickable 🎯 kampány badge), nearest date first, with month/type/status filters and a "+ Új tartalom" form (title, type, optional season, optional kampány, date, copy text, status, and either an image upload **or** "Válassz a mentett anyagokból" — a gallery picker of already-uploaded Marketing anyagok, so the same image never gets uploaded twice); each card's **"→ Feladat létrehozása"** spins off a linked Kanban task (due date = the scheduled date, category "Marketing", inheriting the content item's kampány if it has one) — marking that task Kész automatically flips the content item's status to "Kiküldve". **Marketing anyagok**: an image library grouped by language (HU/EN/DE), each asset tagged with an optional platform and season, and a **kép-típus** — Koncepció / Valódi termékfotó / Lifestyle, shown as a loud color-coded badge (yellow/green/blue) directly on the thumbnail so a mockup is never mistaken for a real product photo (e.g. only "Valódi termékfotó" should ever go out on the webshop) — each asset's **"→ Tartalom létrehozása ebből"** opens the naptár form pre-filled with that image, so the chain Marketing anyag → Tartalom → Feladat stays fully linked without duplicating data at any level. **Email kampányok**: upload raw HTML email templates (an attached `.html` file or pasted straight in, editable/renameable in place) with an optional logo upload that auto-replaces every `YOUR_LOGO_URL` placeholder in the template — and, at preview/send time, every `{{first_name}}` (the recipient's name, or a capitalized guess from their email if none), `{{ritual_link}}` (the live `/together` Közös tér link, same `?code=` Beállítások generates), `{{privacy_link}}` (the live Adatvédelem page), and `{{unsubscribe_link}}` placeholder is filled in automatically — the last one becomes [Brevo](https://brevo.com)'s own `{unsubscribe}` merge tag rather than a link this app builds, so Brevo enforces that suppression account-wide the moment it's clicked, no webhook needed to sync it back; each template card also has a **"Kampányhoz csatolás"** button that jumps straight to the send form below with that sablon preselected. A minimal **Hírlevél feliratkozók** list (name/email, add/delete) — this is exactly the list the "Hírlevél feliratkozók" checkbox below sends to. **"Email kampány küldése"**: pick a sablon, tárgy, and who it goes to (hírlevél feliratkozók, First 20 jelentkezők, or both) — **Előnézet** resolves the actual recipient list and shows the template filled in with a real subscriber's data (falling back to a labeled sample only if that list is empty), **Küldés** actually sends it through Brevo, personalized per recipient, and the sent campaign is logged on the Tartalom-naptár with status "Kiküldve". `BREVO_API_KEY` is a server-only Vercel environment variable (never written to Supabase, never exposed to the browser) — see [Set up Brevo](#2c-optional-email-campaigns-brevo) below |
 | **Dokumentumok** (Documents) | Simple document library with file upload to Supabase Storage, **Email küldése** (pre-filled with a link to the file), keresés |
 | **Termékek** (Products) | The full product catalog — every card each grouped by státusz (Fejlesztés alatt / Tesztelés / Élő / Jövőbeli terv), with an optional photo, edition, and links to the **Kártya-verzió** (Kártya-fájlok) and **Beszállító** it's tied to. Click a card to expand it: linked kártya-verzió/beszállító (each a link to that page), COGS and eladási ár (each in its own stored currency — e.g. a USD-quoted COGS against a CHF sale price stays exactly that), and the computed **árrés** (absolute + %), **converted with live exchange rates** into your Beállítások → Pénznem preferencia — see Pénzügyek below for where those rates come from; a ⚠ only shows up if that live-rate fetch itself failed. Gold Card and anything else with a **gyártási megjegyzés** gets a loud yellow **"Külön gyártási folyamat"** badge so a different production process is never missed. **"+ Új termék hozzáadása"** picks the kártya-verzió/beszállító from existing records via dropdowns. The **Pénzügyek** calculator reads this table directly — see below |
 | **Kártya-fájlok** (Card assets) | Versioned print-ready card files, grouped by language (HU/DE/EN) — upload a ZIP, a single Word/ODF/CSV file, or an entire folder (zipped in the browser on the fly, subfolders included) with a version label, nyomtatási állapot, optional beszállító/rendelés dátuma/mennyiség and notes. On upload, the server unzips it and pulls out up to 4 preview thumbnails by filename (front/back/wild/goldcard) shown in a small grid on each version. Click a version to open its full detail (untruncated notes, download, delete) and optionally spin a **Feladat** off of it — the new task shows up on the Feladatok board like any other. Each version also has an expandable **Árajánlatok** section — an "+ Új árajánlat hozzáadása" form (beszállító legördülő, mennyiség, egységár + pénznem, kép feltöltése, megjegyzés, dátum) and a list of every price quote received for that version, with a star toggle to mark the accepted one (highlighted green); quotes and suppliers are linked both ways, so the same registry shows up on the supplier's profile too. The most recent upload per language is flagged **Legújabb** |
-| **Személyes rituálé** (Personal Ritual) | Three private rituals for the founders themselves, not the business. **Gold Card Letters**: a hero countdown ("X nap a következő levélig", first round 2026.09.01 then every 3 months) with 4 seal icons that fill up as letters are sealed, an always-visible rituálé-útmutató panel with the 3 fixed prompt questions, and an upload form (ki tölti fel, dátum, fotó) — every sealed letter's photo shows blurred and darkened with a seal icon and "Lepecsételve" overlay, never the actual contents. **Személyes Journey (Passport)**: a free-form emlék-napló (hely, élmény, jegyzet, optional fotó) as a timeline, a fixed 5-card Wild Card grid (Coffee Break / Silence / Memory / Adventure / Gratitude) each checkable off with a date, and a progress bar ("X/5 Wild Card teljesítve" + memory count). At the top of the emlék-napló, an **"Ezen a napon" visszatekintés** card quietly surfaces whenever a memory landed exactly egy hónapja or egy éve (±1 nap) — click it to scroll straight to (and briefly highlight) that entry. The moment all 5 Wild Cards are complete, a warm gold **Évszak-zárás** card appears once ("üljetek le pár percre, és beszéljétek meg…") and stays up until dismissed with "Elolvastam" (remembered per-browser, same as the Naptár legend toggles — there's no "next round" to reset it for since completions can't currently be undone). An **"Emlékeink nyomtatása"** button turns every emlék-napló entry (dátum, hely, szöveg, fotó) into a Fraunces-titled, meleg elefántcsont-hátterű keepsake via the browser's print dialog (save as PDF) — same `window.print()` + hidden `.print-*` convention as the `/landing` letter keepsake. **Meglepetés kérdés**: "Húzz egy lapot" shuffles through a 58-question Hungarian pool for ~1.5s before landing on one, framed by a random intro/outro (every outro explicitly mentions putting the phone down) and a fixed reminder that the phone is only for sending the message — "Másolás küldéshez" copies the full text ready to send. Every letter, memory, Wild Card completion, and question draw shows up in the Áttekintés activity feed |
+| **Személyes rituálé** (Personal Ritual) | Three private rituals for the founders themselves, not the business. **Gold Card Letters**: a hero countdown ("X nap a következő levélig", first round 2026.09.01 then every 3 months) with 4 seal icons that fill up as letters are sealed, an always-visible rituálé-útmutató panel with the 3 fixed prompt questions, and an upload form (ki tölti fel, dátum, fotó) — every sealed letter's photo shows blurred and darkened with a seal icon and "Lepecsételve" overlay, never the actual contents. **Személyes Journey (Passport)**: a free-form emlék-napló (hely, élmény, jegyzet, optional fotó) as a timeline, a fixed 5-card Wild Card grid (Coffee Break / Silence / Memory / Adventure / Gratitude) each checkable off with a date, and a progress bar ("X/5 Wild Card teljesítve" + memory count). At the top of the emlék-napló, an **"Ezen a napon" visszatekintés** card quietly surfaces whenever a memory landed exactly egy hónapja or egy éve (±1 nap) — click it to scroll straight to (and briefly highlight) that entry. The moment all 5 Wild Cards are complete, a warm gold **Évszak-zárás** card appears once ("üljetek le pár percre, és beszéljétek meg…") and stays up until dismissed with "Elolvastam" (remembered per-browser, same as the Naptár legend toggles — there's no "next round" to reset it for since completions can't currently be undone). An **"Emlékeink nyomtatása"** button turns every emlék-napló entry (dátum, hely, szöveg, fotó) into a Fraunces-titled, meleg elefántcsont-hátterű keepsake via the browser's print dialog (save as PDF), using a `window.print()` + hidden `.print-*` convention. **Meglepetés kérdés**: "Húzz egy lapot" shuffles through a 58-question Hungarian pool for ~1.5s before landing on one, framed by a random intro/outro (every outro explicitly mentions putting the phone down) and a fixed reminder that the phone is only for sending the message — "Másolás küldéshez" copies the full text ready to send. Every letter, memory, Wild Card completion, and question draw shows up in the Áttekintés activity feed |
 | **Postaláda** (Inbox) | Read-only view of the connected Gmail account's inbox (needs the `gmail.readonly` scope — see the reconnect note below) — sender, subject, snippet, and relative time per row, a Gmail-syntax search box (e.g. `from:supplier@example.com`), "Továbbiak betöltése" pagination, and clicking a row opens the full message body. No mark-as-read/archive/delete actions by design, just viewing |
-| **Megosztások** (Shares) | **Megosztható link és QR kód**: the live `/landing` URL (DE/EN toggle) with a "Link másolása" button, a self-generated QR code (`/api/qr`, no third-party service) with a "QR kód letöltése" PNG download, and — where the browser supports it — a native "Megosztás" share-sheet button. Shows even before Supabase is configured, since it needs neither. **Kapcsolatok**: a sajtó/influencer/ismerős contact list (name, email, kategória, jegyzet), each with its own **Email küldése** — a successful send auto-fills "Kiküldött email" and ticks "Megkeresve", same as Beszállítók — and a **Levelezés** toggle per card previews the Gmail thread with that contact and auto-ticks "Megkeresve" the moment they reply, same mechanism as Beszállítók. **Demand-test link megosztásai**: a log of every time the `/landing` igényfelmérés link was emailed out — "+ Új megosztás" picks an existing kapcsolat or a one-off name/email, opens the compose window pre-filled with the link, and a successful send adds a row to the log |
+| **Megosztások** (Shares) | **Kapcsolatok**: a sajtó/influencer/ismerős contact list (name, email, kategória, jegyzet), each with its own **Email küldése** — a successful send auto-fills "Kiküldött email" and ticks "Megkeresve", same as Beszállítók — and a **Levelezés** toggle per card previews the Gmail thread with that contact and auto-ticks "Megkeresve" the moment they reply, same mechanism as Beszállítók |
 | **Beállítások** (Settings) | **Gmail összekapcsolása** — connects the Google account every "Email küldése" button sends through when `EMAIL_PROVIDER=gmail` (the default), and that Postaláda reads from; shows the connected address, and a **Kapcsolat bontása** button. See [Set up email sending](#2-set-up-email-sending-gmail-default) below. **Közös tér linkje** — generates/regenerates the access code for the partner-shared `/together` page and shows the full link to send. See [`/together`](#together--shareable-partner-page) below. **Márka-adatok** — company name/address/phone/email + a logo upload. **Email-aláírás** — free text automatically appended to every email sent through an "Email küldése" button (default: "Zusammen — Where conversations become memories."). **Naptár-integráció** — shows whether the negyedéves Gold Card Letters due-date reminder is active on Naptár/Áttekintés, with Szüneteltetés/Aktiválás and a Újra beállítás button (sealed letters already on record always keep showing). **Pénznem preferencia** — CHF/USD/EUR, changes how prices are *displayed* on Pénzügyek (there's no exchange-rate source, so it relabels the stored number rather than converting it). **Naptár feliratkozás** — generates a `.ics` subscription link (own token, not the dashboard's Basic Auth — see below) so every Naptár event shows up with native reminders in Google Calendar/Apple Naptár/your phone. **Adatexport** — one button downloads every Supabase table as a CSV, zipped. **Veszélyes zóna** — "Minden adat törlése" wipes all founder-entered business/content data (type TÖRLÉS to confirm) but keeps the Gmail connection, the Közös tér code, and Márka-adatok intact. **Fiók** — shows the logged-in Supabase Auth email and a **Kijelentkezés** button — see [Set up your login](#set-up-your-login-supabase-auth) below |
 | **Jövőbeli tervek** (Future Plans) | Idea backlog — Ötlet / Fontolgatva / Tervezve |
 
 **Navigáció**: the sidebar (`components/Nav.tsx`) groups everything but
-Áttekintés into 3 evenly-sized (6 items each) labeled sections — **üzlet**
-(Beszállítók, Termékek, Vevői rendelések, Ügyfélszolgálat, Pénzügyek,
-Igényfelmérés), **tartalom** (Kártyatervező, Kártya-fájlok, Kártyák,
+Áttekintés into 3 labeled sections — **üzlet**
+(Beszállítók, Termékek, Vevői rendelések, Ügyfélszolgálat, Pénzügyek),
+**tartalom** (Kártyatervező, Kártya-fájlok, Kártyák,
 Rituálék, Marketing, Dokumentumok), **munkafolyamat** (Feladatok,
 Jegyzőkönyvek, Naptár, Jövőbeli tervek, Postaláda, Megosztások — the last
 two used to be their own thin 2-item "kapcsolat" group, folded in here for
-a more balanced sidebar). **Személyes rituálé** and the external **Landing
-oldal** link sit below, both sharing one consistent "accent" treatment (a
-warm bronze background + left border even while inactive, so the
-nav-elemeken-kívüli items read as one family instead of three bespoke
-styles) — **Beállítások** stays plain, like any other nav item, just
+a more balanced sidebar). **Személyes rituálé** sits below, with its own
+"accent" treatment (a warm bronze background + left border even while
+inactive) — **Beállítások** stays plain, like any other nav item, just
 positioned on its own below the groups, each set apart by its own divider.
 `lib/nav-items.ts` is the single list both the sidebar and the **Cmd+K /
 Ctrl+K** quick-switcher (`components/CommandPalette.tsx`, built on
@@ -149,111 +146,14 @@ run long (more than 8 items), `lib/useShowMore.ts` + `components/ShowMoreButton.
 show only the first 8 with a "+N továbbiak megjelenítése" link — click again
 to collapse back down.
 
-## `/landing` — public customer-facing page
-
-A separate, standalone page (no dashboard chrome, no Basic Auth lock even
-if you enable one — see below) at `/landing`, linked from the dashboard
-sidebar. It's an interactive funnel — founder story, a sample card demo,
-a "gold card" letter prompt, a package builder, a short survey — with a
-DE/EN language toggle in the top corner. Survey responses, letters, and
-page-view counts are saved to Supabase (`landing_responses`,
-`landing_letters`, `landing_page_views`) — anonymous visitors can only
-ever insert into these (see [Note on security](#note-on-security)), the
-aggregate stats themselves are the **Igényfelmérés** dashboard page,
-behind the real Supabase Auth login.
-
-**Navigation**: a back/home/forward pill (top-left, mirroring the DE/EN
-switch on the top-right) lets visitors move both directions through the
-funnel — browser-style: back and forward step through everywhere you've
-actually been, home jumps straight to the hero from any screen. Nothing
-already typed is lost by stepping away and back — the gold-card letter
-text and the survey answers live one level up from their screens
-specifically so back/forward doesn't wipe them — and re-submitting after
-navigating back doesn't create duplicate Supabase rows (a submit is
-skipped if the content already matches what was last saved).
-
-**Tactile touches** (built with [Framer Motion](https://www.framer.com/motion/)):
-the hero's logo is a physical-feeling card you can drag around (springs
-back within its bounds) and tap/flip to preview a real question from the
-deck — desktop adds a mouse-follow 3D tilt on top, gated behind a
-`(hover: hover) and (pointer: fine)` check so touch devices just get
-drag + tap instead (verified equally responsive on iPad/iPhone, portrait
-and landscape). The brand mark (mountain + heart) draws itself in with an
-animated stroke the moment it scrolls into view, rather than eagerly on
-load. The demo deck shows 1-2 fanned, rotated card-backs behind the
-active card — a "hand-held pack" that visibly thins out as you draw. The
-whole page has a barely-there paper-grain texture instead of flat color
-fields. All of this respects `prefers-reduced-motion` (skips the tilt and
-draw-in, keeps the essential state changes) and degrades to nothing (a
-static logo, no tilt) if JavaScript hiccups.
-
-**Sound** (`lib/landing-sound.ts`): a soft, synthesized tap/flip sound
-plays on the card interactions above — off by default, with a mute/unmute
-toggle next to the DE/EN switch (persisted per-browser via
-`localStorage`). Every sound is generated on the fly with the Web Audio
-API (filtered noise bursts, no external audio file), so it's
-dependency-free — swap `playNoiseBurst` in that file for real recorded
-clips later if you'd rather use those.
-
-A matching pair of legal pages ships alongside the funnel, linked from
-a small footer bottom-left: `/impresszum` and `/adatvedelem`. Unlike the
-rest of `/landing`, these are **database-backed**, not hardcoded JSX —
-their content lives in the `legal_documents` table and is editable
-(with the same lock/unlock-with-history flow as Fix/Változó
-költségek) from Beállítások → Jogi dokumentumok, so a founder can fix a
-typo or add a section without a code change or redeploy. schema.sql
-seeds both rows with a Hungarian placeholder structure and `[TÖLTSD KI:
-…]` markers for every founder-specific value (business name/address,
-contact email, Supabase hosting region, VAT/company register number) —
-**fill these in via the Settings editor before sharing the `/landing`
-link publicly**, since the funnel collects an optional email address
-and Swiss/EU sites need a real legal notice + privacy policy. The old
-`/landing/impressum` and `/landing/datenschutz` URLs still work — they
-just redirect to the two pages above now.
-
-**Social previews** (`og:*` / `twitter:*` tags, so the link looks right
-when pasted into WhatsApp, iMessage, Slack, etc.): defined in
-`app/landing/page.tsx`'s `generateMetadata`, sourced from
-`lib/landing-og.ts`. The preview image itself is generated on request —
-not a static file — by `app/api/og/route.tsx`, a branded placeholder
-(dark-forest gradient, gold mountain+heart mark, the tagline in Fraunces)
-built with Next's `ImageResponse`; swap that route for real product
-photography whenever it exists by pointing the `openGraph`/`twitter`
-`images` URLs in `generateMetadata` at actual files instead. Title and
-image are the same across languages; the description and `og:locale` vary
-by `?lang=de|en|hu` — bare `/landing` (no query string) is the German
-default, matching the page's own default language. Since `/landing`
-itself only has German/English on-page copy (see `lib/landing-i18n.ts`),
-`?lang=hu` only changes the *social preview* text, not the page you land
-on — it still opens in German. Use whichever `/landing?lang=…` link
-matches the audience you're sharing it with, so both the on-page content
-and the preview card match.
-
-### Before you share the `/landing` link
-
-1. **Personalize the founder story** — `lib/landing-i18n.ts` has a
-   `// TODO before launch` comment above the `story` block in both the
-   `de` and `en` sections; it reads fine as-is, but swap in your own
-   real story if you have one.
-3. **Fill in the legal pages** — Beállítások → Jogi dokumentumok, open
-   Impresszum and Adatvédelem, and replace every "TÖLTSD KI" placeholder
-   with your real details (or open `/impresszum` / `/adatvedelem`
-   directly to see what's currently live).
-4. **Set `SITE_URL`** to your real production domain once you have one
-   (see the env var comment in `.env.example`) — without it, the social
-   preview image/canonical URLs point at the default Vercel preview
-   domain, which won't match wherever you actually deploy.
-
 ## `/first20` — public "First 20" signup page
 
 A separate, standalone page (no dashboard chrome, no Basic Auth lock, no
-login — same treatment as `/landing`) at `/first20`, for the "First 20"
-beta-tester campaign: a single-screen editorial page (hero, a 3-step
-"how it works", a 4-suit card preview, a "why only 20" explainer, a
-signup form, FAQ) instead of `/landing`'s multi-screen interactive
-funnel. **Three** on-page languages — hu/de/en, toggled top-right — since
-the signup form itself asks which language a couple would like their
-deck in.
+login) at `/first20`, for the "First 20" beta-tester campaign: a
+single-screen editorial page (hero, a 3-step "how it works", a 4-suit
+card preview, a "why only 20" explainer, a signup form, FAQ). **Three**
+on-page languages — hu/de/en, toggled top-right — since the signup form
+itself asks which language a couple would like their deck in.
 
 **Hero visual**: a vector 3-card fan (`components/first20/HeroCards.tsx`),
 drawn entirely in CSS/Framer Motion with the brand palette + suit icons
@@ -291,9 +191,49 @@ page never exposes individual signup rows), falling back to a plain
    handle recorded anywhere in this codebase yet. Give `app/first20/First20Client.tsx`'s
    `Footer` component your real Instagram URL to wire it up.
 
-As with `/landing`, legal pages/`SITE_URL` above apply here too — the
-signup form's consent checkbox links to whatever Beállítások → Jogi
-dokumentumok currently has set for Adatvédelem.
+Legal pages/`SITE_URL` above apply here too — the signup form's consent
+checkbox links to whatever Beállítások → Jogi dokumentumok currently has
+set for Adatvédelem.
+
+### First 20 jelentkezők — e-mail küldés a Dashboardból
+
+The "First 20, Print & Play" campaign's **Jelentkezők** tab
+(`/marketing/kampanyok/first-20-print-play-2026-osz`, "Jelentkezők" tab)
+is a full per-signup workspace, not just a list. Clicking a row opens a
+detail view with its own tabs: Áttekintés (data, manually-settable
+status, copyable `/first20/feedback/{token}` link), E-mailek (send
+history + buttons for Készlet/Emlékeztető/Visszajelzés kérése/Rendelés
+visszaigazolása/Saját levél — every send previews first, then needs an
+explicit confirm, plus a "Teszt küldés magamnak" that only ever goes to
+`keresztesibarbara5@gmail.com`), Visszajelzés és rendelés, Dokumentumok,
+Feladatok (a real `tasks.signup_id` link — the same task shows on the
+Kanban with a jelentkező-badge), Jegyzetek, and a merged Napló timeline.
+
+**Email templates** live in `lib/first20-emails.ts` (HU/DE/EN, one
+source of truth for the preview, the manual send, and the cron) and are
+sent via `lib/brevo.ts`/`lib/first20-send.ts`; every send is logged in
+`first20_emails` (`sent`/`failed`/`queued`, with the error message on
+failure) and a 24-hour cooldown asks for explicit confirmation before
+resending the same type to the same signup.
+
+**Two things to set up before using this for real signups**:
+1. Replace the three placeholder PDFs at `public/first20-kit/kit-hu.pdf`
+   / `kit-de.pdf` / `kit-en.pdf` with the real, designed "Első este
+   készlet" (these are what `{{kit_url}}` in the Készlet/Emlékeztető
+   emails points to — right now they're just a one-page "this is a
+   placeholder" notice).
+2. Set `BREVO_SENDER_EMAIL` / `BREVO_SENDER_NAME` (see
+   [Set up Brevo](#2c-optional-email-campaigns-brevo) below —
+   `BREVO_FROM_EMAIL`/`BREVO_FROM_NAME` still work too, as a fallback).
+
+**Automatikus küldés** — a toggle on the campaign's Jelentkezők tab,
+**off by default**. When on, the daily
+`/api/cron/first20-emails` job (needs `CRON_SECRET`, same as the other
+cron jobs below) sends the Emlékeztető (3 days after the Készlet email)
+and the Visszajelzés kérése (7 days after) automatically for signups
+that haven't progressed further. The Készlet email itself and the
+Rendelés visszaigazolása are always manual — the cron never sends
+those.
 
 ## `/together` — shareable partner page
 
@@ -382,10 +322,11 @@ by Postgres itself regardless of who holds the anon key.
 
 Three deliberate exceptions:
 
-- **`/landing`'s survey/letter/pageview tables** allow anonymous
-  INSERT (real logged-out visitors submit these) but restrict
-  reading them back to an authenticated session — see **Igényfelmérés**
-  in the Pages table above.
+- **`first20_signups`/`first20_rate_limits`** have no anon RLS policy at
+  all — every insert/read goes through a service-role API route
+  (`app/api/first20/signup/route.ts`, `app/api/first20/feedback/[token]/route.ts`),
+  not a direct anon-key insert — see [`/first20`](#first20--public-first-20-signup-page)
+  above.
 - **`/together`'s tables** (Gold Card Letters, Journey/Passport, Wild
   Cards, Meglepetés kérdés, and the access code itself) stay on a
   permissive anon policy — the partner using that page never holds a
@@ -463,16 +404,17 @@ login still applies either way).
   as the Supabase keys — see the deploy step below), then **redeploy**
   — Vercel only picks up new/changed environment variables on the next
   deployment, not on already-running ones.
-- `/landing`, `/api/reminder-email` (the daily cron summary),
+- `/first20` (and its `/api/first20/*` endpoints), `/impresszum`,
+  `/adatvedelem`, `/api/reminder-email` (the daily cron summary),
   `/api/calendar/ics` (the Naptár subscription feed — see Beállítások →
   "Naptár feliratkozás"), and `/api/newsletter/unsubscribe` (the
   leiratkozás link at the bottom of every campaign email) are always
-  excluded, so the public funnel, the reminder email, your calendar app,
-  and anyone unsubscribing from a campaign all keep working even with
-  the lock on. The `.ics` feed has its own gate instead (a `?token=`
-  checked against a value generated on Beállítások) since calendar apps
-  generally can't supply Basic Auth credentials when polling a
-  subscription URL.
+  excluded, so the public signup page, the legal pages, the reminder
+  email, your calendar app, and anyone unsubscribing from a campaign all
+  keep working even with the lock on. The `.ics` feed has its own gate
+  instead (a `?token=` checked against a value generated on
+  Beállítások) since calendar apps generally can't supply Basic Auth
+  credentials when polling a subscription URL.
 
 ---
 
@@ -631,24 +573,28 @@ optionally `RESEND_REPLY_TO` — no code changes needed either way.
 
 ### 2c. Optional: Email campaigns (Brevo)
 
-Powers the **Marketing → Email kampányok** tab — bulk, personalized HTML
-campaigns to your demand-test and hírlevél feliratkozók, independent of
-`EMAIL_PROVIDER` above (that setting is for the single-recipient "Email
-küldése" buttons app-wide; this is a different, bulk-sending feature with
-its own transport, `lib/brevo.ts`). Leave it unset and the campaign form
-simply shows "Brevo nincs beállítva" — Előnézet still works, nothing else
-on the dashboard is affected.
+Powers the **Marketing → Email kampányok** tab (bulk, personalized HTML
+campaigns to your hírlevél feliratkozók and First 20 jelentkezők) and
+the First 20 Jelentkezők tab's per-signup e-mails (Készlet/Emlékeztető/
+Visszajelzés kérése/Rendelés visszaigazolása/Saját levél — see
+[First 20 jelentkezők — e-mail küldés a Dashboardból](#first-20-jelentkezők--e-mail-küldés-a-dashboardból)
+above). Independent of `EMAIL_PROVIDER` above (that setting is for the
+single-recipient "Email küldése" buttons app-wide; this is a different,
+bulk-sending feature with its own transport, `lib/brevo.ts`). Leave it
+unset and both forms simply show "Brevo nincs beállítva" — Előnézet
+still works everywhere, nothing else on the dashboard is affected.
 
 1. Go to [brevo.com](https://brevo.com) → **Sign up** (free — 300
    emails/day, plenty for a founder-sized list).
 2. In the Brevo dashboard, open **Settings → SMTP & API → API Keys** →
    **Generate a new API key**. Give it any name and copy it.
 3. Add it as an environment variable named `BREVO_API_KEY`.
-4. Optionally set `BREVO_FROM_EMAIL` / `BREVO_FROM_NAME` — both default
-   to `zusammen.swiss@gmail.com` / `Zusammen` if unset. Note the sending
-   address needs to be a domain/sender Brevo lets you send from (see
-   their dashboard) — free accounts can usually verify a single sender
-   email without owning the whole domain.
+4. Optionally set `BREVO_SENDER_EMAIL` / `BREVO_SENDER_NAME` — both
+   default to `zusammen.swiss@gmail.com` / `Zusammen` if unset (the
+   older `BREVO_FROM_EMAIL`/`BREVO_FROM_NAME` names still work too, as a
+   fallback). Note the sending address needs to be a domain/sender Brevo
+   lets you send from (see their dashboard) — free accounts can usually
+   verify a single sender email without owning the whole domain.
 
 Templates are raw HTML you upload on the Email kampányok tab. Every
 placeholder below is filled in automatically, both on **Előnézet** and on
@@ -764,8 +710,9 @@ real starting point: run it alongside `npx tsc --noEmit` and
    | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase Project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon public key |
    | `RESEND_API_KEY` | your Resend API key (needed for the Email küldése buttons) |
-   | `CRON_SECRET` *(optional)* | needed only for the daily reminder email — see step 3 |
-   | `BREVO_API_KEY` *(optional)* | needed only for Marketing → Email kampányok — see step 2c |
+   | `CRON_SECRET` *(optional)* | needed for the daily reminder email (step 3) and the First 20 auto-send cron |
+   | `BREVO_API_KEY` *(optional)* | needed for Marketing → Email kampányok and the First 20 Jelentkezők tab — see step 2c |
+   | `BREVO_SENDER_EMAIL` / `BREVO_SENDER_NAME` *(optional)* | sender address for both of the above — see step 2c |
    | `DASHBOARD_USER` *(optional)* | a username, to lock the dashboard |
    | `DASHBOARD_PASSWORD` *(optional)* | a password, to lock the dashboard |
    | `RESEND_FROM_EMAIL` *(optional)* | only once you've verified your own domain in Resend |
@@ -786,23 +733,27 @@ app/                     Next.js App Router pages (one folder per tab)
 app/api/send-email/      Server-side route that calls Resend (holds RESEND_API_KEY)
 app/api/reminder-email/  Daily cron route — due-soon summary via Resend (holds CRON_SECRET)
 app/api/cron/check-date-digest/  Daily cron route — Várakozás check_date digest via Resend (only sends if something's due)
-app/api/og/              Generates the /landing social-preview image (?lang=de|en|hu)
-app/landing/page.tsx     Server wrapper: generateMetadata (og:/twitter: tags) + initial lang
-app/landing/LandingClient.tsx  The actual interactive funnel (moved out so page.tsx can be a Server Component)
-app/landing/impressum/   Redirects to /impresszum (old URL kept working)
-app/landing/datenschutz/ Redirects to /adatvedelem (old URL kept working)
+app/api/og/first20/      Generates the /first20 social-preview image
+app/api/cron/first20-emails/  Daily cron route — First 20 emlékeztető/visszajelzés-kérés auto-send (gated by a per-campaign toggle)
+app/api/marketing/first20/send/  Manual First 20 e-mail send (Jelentkezők fül)
+app/api/first20/feedback/[token]/  Public backend for the /first20/feedback/{token} page
+app/landing/impressum/   Redirects to /impresszum (old URL kept working, even though /landing itself is gone)
+app/landing/datenschutz/ Redirects to /adatvedelem (old URL kept working, even though /landing itself is gone)
+app/landing/landing.css  Still used by /impresszum and /adatvedelem for shared chrome styles
 app/impresszum/          Public legal notice — content read live from legal_documents
 app/adatvedelem/         Public privacy notice — content read live from legal_documents
 components/              Shared UI (nav, cards, empty states, feedback)
+components/campaign/signup/  First 20 jelentkező részletnézet (SignupDetailModal + its tabs)
 lib/supabase/client.ts   Browser Supabase client
 lib/supabase/types.ts    Hand-written types matching supabase/schema.sql
-lib/landing-og.ts        Per-language og:/twitter: title/description copy
+lib/first20-emails.ts    First 20 e-mail sablonok (HU/DE/EN) — single source for preview, manual send, and cron
+lib/first20-send.ts      Server-only First 20 e-mail send orchestration (Brevo call + first20_emails log + signup update)
 lib/site-url.ts          Base URL for metadataBase + the OG image route (SITE_URL env var)
 lib/format.ts            Currency/date formatting helpers
 lib/csv.ts               CSV export helper (used by Suppliers/Orders/Tasks)
 lib/__tests__/           Vitest unit tests for the pure-function lib/ modules — npm test
 supabase/schema.sql      Full database schema — run once in Supabase
-vercel.json              Cron schedule for the reminder email
+vercel.json              Cron schedules — reminder email, check-date digest, First 20 auto-send
 proxy.ts                 Optional Basic Auth lock
 ```
 

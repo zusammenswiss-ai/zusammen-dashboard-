@@ -3206,3 +3206,92 @@ on conflict (type) do update set
   last_updated = current_date;
 
 NOTIFY pgrst, 'reload schema';
+
+-- =====================================================================
+-- First 20 — Jelentkezők fül kibővítése: e-mail küldés a Dashboardból,
+-- jelentkezőhöz társított e-mailek/dokumentumok/feladatok/jegyzetek egy
+-- helyen. Lásd components/campaign/signup/SignupDetailModal.tsx és
+-- lib/first20-send.ts.
+--
+-- Minden jelentkezőnek kap egy egyedi, nem kitalálható tokent — ez adja
+-- a /first20/feedback/{token} linket. A korábbi migráció (Print & Play)
+-- már felvette a `token` oszlopot, de semmi nem töltötte ki soha (az
+-- /api/first20/signup/route.ts nem generált egyet) — ez itt visszamenőleg
+-- pótolja a meglévő, token nélküli sorokat is.
+-- =====================================================================
+update public.first20_signups
+set token = encode(gen_random_bytes(16), 'hex')
+where token is null;
+
+-- Automatikus küldés (napi cron) be/ki kapcsolója — kampány-szintű, nem
+-- globális, mert ez a mechanika csak a First 20 kampány(ok)hoz tartozik.
+-- Alapértelmezetten KI: az első éles sorozatot a founder dönti el, mikor
+-- indítja (lásd a feladat "AMIT NE CSINÁLJ" szabályát).
+alter table public.campaigns add column if not exists first20_auto_send boolean not null default false;
+
+-- E-mail napló — minden kiküldött (vagy sikertelen) First 20 e-mail egy
+-- sor itt, a jelentkezőhöz kötve. Direkt írás a kliensből (authenticated
+-- anon-key) NINCS megengedve — csak OLVASÁS, a tényleges küldés/beszúrás
+-- mindig a service-role kliensen át történik (/api/marketing/first20/send
+-- és /api/cron/first20-emails), hogy a Brevo-hívás és a napló-sor soha ne
+-- szakadjon el egymástól egy, csak a böngészőből indított beszúrással.
+create table if not exists public.first20_emails (
+  id uuid primary key default gen_random_uuid(),
+  signup_id uuid not null references public.first20_signups(id) on delete cascade,
+  type text not null check (type in ('kit', 'reminder', 'feedback', 'order_confirmation', 'custom')),
+  language text not null check (language in ('hu', 'de', 'en')),
+  subject text not null,
+  status text not null default 'queued' check (status in ('queued', 'sent', 'failed')),
+  error text,
+  provider_message_id text,
+  trigger text not null default 'manual' check (trigger in ('manual', 'auto')),
+  sent_by text,
+  sent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists first20_emails_signup_id_idx on public.first20_emails (signup_id, created_at desc);
+
+alter table public.first20_emails enable row level security;
+
+drop policy if exists "authenticated read" on public.first20_emails;
+create policy "authenticated read" on public.first20_emails for select
+  using (auth.uid() is not null);
+
+-- Jegyzetek — szabad szöveg, időbélyeggel és szerzővel, ugyanaz a minta,
+-- mint a kampány Napló füle (campaign_log), csak jelentkezőhöz kötve, és
+-- direktben írható a Dashboardból (nincs Brevo-hívás vagy egyéb
+-- mellékhatás, ami szerveroldali írást indokolna).
+create table if not exists public.first20_signup_notes (
+  id uuid primary key default gen_random_uuid(),
+  signup_id uuid not null references public.first20_signups(id) on delete cascade,
+  body text not null,
+  author text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists first20_signup_notes_signup_id_idx on public.first20_signup_notes (signup_id, created_at desc);
+
+alter table public.first20_signup_notes enable row level security;
+
+drop policy if exists "authenticated full access" on public.first20_signup_notes;
+create policy "authenticated full access" on public.first20_signup_notes for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Dokumentumok és Feladatok — a meglévő `documents`/`tasks` táblákat
+-- bővítjük nullable signup_id mezővel, ugyanaz a minta, mint a
+-- campaign_id ezeken a táblákon (lásd fentebb a "Kampány-kapcsolat a
+-- meglévő táblákhoz" kommentet). `documents.signup_id` cascade-del törli
+-- a sort a jelentkező törlésekor (a hozzá tartozó Storage-fájlt az app
+-- törli előtte, lásd SignupDocumentsTab.tsx — Postgres ezt nem tudja
+-- helyette elvégezni). `tasks.signup_id` szándékosan "set null", nem
+-- cascade: egy feladat törlése a jelentkezővel együtt túl durva lenne —
+-- a feladat megmarad, csak a jelentkező-kapcsolata szakad meg, pont úgy,
+-- mint campaign_id-nál.
+alter table public.documents add column if not exists signup_id uuid references public.first20_signups(id) on delete cascade;
+alter table public.tasks add column if not exists signup_id uuid references public.first20_signups(id) on delete set null;
+
+create index if not exists documents_signup_id_idx on public.documents (signup_id);
+create index if not exists tasks_signup_id_idx on public.tasks (signup_id);
+
+NOTIFY pgrst, 'reload schema';

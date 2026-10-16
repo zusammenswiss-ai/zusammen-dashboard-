@@ -1,19 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { Rocket, Copy, Check, ExternalLink, Trash2, Mail, MailCheck, ListPlus, ArrowRight, Target } from "lucide-react";
+import { Rocket, Copy, Check, ExternalLink, Trash2, AlertTriangle } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { First20Signup } from "@/lib/supabase/types";
+import type { First20Signup, Campaign } from "@/lib/supabase/types";
 import { first20T, type First20Lang, type HowHeardOption } from "@/lib/first20-i18n";
+import { FIRST20_DISPLAY_STATUS_STYLES, deriveFirst20DisplayStatus } from "@/lib/first20-signup-status";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import EmptyState from "@/components/EmptyState";
 import ShowMoreButton from "@/components/ShowMoreButton";
-import QuickTaskModal from "@/components/QuickTaskModal";
+import SignupDetailModal from "@/components/campaign/signup/SignupDetailModal";
 import { useShowMore } from "@/lib/useShowMore";
 import { formatDate } from "@/lib/format";
 
 const TOTAL_SPOTS = 20;
+const DOCUMENTS_BUCKET = "documents";
 
 const LANG_LABEL: Record<First20Lang, string> = { hu: "Magyar", de: "Német", en: "Angol" };
 const LANG_BADGE: Record<First20Lang, string> = {
@@ -34,21 +35,23 @@ function shareUrl(origin: string, lang: First20Lang): string {
  * a megosztható link, és a beérkezett jelentkezések listája, hogy ne kelljen
  * külön a Supabase-be nézni ahhoz, hogy lássuk, ki és hogyan jelentkezett.
  *
- * campaignId: a "ZUSAMMEN FIRST 20" valódi campaigns-sor id-je (lásd
- * supabase/schema.sql seed-jét) — a szülő (Marketing lap) tölti be és
- * adja át, hogy az itt létrehozott feladatok valódi campaign_id-vel
- * kapcsolódjanak a kampányhoz, ne csak egy szöveges címkével. null, amíg
- * a szülő még nem töltötte be vagy nem hozta létre. */
+ * Egy sorra kattintva megnyílik a jelentkező teljes részletnézete
+ * (SignupDetailModal) — ott él az e-mail küldés, a visszajelzés/rendelés,
+ * a dokumentumok, a feladatok és a jegyzetek. A lista maga csak a
+ * tényleges levélállapotot (lib/first20-signup-status.ts) és egy
+ * törlés-gyorsikont mutatja. */
 export default function First20SignupsSection({
-  campaignId,
-  onOpenCampaign,
+  campaign,
+  onCampaignUpdated,
+  openSignupId,
+  onSignupOpened,
 }: {
-  campaignId: string | null;
-  // Hagyd el (vagy ne adj át semmit), ha ez a szekció már eleve a
-  // kampány saját részletoldalán fut — ott a "Kampány megnyitása" gomb
-  // redundáns lenne. A Marketing lap "First 20" fülén (régi hely)
-  // továbbra is átadható, amíg az a fül él.
-  onOpenCampaign?: (id: string) => void;
+  campaign: Campaign;
+  onCampaignUpdated: (campaign: Campaign) => void;
+  /** /marketing/kampanyok/[slug]?signup=<id> deep linkhez — a Feladatok
+   * Kanban-kártya jelentkező-badge-je nyit meg innen egy jelentkezőt. */
+  openSignupId?: string | null;
+  onSignupOpened?: () => void;
 }) {
   const [signups, setSignups] = useState<First20Signup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,12 +59,9 @@ export default function First20SignupsSection({
   const [lang, setLang] = useState<First20Lang>("de");
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
-  // "Feladat létrehozása" egy adott jelentkezőhöz — nincs valódi FK a
-  // tasks táblán (mint content_id/campaign_id a többi modulnál), csak a
-  // feladat szövegébe kerül bele a jelentkező neve/emailje, ezért a
-  // "már van hozzá feladat" jelzés csak ebben a session-ben él.
-  const [taskModalFor, setTaskModalFor] = useState<First20Signup | null>(null);
-  const [createdTaskIds, setCreatedTaskIds] = useState<Map<string, string>>(new Map());
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [brevoConfigured, setBrevoConfigured] = useState<boolean | null>(null);
+  const [autoSendSaving, setAutoSendSaving] = useState(false);
 
   const supabase = getSupabaseClient();
 
@@ -82,7 +82,20 @@ export default function First20SignupsSection({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin);
     if (supabase) void load();
+    fetch("/api/marketing/brevo-status")
+      .then((res) => res.json())
+      .then((data) => setBrevoConfigured(data.configured))
+      .catch(() => setBrevoConfigured(false));
   }, [supabase, load]);
+
+  useEffect(() => {
+    if (openSignupId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenId(openSignupId);
+      onSignupOpened?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSignupId]);
 
   const { visible, hiddenCount, showAll, setShowAll } = useShowMore(signups, 8);
   const url = origin ? shareUrl(origin, lang) : "";
@@ -98,30 +111,63 @@ export default function First20SignupsSection({
     }
   }
 
-  async function deleteSignup(id: string) {
+  async function toggleAutoSend() {
     if (!supabase) return;
-    setSignups((prev) => prev.filter((s) => s.id !== id));
-    const { error: deleteError } = await supabase.from("first20_signups").delete().eq("id", id);
+    setAutoSendSaving(true);
+    const { data, error: updateError } = await supabase
+      .from("campaigns")
+      .update({ first20_auto_send: !campaign.first20_auto_send })
+      .eq("id", campaign.id)
+      .select()
+      .single();
+    setAutoSendSaving(false);
+    if (updateError) setError(updateError.message);
+    else if (data) onCampaignUpdated(data);
+  }
+
+  async function deleteSignup(signup: First20Signup) {
+    if (!supabase) return;
+    if (
+      !window.confirm(
+        `Biztosan törlöd "${signup.first_name}" jelentkezését? Az összes hozzá tartozó e-mail-napló, jegyzet és dokumentum is törlődik. Ez nem vonható vissza.`
+      )
+    ) {
+      return;
+    }
+    // A dokumentumok Storage-fájljait explicit törölni kell a sor
+    // törlése előtt — a DB-sor cascade-del törlődik, de a Storage-ban
+    // lévő fájlt ez nem érinti (lásd supabase/schema.sql kommentjét).
+    const { data: docs } = await supabase.from("documents").select("file_path").eq("signup_id", signup.id);
+    const paths = (docs ?? []).map((d) => d.file_path).filter((p): p is string => !!p);
+    if (paths.length > 0) await supabase.storage.from(DOCUMENTS_BUCKET).remove(paths);
+
+    setSignups((prev) => prev.filter((s) => s.id !== signup.id));
+    const { error: deleteError } = await supabase.from("first20_signups").delete().eq("id", signup.id);
     if (deleteError) setError(deleteError.message);
   }
 
   return (
     <div className="flex flex-col gap-5">
+      {brevoConfigured === false && (
+        <div className="flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>
+            Brevo nincs beállítva — a <code>BREVO_API_KEY</code> szerver környezeti változó hiányzik, ezért az e-mail küldés ki van
+            kapcsolva. Egy jelentkező megnyitásakor a sablon-előnézet attól is működik.
+          </span>
+        </div>
+      )}
+
       <section className="card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Rocket size={18} className="text-bronze" />
             <h2 className="font-serif text-lg text-forest">First 20 — megosztható link</h2>
           </div>
-          {campaignId && onOpenCampaign && (
-            <button
-              type="button"
-              onClick={() => onOpenCampaign(campaignId)}
-              className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
-            >
-              <Target size={13} /> Kampány megnyitása
-            </button>
-          )}
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" checked={campaign.first20_auto_send} disabled={autoSendSaving} onChange={toggleAutoSend} />
+            Automatikus küldés (napi cron: emlékeztető + visszajelzés kérése)
+          </label>
         </div>
         <p className="mt-1 text-sm text-muted">
           A publikus /first20 jelentkezési oldal linkje — nyelvválasztóval, hogy a megfelelő verziót küldd tovább.
@@ -194,13 +240,7 @@ export default function First20SignupsSection({
           <>
             <div className="mt-4 flex flex-col gap-1.5">
               {visible.map((s) => (
-                <SignupRow
-                  key={s.id}
-                  signup={s}
-                  createdTaskId={createdTaskIds.get(s.id) ?? null}
-                  onCreateTask={() => setTaskModalFor(s)}
-                  onDelete={() => deleteSignup(s.id)}
-                />
+                <SignupRow key={s.id} signup={s} onOpen={() => setOpenId(s.id)} onDelete={() => deleteSignup(s)} />
               ))}
             </div>
             {signups.length > 8 && (
@@ -212,24 +252,8 @@ export default function First20SignupsSection({
         )}
       </section>
 
-      {taskModalFor && (
-        <QuickTaskModal
-          heading="Feladat — First 20 jelentkező"
-          defaultTitle={`Felvétel: ${taskModalFor.first_name}${
-            taskModalFor.partner_first_name ? ` & ${taskModalFor.partner_first_name}` : ""
-          }`}
-          extraFields={{
-            category: "Marketing",
-            task_type: "Kampány",
-            ...(campaignId ? { campaign_id: campaignId } : { campaign_label: "ZUSAMMEN FIRST 20" }),
-            notes: `First 20 jelentkező — ${taskModalFor.email}`,
-          }}
-          onClose={() => setTaskModalFor(null)}
-          onCreated={(task) => {
-            setCreatedTaskIds((prev) => new Map(prev).set(taskModalFor.id, task.id));
-            setTaskModalFor(null);
-          }}
-        />
+      {openId && (
+        <SignupDetailModal signupId={openId} campaignId={campaign.id} onClose={() => setOpenId(null)} onChanged={load} />
       )}
     </div>
   );
@@ -237,58 +261,56 @@ export default function First20SignupsSection({
 
 function SignupRow({
   signup,
-  createdTaskId,
-  onCreateTask,
+  onOpen,
   onDelete,
 }: {
   signup: First20Signup;
-  createdTaskId: string | null;
-  onCreateTask: () => void;
+  onOpen: () => void;
   onDelete: () => void;
 }) {
   const howHeardLabel = signup.how_heard
     ? HOW_HEARD_LABEL_HU[signup.how_heard as HowHeardOption] ?? signup.how_heard
     : null;
+  const displayStatus = deriveFirst20DisplayStatus(signup);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
+    <div
+      onClick={onOpen}
+      className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:border-bronze/50 hover:bg-ivory-dim/50"
+    >
       <div className="min-w-0">
         <span className="font-medium text-forest">
           {signup.first_name}
           {signup.partner_first_name && ` & ${signup.partner_first_name}`}
         </span>
-        <a href={`mailto:${signup.email}`} className="ml-1.5 text-xs text-muted hover:underline">
+        <a
+          href={`mailto:${signup.email}`}
+          onClick={(e) => e.stopPropagation()}
+          className="ml-1.5 text-xs text-muted hover:underline"
+        >
           {signup.email}
         </a>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <span className={`badge ${LANG_BADGE[signup.language_choice]}`}>{LANG_LABEL[signup.language_choice]}</span>
           {howHeardLabel && <span className="badge bg-ivory-dim text-walnut">{howHeardLabel}</span>}
-          {signup.confirmation_email_sent ? (
-            <span className="flex items-center gap-1 text-[11px] text-muted" title="Visszaigazoló email elküldve">
-              <MailCheck size={12} /> email elküldve
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-[11px] text-muted/60" title="Visszaigazoló email nem ment ki">
-              <Mail size={12} /> nincs visszaigazolás
+          <span className={`badge ${FIRST20_DISPLAY_STATUS_STYLES[displayStatus]}`}>{displayStatus}</span>
+          {signup.email_error && (
+            <span className="badge bg-red-100 text-red-700" title={signup.email_error}>
+              <AlertTriangle size={11} /> Hiba
             </span>
           )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <span className="text-xs text-muted">{formatDate(signup.created_at)}</span>
-        {createdTaskId ? (
-          <Link
-            href={`/tasks?open=${createdTaskId}`}
-            className="flex items-center gap-1 text-xs font-medium text-bronze hover:underline"
-          >
-            ✓ Feladat <ArrowRight size={12} />
-          </Link>
-        ) : (
-          <button onClick={onCreateTask} className="flex items-center gap-1 text-xs text-muted hover:text-forest">
-            <ListPlus size={13} /> Feladat
-          </button>
-        )}
-        <button onClick={onDelete} className="text-muted/70 hover:text-red-600" title="Törlés">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="text-muted/70 hover:text-red-600"
+          title="Törlés"
+        >
           <Trash2 size={13} />
         </button>
       </div>

@@ -109,6 +109,11 @@ export interface TaskItem {
   // Jegyzőkönyvek — "Következő heti fókusz → Feladat létrehozása" gomb;
   // csak eredet-metaadat, nem élő szinkron a jegyzőkönyv-bejegyzéssel.
   protocol_id: string | null;
+  // First 20 — jelentkező részletnézet "Feladatok" fülének "+ Feladat"
+  // gombja állítja be, vagy egy meglévő feladat is hozzárendelhető innen.
+  // "set null", nem cascade: a jelentkező törlése a feladatot nem törli,
+  // csak a kapcsolatát szünteti meg (lásd supabase/schema.sql).
+  signup_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -146,6 +151,12 @@ export interface Campaign {
   is_locked: boolean;
   locked_at: string | null;
   unlock_history: UnlockHistoryEntry[];
+  // First 20 — "Automatikus küldés" kapcsoló a Jelentkezők fülön: ha be
+  // van kapcsolva, a napi cron (app/api/cron/first20-emails) elküldi az
+  // emlékeztetőt (+3 nap) és a visszajelzés-kérést (+7 nap) azoknak a
+  // jelentkezőknek, akiknél esedékes. A "Készlet" e-mail mindig kézi —
+  // ez a kapcsoló azt nem automatizálja. Alapértelmezetten false.
+  first20_auto_send: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -841,6 +852,11 @@ export interface Document {
   related_task_id: string | null;
   related_supplier_id: string | null;
   campaign_id: string | null;
+  // First 20 — jelentkező részletnézet "Dokumentumok" füle (lásd
+  // SignupDocumentsTab.tsx). "cascade": a jelentkező törlésekor ez a sor
+  // is törlődik — a hozzá tartozó Storage-fájlt az app törli előtte
+  // explicit módon (Postgres ezt nem tudja helyette elvégezni).
+  signup_id: string | null;
   version_label: string | null;
   created_at: string;
 }
@@ -970,6 +986,50 @@ export type First20SignupInsert = Partial<Omit<First20Signup, "id" | "created_at
   consent: boolean;
 };
 export type First20SignupUpdate = Partial<Omit<First20Signup, "id" | "created_at">>;
+
+// First 20 — e-mail napló (lásd supabase/schema.sql first20_emails
+// kommentjét). Csak a service-role kliens ír bele (lib/first20-send.ts);
+// a Dashboard csak olvassa.
+export type First20EmailType = "kit" | "reminder" | "feedback" | "order_confirmation" | "custom";
+export type First20EmailStatus = "queued" | "sent" | "failed";
+export type First20EmailTrigger = "manual" | "auto";
+
+export interface First20Email {
+  id: string;
+  signup_id: string;
+  type: First20EmailType;
+  language: First20Language;
+  subject: string;
+  status: First20EmailStatus;
+  error: string | null;
+  provider_message_id: string | null;
+  trigger: First20EmailTrigger;
+  sent_by: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+export type First20EmailInsert = Partial<Omit<First20Email, "id" | "created_at">> & {
+  signup_id: string;
+  type: First20EmailType;
+  language: First20Language;
+  subject: string;
+};
+export type First20EmailUpdate = Partial<Omit<First20Email, "id" | "signup_id" | "created_at">>;
+
+// First 20 — jelentkező jegyzetek (lásd a kampány campaign_log füléhez
+// hasonló, de jelentkezőhöz kötött megfelelője).
+export interface First20SignupNote {
+  id: string;
+  signup_id: string;
+  body: string;
+  author: string | null;
+  created_at: string;
+}
+export type First20SignupNoteInsert = Partial<Omit<First20SignupNote, "id" | "created_at">> & {
+  signup_id: string;
+  body: string;
+};
+export type First20SignupNoteUpdate = Partial<Omit<First20SignupNote, "id" | "signup_id" | "created_at">>;
 
 // Service-role-only — soha nem kerül a Database (anon-elérhető) típusba,
 // lásd lib/supabase/serverClient.ts.
@@ -1592,6 +1652,18 @@ export interface Database {
         Update: First20SignupUpdate;
         Relationships: [];
       };
+      first20_emails: {
+        Row: First20Email;
+        Insert: First20EmailInsert;
+        Update: First20EmailUpdate;
+        Relationships: [];
+      };
+      first20_signup_notes: {
+        Row: First20SignupNote;
+        Insert: First20SignupNoteInsert;
+        Update: First20SignupNoteUpdate;
+        Relationships: [];
+      };
       card_assets: {
         Row: CardAsset;
         Insert: CardAssetInsert;
@@ -1862,6 +1934,8 @@ export const ANON_TABLE_NAMES = [
   "orders",
   "purchases",
   "first20_signups",
+  "first20_emails",
+  "first20_signup_notes",
   "card_assets",
   "price_quotes",
   "landing_letters",

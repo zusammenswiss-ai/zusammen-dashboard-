@@ -30,6 +30,7 @@ import type {
   CampaignPartnerChannelType,
   CampaignPartnerStatus,
   CampaignLogType,
+  First20Status,
 } from "./supabase/types";
 
 export const PRIORITY_HU: Record<TaskPriority, string> = {
@@ -159,6 +160,21 @@ export const CAMPAIGN_STATUS_STYLES: Record<CampaignStatus, string> = {
   Lezárva: "bg-forest-light/15 text-forest",
   Archivált: "bg-gray-200 text-gray-600",
 };
+
+// A kézzel állítható "nagy" státuszok sorrendje a jelentkező
+// részletnézetének Áttekintés fülén (SignupOverviewTab.tsx) — a badge
+// színezés a lib/first20-signup-status.ts-beli FIRST20_DISPLAY_STATUS_STYLES-t
+// használja (az ott felvett két extra, cron-vezérelt köztes állapotot
+// is lefedi, ezek viszont itt, a kézi dropdownban nem jelennek meg).
+export const FIRST20_STATUSES: First20Status[] = [
+  "Jelentkezett",
+  "Kit elküldve",
+  "Visszajelzett",
+  "Megrendelte",
+  "Várólista",
+  "Számlázva",
+  "Kifizetve",
+];
 
 export const CAMPAIGN_TYPES: CampaignType[] = [
   "First 20",

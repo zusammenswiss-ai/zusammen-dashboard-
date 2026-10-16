@@ -154,6 +154,10 @@ export default function TasksPage() {
   // spawnolt feladat (lásd tasks.collection_card_id/card_collection_id).
   const [linkedCards, setLinkedCards] = useState<{ id: string; card_number: string; collection_id: string }[]>([]);
   const [cardCollections, setCardCollections] = useState<{ id: string; name: string }[]>([]);
+  // First 20 — a Kanban-kártya jelentkező-badge-jéhez (lásd
+  // tasks.signup_id kommentjét); csak a badge-hez elég adat, a
+  // jelentkező teljes részletét a SignupDetailModal tölti be külön.
+  const [linkedSignups, setLinkedSignups] = useState<{ id: string; first_name: string; partner_first_name: string | null }[]>([]);
   const draggedId = useRef<string | null>(null);
 
   const supabase = getSupabaseClient();
@@ -217,17 +221,20 @@ export default function TasksPage() {
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const [cardsRes, collectionsRes] = await Promise.all([
+      const [cardsRes, collectionsRes, signupsRes] = await Promise.all([
         supabase.from("collection_cards").select("id, card_number, collection_id"),
         supabase.from("card_collections").select("id, name"),
+        supabase.from("first20_signups").select("id, first_name, partner_first_name"),
       ]);
       setLinkedCards(cardsRes.data ?? []);
       setCardCollections(collectionsRes.data ?? []);
+      setLinkedSignups(signupsRes.data ?? []);
     })();
   }, [supabase]);
 
   const cardById = useMemo(() => new Map(linkedCards.map((c) => [c.id, c])), [linkedCards]);
   const collectionNameById = useMemo(() => new Map(cardCollections.map((c) => [c.id, c.name])), [cardCollections]);
+  const signupById = useMemo(() => new Map(linkedSignups.map((s) => [s.id, s])), [linkedSignups]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -647,6 +654,7 @@ export default function TasksPage() {
                 campaignById={campaignById}
                 cardById={cardById}
                 collectionNameById={collectionNameById}
+                signupById={signupById}
                 onDragStart={(id) => {
                   draggedId.current = id;
                 }}
@@ -730,6 +738,7 @@ function KanbanColumn({
   campaignById,
   cardById,
   collectionNameById,
+  signupById,
   onDragStart,
   onOpen,
   onDelete,
@@ -748,6 +757,7 @@ function KanbanColumn({
   campaignById: Map<string, Campaign>;
   cardById: Map<string, { id: string; card_number: string; collection_id: string }>;
   collectionNameById: Map<string, string>;
+  signupById: Map<string, { id: string; first_name: string; partner_first_name: string | null }>;
   onDragStart: (id: string) => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
@@ -793,6 +803,7 @@ function KanbanColumn({
           campaignById={campaignById}
           cardById={cardById}
           collectionNameById={collectionNameById}
+          signupById={signupById}
           onDragStart={onDragStart}
           onOpen={() => onOpen(task.id)}
           onDelete={() => onDelete(task.id)}
@@ -814,6 +825,7 @@ function TaskCard({
   campaignById,
   cardById,
   collectionNameById,
+  signupById,
   onDragStart,
   onOpen,
   onDelete,
@@ -825,6 +837,7 @@ function TaskCard({
   campaignById: Map<string, Campaign>;
   cardById: Map<string, { id: string; card_number: string; collection_id: string }>;
   collectionNameById: Map<string, string>;
+  signupById: Map<string, { id: string; first_name: string; partner_first_name: string | null }>;
   onDragStart: (id: string) => void;
   onOpen: () => void;
   onDelete: () => void;
@@ -916,6 +929,20 @@ function TaskCard({
             className="badge bg-forest-light/15 text-forest hover:underline"
           >
             Kollekció: {collectionNameById.get(task.card_collection_id)}
+          </Link>
+        )}
+        {task.signup_id && signupById.get(task.signup_id) && (
+          <Link
+            href={
+              task.campaign_id && campaignById.get(task.campaign_id)?.slug
+                ? `/marketing/kampanyok/${campaignById.get(task.campaign_id)?.slug}?tab=signups&signup=${task.signup_id}`
+                : "/marketing"
+            }
+            onClick={(e) => e.stopPropagation()}
+            className="badge bg-forest-light/15 text-forest hover:underline"
+          >
+            Jelentkező: {signupById.get(task.signup_id)!.first_name}
+            {signupById.get(task.signup_id)!.partner_first_name ? ` & ${signupById.get(task.signup_id)!.partner_first_name}` : ""}
           </Link>
         )}
         {task.category && <span className="badge bg-ivory-dim text-walnut">{task.category}</span>}
