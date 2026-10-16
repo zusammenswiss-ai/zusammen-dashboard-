@@ -1709,9 +1709,21 @@ alter table public.marketing_content add column if not exists campaign_id uuid r
 -- Kampány-feladatok need linking to it by hand afterwards, from the
 -- Feladatok oldal's "Melyik kampányhoz tartozik?" picker — this script
 -- has no reliable way to match existing tasks by title.
+--
+-- Also guards against the row's NEW name (set by the "Marketing —
+-- kampány-központú átszervezés" block further down, which renames this
+-- row to "First 20, Print & Play (2026 ősz)") — without that second
+-- check, re-running this whole file top-to-bottom after that rename
+-- already happened would find no row named 'ZUSAMMEN FIRST 20' anymore
+-- and insert a brand-new duplicate, which the rename step below would
+-- then try to give the same (already-taken) slug, violating
+-- campaigns_slug_idx.
 insert into public.campaigns (name, season, status)
 select 'ZUSAMMEN FIRST 20', 'Autumn', 'Tervezve'
-where not exists (select 1 from public.campaigns where name = 'ZUSAMMEN FIRST 20');
+where not exists (
+  select 1 from public.campaigns
+  where name = 'ZUSAMMEN FIRST 20' or name = 'First 20, Print & Play (2026 ősz)'
+);
 
 -- =====================================================================
 -- Fiókok & Szolgáltatások (Beállítások → Fiókok & Szolgáltatások) — a
