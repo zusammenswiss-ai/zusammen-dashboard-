@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Rocket, Copy, Check, ExternalLink, Trash2, AlertTriangle } from "lucide-react";
+import { Rocket, Copy, Check, ExternalLink, Trash2, AlertTriangle, Mail } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { First20Signup, Campaign } from "@/lib/supabase/types";
 import { first20T, type First20Lang, type HowHeardOption } from "@/lib/first20-i18n";
@@ -54,6 +54,7 @@ export default function First20SignupsSection({
   onSignupOpened?: () => void;
 }) {
   const [signups, setSignups] = useState<First20Signup[]>([]);
+  const [unreadSignupIds, setUnreadSignupIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState<First20Lang>("de");
@@ -77,6 +78,39 @@ export default function First20SignupsSection({
     else setSignups(data ?? []);
     setLoading(false);
   }, [supabase]);
+
+  // Olvasatlan Postafiók-válasz jelzése a listán (feladat: "A kampány
+  // Jelentkezők jelében jelezzen, ha olvasatlan válasz érkezett").
+  const loadUnreadSignupIds = useCallback(async (signupIds: string[]) => {
+    if (!supabase || signupIds.length === 0) {
+      setUnreadSignupIds(new Set());
+      return;
+    }
+    const { data: links } = await supabase
+      .from("mail_thread_links")
+      .select("thread_id, entity_id")
+      .eq("entity_type", "signup")
+      .in("entity_id", signupIds);
+    const threadIds = [...new Set((links ?? []).map((l) => l.thread_id))];
+    if (threadIds.length === 0) {
+      setUnreadSignupIds(new Set());
+      return;
+    }
+    const { data: unreadMessages } = await supabase
+      .from("mail_messages")
+      .select("thread_id")
+      .in("thread_id", threadIds)
+      .eq("direction", "in")
+      .is("read_at", null);
+    const unreadThreadIds = new Set((unreadMessages ?? []).map((m) => m.thread_id));
+    const signupIdsWithUnread = new Set((links ?? []).filter((l) => unreadThreadIds.has(l.thread_id)).map((l) => l.entity_id));
+    setUnreadSignupIds(signupIdsWithUnread);
+  }, [supabase]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadUnreadSignupIds(signups.map((s) => s.id));
+  }, [signups, loadUnreadSignupIds]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -240,7 +274,13 @@ export default function First20SignupsSection({
           <>
             <div className="mt-4 flex flex-col gap-1.5">
               {visible.map((s) => (
-                <SignupRow key={s.id} signup={s} onOpen={() => setOpenId(s.id)} onDelete={() => deleteSignup(s)} />
+                <SignupRow
+                  key={s.id}
+                  signup={s}
+                  hasUnreadReply={unreadSignupIds.has(s.id)}
+                  onOpen={() => setOpenId(s.id)}
+                  onDelete={() => deleteSignup(s)}
+                />
               ))}
             </div>
             {signups.length > 8 && (
@@ -261,10 +301,12 @@ export default function First20SignupsSection({
 
 function SignupRow({
   signup,
+  hasUnreadReply,
   onOpen,
   onDelete,
 }: {
   signup: First20Signup;
+  hasUnreadReply: boolean;
   onOpen: () => void;
   onDelete: () => void;
 }) {
@@ -279,6 +321,7 @@ function SignupRow({
       className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:border-bronze/50 hover:bg-ivory-dim/50"
     >
       <div className="min-w-0">
+        {hasUnreadReply && <span className="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-bronze" title="Olvasatlan válasz érkezett" />}
         <span className="font-medium text-forest">
           {signup.first_name}
           {signup.partner_first_name && ` & ${signup.partner_first_name}`}
@@ -294,6 +337,11 @@ function SignupRow({
           <span className={`badge ${LANG_BADGE[signup.language_choice]}`}>{LANG_LABEL[signup.language_choice]}</span>
           {howHeardLabel && <span className="badge bg-ivory-dim text-walnut">{howHeardLabel}</span>}
           <span className={`badge ${FIRST20_DISPLAY_STATUS_STYLES[displayStatus]}`}>{displayStatus}</span>
+          {hasUnreadReply && (
+            <span className="badge bg-bronze/15 text-bronze">
+              <Mail size={11} /> Olvasatlan válasz
+            </span>
+          )}
           {signup.email_error && (
             <span className="badge bg-red-100 text-red-700" title={signup.email_error}>
               <AlertTriangle size={11} /> Hiba

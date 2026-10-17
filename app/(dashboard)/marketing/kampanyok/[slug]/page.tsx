@@ -17,6 +17,7 @@ import {
   Unlock,
   Check,
   Trash2,
+  Mail,
 } from "lucide-react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
@@ -44,6 +45,7 @@ import CampaignTasksTab from "@/components/campaign/CampaignTasksTab";
 import CampaignDocumentsTab from "@/components/campaign/CampaignDocumentsTab";
 import CampaignContentTab from "@/components/campaign/CampaignContentTab";
 import CampaignEmailTab from "@/components/campaign/CampaignEmailTab";
+import CampaignMailTab from "@/components/campaign/CampaignMailTab";
 import CampaignPartnersTab from "@/components/campaign/CampaignPartnersTab";
 import CampaignCostsTab from "@/components/campaign/CampaignCostsTab";
 import CampaignKpiTab from "@/components/campaign/CampaignKpiTab";
@@ -53,7 +55,7 @@ import First20SignupsSection from "@/components/First20SignupsSection";
 const MARKETING_BUCKET = "marketing";
 const DOCUMENTS_BUCKET = "documents";
 
-type Tab = "overview" | "tasks" | "documents" | "content" | "email" | "partners" | "costs" | "kpis" | "log" | "signups";
+type Tab = "overview" | "tasks" | "documents" | "content" | "email" | "mail" | "partners" | "costs" | "kpis" | "log" | "signups";
 
 const BASE_TABS: { key: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "Áttekintés", icon: LayoutDashboard },
@@ -61,6 +63,7 @@ const BASE_TABS: { key: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "documents", label: "Dokumentumok", icon: FolderOpen },
   { key: "content", label: "Tartalom", icon: CalendarClock },
   { key: "email", label: "E-mail", icon: Send },
+  { key: "mail", label: "Levelek", icon: Mail },
   { key: "partners", label: "Partnerek", icon: Users },
   { key: "costs", label: "Költségek", icon: Wallet },
   { key: "kpis", label: "Eredmények", icon: LineChart },
@@ -544,6 +547,7 @@ export default function CampaignDetailPage() {
       )}
       {tab === "content" && <CampaignContentTab content={content} />}
       {tab === "email" && <CampaignEmailTab campaign={campaign} content={content.filter((c) => c.content_type === "Email")} />}
+      {tab === "mail" && <CampaignMailTab campaign={campaign} />}
       {tab === "partners" && <CampaignPartnersTab campaign={campaign} />}
       {tab === "costs" && <CampaignCostsTab campaign={campaign} expenses={expenses} />}
       {tab === "kpis" && <CampaignKpiTab campaign={campaign} />}

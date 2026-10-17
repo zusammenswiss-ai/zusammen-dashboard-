@@ -18,6 +18,7 @@ import EmptyState from "@/components/EmptyState";
 import SearchBar from "@/components/SearchBar";
 import StickyFormActions from "@/components/StickyFormActions";
 import ShowMoreButton from "@/components/ShowMoreButton";
+import EntityMailThreadsSection from "@/components/mail/EntityMailThreadsSection";
 import UndoToast from "@/components/UndoToast";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { useShowMore } from "@/lib/useShowMore";
@@ -441,6 +442,7 @@ function TicketEditRow({
     <form onSubmit={save} className="animate-fade-in flex flex-col gap-3 rounded-md border border-bronze/40 bg-ivory-dim/40 p-4">
       <TicketFields form={form} setForm={setForm} />
       {error && <p className="text-xs text-red-600">{error}</p>}
+      <EntityMailThreadsSection entityType="support_ticket" entityIds={[ticket.id]} />
       <StickyFormActions>
         <button type="submit" disabled={saving} className="btn btn-primary">
           <Check size={14} /> {saving ? "Mentés…" : "Mentés"}

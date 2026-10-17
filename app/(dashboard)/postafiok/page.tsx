@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Inbox, PlugZap, ListFilter, FileText, Tag } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import EmptyState from "@/components/EmptyState";
 import MailAccountsSection from "@/components/mail/MailAccountsSection";
 import MailSyncButton from "@/components/mail/MailSyncButton";
+import MailInbox from "@/components/mail/MailInbox";
+import MailRulesSection from "@/components/mail/MailRulesSection";
+import MailTemplatesSection from "@/components/mail/MailTemplatesSection";
+import MailLabelsSection from "@/components/mail/MailLabelsSection";
 
 type Tab = "inbox" | "accounts" | "rules" | "templates" | "labels";
 
@@ -19,17 +22,28 @@ const TABS: { key: Tab; label: string; icon: typeof Inbox }[] = [
 
 /**
  * Postafiók — saját Infomaniak IMAP/SMTP postafiókok a Dashboardból.
- * Fázisokban épül (lásd a PR-eket): a Fiókok fül (CRUD + "Kapcsolat
- * tesztelése") és az IMAP-szinkron (a fejléc "Frissítés" gombja, lásd
- * MailSyncButton) már élesek — a levelek ténylegesen megérkeznek a
- * mail_messages táblába, csak a 3-paneles levelezőnézet (Postaláda fül)
- * nincs még megépítve, ami ezeket megjelenítené. Szabályok/Sablonok/
- * Címkék fülek is a következő fázisokban készülnek — a végleges
- * útvonal-struktúra már most áll, hogy ne kelljen később linket/
- * útvonalat váltani.
+ * Fázisokban épült (lásd a PR-eket): Fiókok, IMAP-szinkron, Postaláda
+ * (nézetek/szállista/szálnézet, válasz+belső jegyzet, "Feladat" gomb,
+ * csatolmány-letöltés, címkézés, sablonbeszúrás), a besorolási
+ * szabálymotor UI-ja, és a gyorsválasz-sablonok/címkék karbantartása.
  */
 export default function PostafiokPage() {
   const [tab, setTab] = useState<Tab>("inbox");
+  const [deepLinkThreadId, setDeepLinkThreadId] = useState<string | null>(null);
+
+  // Deep link a "Levelek" szakaszokból (kampány/jelentkező/rendelés/eset/
+  // beszállító oldaláról): /postafiok?thread=<id> — ugyanaz a minta, mint
+  // a kampány-oldal ?tab=signups&signup=<id> deep linkje.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const threadId = params.get("thread");
+    if (threadId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab("inbox");
+      setDeepLinkThreadId(threadId);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   return (
     <>
@@ -47,21 +61,11 @@ export default function PostafiokPage() {
         ))}
       </div>
 
-      {tab === "inbox" && (
-        <EmptyState
-          icon={Inbox}
-          title="A postaláda nézet hamarosan elkészül"
-          description="Elsőként állíts be egy postafiókot a 'Fiókok' fülön — utána itt fognak megjelenni a beérkezett és elküldött levelek, szálakba rendezve."
-        />
-      )}
+      {tab === "inbox" && <MailInbox initialThreadId={deepLinkThreadId} />}
       {tab === "accounts" && <MailAccountsSection />}
-      {tab === "rules" && (
-        <EmptyState icon={ListFilter} title="A besorolási szabályok hamarosan elkészülnek" description="Terület, kapcsolt elem, felelős és feladat automatikus beállítása bejövő levelek alapján." />
-      )}
-      {tab === "templates" && (
-        <EmptyState icon={FileText} title="A gyorsválasz-sablonok hamarosan elkészülnek" description="Területenkénti, változókkal ({{first_name}} stb.) kitölthető válaszsablonok." />
-      )}
-      {tab === "labels" && <EmptyState icon={Tag} title="A címkék hamarosan elkészülnek" description="Szabadon létrehozható, színes címkék a levélszálakhoz." />}
+      {tab === "rules" && <MailRulesSection />}
+      {tab === "templates" && <MailTemplatesSection />}
+      {tab === "labels" && <MailLabelsSection />}
     </>
   );
 }

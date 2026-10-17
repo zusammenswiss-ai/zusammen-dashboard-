@@ -3590,11 +3590,17 @@ create policy "authenticated full access" on public.mail_thread_labels for all
 --   condition: {"type": "sender_known"|"sender_domain"|"sender_address"
 --     |"subject_contains"|"account_id"|"has_attachment", "value": text}
 --   action: {"type": "set_area"|"set_label"|"set_owner"|"set_priority"
---     |"link_known_sender"|"create_task"|"mark_unread", "value": text}
+--     |"link_known_sender"|"create_task"|"create_support_ticket"
+--     |"mark_unread", "value": text}
 -- (Az alapértelmezett szabályok lent minta-adatként vannak felvéve,
 -- hogy a feladat 5/B/e pontjának "beállítás szabályok (kapcsold be)"
--- kérése már a séma szintjén létezzen — a tényleges kiértékelő motor
--- egy következő fázisban készül, eddig a sorok inertek.)
+-- kérése már a séma szintjén létezzen. A 4. ajánlott szabályt
+-- ["Ügyfélszolgálat" fiókra érkező levél → create_support_ticket]
+-- szándékosan NEM vettük fel ide mintaként, mert nincs még ismert
+-- dedikált ügyfélszolgálati postafiók-cím — a Postafiók → Szabályok
+-- fülön a "Melyik fiókra érkezett" feltétellel + "Ügyfélszolgálati eset
+-- nyitása" művelettel bármikor felvehető, amint a felhasználó
+-- létrehozza a fiókot.)
 create table if not exists public.mail_rules (
   id uuid primary key default gen_random_uuid(),
   name text not null,
