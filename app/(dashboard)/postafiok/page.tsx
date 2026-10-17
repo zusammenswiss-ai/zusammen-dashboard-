@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import MailAccountsSection from "@/components/mail/MailAccountsSection";
 import MailSyncButton from "@/components/mail/MailSyncButton";
+import MailInbox from "@/components/mail/MailInbox";
 
 type Tab = "inbox" | "accounts" | "rules" | "templates" | "labels";
 
@@ -19,14 +20,13 @@ const TABS: { key: Tab; label: string; icon: typeof Inbox }[] = [
 
 /**
  * Postafiók — saját Infomaniak IMAP/SMTP postafiókok a Dashboardból.
- * Fázisokban épül (lásd a PR-eket): a Fiókok fül (CRUD + "Kapcsolat
- * tesztelése") és az IMAP-szinkron (a fejléc "Frissítés" gombja, lásd
- * MailSyncButton) már élesek — a levelek ténylegesen megérkeznek a
- * mail_messages táblába, csak a 3-paneles levelezőnézet (Postaláda fül)
- * nincs még megépítve, ami ezeket megjelenítené. Szabályok/Sablonok/
- * Címkék fülek is a következő fázisokban készülnek — a végleges
- * útvonal-struktúra már most áll, hogy ne kelljen később linket/
- * útvonalat váltani.
+ * Fázisokban épül (lásd a PR-eket): Fiókok, IMAP-szinkron, és a
+ * Postaláda fül (nézetek/szállista/szálnézet, válasz+belső jegyzet,
+ * "Feladat" gomb, csatolmány-letöltés) már élesek. Szabályok/Sablonok/
+ * Címkék fülek (a besorolási szabálymotor UI-ja, gyorsválasz-sablonok,
+ * szabadon létrehozható címkék) a következő fázisokban készülnek — a
+ * végleges útvonal-struktúra már most áll, hogy ne kelljen később
+ * linket/útvonalat váltani.
  */
 export default function PostafiokPage() {
   const [tab, setTab] = useState<Tab>("inbox");
@@ -47,13 +47,7 @@ export default function PostafiokPage() {
         ))}
       </div>
 
-      {tab === "inbox" && (
-        <EmptyState
-          icon={Inbox}
-          title="A postaláda nézet hamarosan elkészül"
-          description="Elsőként állíts be egy postafiókot a 'Fiókok' fülön — utána itt fognak megjelenni a beérkezett és elküldött levelek, szálakba rendezve."
-        />
-      )}
+      {tab === "inbox" && <MailInbox />}
       {tab === "accounts" && <MailAccountsSection />}
       {tab === "rules" && (
         <EmptyState icon={ListFilter} title="A besorolási szabályok hamarosan elkészülnek" description="Terület, kapcsolt elem, felelős és feladat automatikus beállítása bejövő levelek alapján." />
