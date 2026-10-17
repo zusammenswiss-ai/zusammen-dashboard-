@@ -5,6 +5,7 @@ import { Inbox, PlugZap, ListFilter, FileText, Tag } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import MailAccountsSection from "@/components/mail/MailAccountsSection";
+import MailSyncButton from "@/components/mail/MailSyncButton";
 
 type Tab = "inbox" | "accounts" | "rules" | "templates" | "labels";
 
@@ -18,11 +19,14 @@ const TABS: { key: Tab; label: string; icon: typeof Inbox }[] = [
 
 /**
  * Postafiók — saját Infomaniak IMAP/SMTP postafiókok a Dashboardból.
- * Fázisokban épül (lásd a PR-eket): ez a 2. fázis csak a Fiókok fület
- * teszi élessé (CRUD + "Kapcsolat tesztelése"); a Postaláda (3-paneles
- * levelezőnézet), Szabályok, Sablonok és Címkék fülek a következő
- * fázisokban készülnek — a végleges útvonal-struktúra már most áll, hogy
- * ne kelljen később linket/útvonalat váltani.
+ * Fázisokban épül (lásd a PR-eket): a Fiókok fül (CRUD + "Kapcsolat
+ * tesztelése") és az IMAP-szinkron (a fejléc "Frissítés" gombja, lásd
+ * MailSyncButton) már élesek — a levelek ténylegesen megérkeznek a
+ * mail_messages táblába, csak a 3-paneles levelezőnézet (Postaláda fül)
+ * nincs még megépítve, ami ezeket megjelenítené. Szabályok/Sablonok/
+ * Címkék fülek is a következő fázisokban készülnek — a végleges
+ * útvonal-struktúra már most áll, hogy ne kelljen később linket/
+ * útvonalat váltani.
  */
 export default function PostafiokPage() {
   const [tab, setTab] = useState<Tab>("inbox");
@@ -32,6 +36,7 @@ export default function PostafiokPage() {
       <PageHeader
         title="Postafiók"
         subtitle="Saját Infomaniak postafiókok — küldés és a válaszok olvasása, a First 20 jelentkezőkhöz társítva."
+        action={<MailSyncButton />}
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
