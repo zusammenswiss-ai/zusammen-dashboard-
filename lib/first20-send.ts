@@ -7,7 +7,7 @@
 // dupla-küldés elleni védelmet végzi.
 import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, First20Signup, First20Email, First20EmailType } from "@/lib/supabase/types";
+import type { Database, First20Signup, First20Email, First20EmailType, First20Language } from "@/lib/supabase/types";
 import { sendBrevoEmail } from "@/lib/brevo";
 import { renderFirst20Email } from "@/lib/first20-emails";
 import { legalDocumentUrl } from "@/lib/legal-links";
@@ -84,6 +84,12 @@ type SendParams = {
   testOverrideEmail?: string;
   customSubject?: string;
   customBodyText?: string;
+  /** Ha meg van adva, EZEN a nyelven megy ki a levél a jelentkező saját
+   * language_choice-ától függetlenül (pl. ha valaki magyarul jelentkezett,
+   * de a founder németül szeretné elküldeni neki a Készlet-emailt). A
+   * first20_emails.language naplósor is ezt a tényleges nyelvet rögzíti,
+   * nem a jelentkező törzsadatát. */
+  language?: First20Language;
 };
 
 type SendResult =
@@ -107,7 +113,7 @@ export async function sendFirst20Email(params: SendParams): Promise<SendResult> 
     return { ok: false, error: err instanceof Error ? err.message : "Nem sikerült tokent generálni." };
   }
 
-  const lang = signup.language_choice;
+  const lang = params.language ?? signup.language_choice;
   const privacyBase = await legalDocumentUrl(supabase, "Adatvédelem");
   const privacyUrl = lang === "hu" ? privacyBase : `${privacyBase}?lang=${lang}`;
 
