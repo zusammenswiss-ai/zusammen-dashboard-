@@ -17,6 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createImapClient } from "@/lib/mail-transport";
 import { sanitizeInboundHtml } from "@/lib/mail-sanitize";
 import { findOrCreateSignupThread } from "@/lib/mail-threads";
+import { resolveKnownSender, findMatchingRule, applyRuleActions } from "@/lib/mail-rules-engine";
 import type { MailAccount, ServerDatabase } from "@/lib/supabase/types";
 
 const MAX_MESSAGES_PER_RUN = 50;
@@ -214,9 +215,15 @@ async function processMessage(
   // Jelentkező-társítás: bejövőnél a FELADÓ, egy (a Dashboardon kívül,
   // pl. webmailből) küldött Sent-levélnél a CÍMZETT címe alapján —
   // lásd a feladat 3. pontját ("a feladó e-mail cím egyezik egy
-  // first20_signups.email címmel").
-  const matchAddrs = direction === "in" ? (fromAddr ? [fromAddr] : []) : toAddrs;
-  const signupId = await resolveSignupId(supabase, matchAddrs);
+  // first20_signups.email címmel"). Bejövőnél a gazdagabb
+  // resolveKnownSender-t használjuk (jelentkező/vevő/beszállító), hogy a
+  // szabálymotor "sender_known" feltétele mindhárom típust láthassa —
+  // kimenőnél (webmailből küldött Sent-levél) marad a szűkebb,
+  // csak-jelentkező egyeztetés, mert ott nincs "feladó", a CÍMZETT a
+  // releváns fél.
+  const knownSender = direction === "in" ? await resolveKnownSender(supabase, fromAddr) : null;
+  const signupId =
+    direction === "in" ? (knownSender?.type === "signup" ? knownSender.id : null) : await resolveSignupId(supabase, toAddrs);
 
   const subject = parsed.subject || "(nincs tárgy)";
   const inReplyTo = parsed.inReplyTo || null;
@@ -261,6 +268,19 @@ async function processMessage(
     .from("mail_threads")
     .update({ last_message_at: now, ...(direction === "in" ? { last_inbound_at: now } : {}), subject })
     .eq("id", threadId);
+
+  // Szabálymotor — csak bejövő levélnél fut (a kimenőek küldéskor már a
+  // founder szándékos döntésén mentek át), és csak akkor, ha a szál
+  // területe még nincs kézzel beállítva, mert egy már kézzel besorolt
+  // (akár egy korábbi levélen) szál mezőit a motor nem írhatja felül
+  // (lásd lib/mail-rules-engine.ts kommentjét).
+  if (direction === "in") {
+    const { data: rules } = await supabase.from("mail_rules").select("*").eq("enabled", true);
+    if (rules && rules.length > 0) {
+      const matched = findMatchingRule(rules, { fromAddr, toAddrs, subject, accountId: account.id, hasAttachment: attachments.length > 0 }, knownSender);
+      if (matched) await applyRuleActions(supabase, threadId, matched.actions, knownSender, matched.name);
+    }
+  }
 }
 
 export type MailSyncSummary = {

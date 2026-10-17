@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import MailAccountsSection from "@/components/mail/MailAccountsSection";
 import MailSyncButton from "@/components/mail/MailSyncButton";
 import MailInbox from "@/components/mail/MailInbox";
+import MailRulesSection from "@/components/mail/MailRulesSection";
 
 type Tab = "inbox" | "accounts" | "rules" | "templates" | "labels";
 
@@ -49,9 +50,7 @@ export default function PostafiokPage() {
 
       {tab === "inbox" && <MailInbox />}
       {tab === "accounts" && <MailAccountsSection />}
-      {tab === "rules" && (
-        <EmptyState icon={ListFilter} title="A besorolási szabályok hamarosan elkészülnek" description="Terület, kapcsolt elem, felelős és feladat automatikus beállítása bejövő levelek alapján." />
-      )}
+      {tab === "rules" && <MailRulesSection />}
       {tab === "templates" && (
         <EmptyState icon={FileText} title="A gyorsválasz-sablonok hamarosan elkészülnek" description="Területenkénti, változókkal ({{first_name}} stb.) kitölthető válaszsablonok." />
       )}
