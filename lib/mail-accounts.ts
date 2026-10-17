@@ -19,6 +19,26 @@ export function toAccountSummary(account: MailAccount): MailAccountSummary {
   return summary;
 }
 
+/** "Küldésre kész?" — ugyanaz a szerepe, mint lib/brevo.ts
+ * isBrevoConfigured()-jának volt a First 20 fülön, FELVÁLTVA azt (a
+ * feladat "nem használunk Brevót" kérése): nincs MAIL_ENCRYPTION_KEY
+ * vagy egyetlen aktív postafiók sincs felvéve → a küldés UI-k ("Brevo
+ * nincs beállítva" helyett) ezt a magyarázó üzenetet mutatják, az
+ * Előnézet viszont attól is működik. app/api/mail/send-status olvassa
+ * ki ezt a GET route-on át. */
+export async function isMailSendConfigured(): Promise<{ configured: boolean; missing: string[] }> {
+  const missing: string[] = [];
+  if (!isMailEncryptionConfigured()) missing.push("MAIL_ENCRYPTION_KEY");
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    missing.push("Supabase");
+    return { configured: false, missing };
+  }
+  const { count } = await supabase.from("mail_accounts").select("id", { count: "exact", head: true }).eq("is_active", true);
+  if (!count) missing.push("postafiók (Postafiók → Fiókok)");
+  return { configured: missing.length === 0, missing };
+}
+
 export async function listMailAccounts(): Promise<
   { ok: true; accounts: MailAccountSummary[] } | { ok: false; error: string }
 > {

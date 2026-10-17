@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "crypto";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
-import { sendBrevoEmail, isBrevoConfigured } from "@/lib/brevo";
+import { isMailSendConfigured } from "@/lib/mail-accounts";
+import { sendAndLogMail } from "@/lib/mail-send";
 import { isFirst20Lang, first20T, type First20Lang } from "@/lib/first20-i18n";
-import type { First20Language } from "@/lib/supabase/types";
+import type { First20Language, ServerDatabase } from "@/lib/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // POST /api/first20/signup — the only way a row ever lands in
 // first20_signups; always goes through the service-role client (see
@@ -39,8 +41,15 @@ function clientIp(request: Request): string {
   return request.headers.get("x-real-ip") || "unknown";
 }
 
-async function sendConfirmationEmail(lang: First20Lang, firstName: string, email: string) {
-  if (!isBrevoConfigured()) return false;
+async function sendConfirmationEmail(
+  supabase: SupabaseClient<ServerDatabase>,
+  lang: First20Lang,
+  firstName: string,
+  email: string,
+  signupId: string
+) {
+  const mailStatus = await isMailSendConfigured();
+  if (!mailStatus.configured) return false;
   const t = first20T[lang];
   const subject =
     lang === "de" ? "Zusammen — deine First-20-Anmeldung" : lang === "en" ? "Zusammen — your First 20 signup" : "Zusammen — a First 20 jelentkezésed";
@@ -55,7 +64,16 @@ async function sendConfirmationEmail(lang: First20Lang, firstName: string, email
   </div>
 </body>
 </html>`;
-  const result = await sendBrevoEmail({ to: email, toName: firstName, subject, html });
+  const result = await sendAndLogMail({
+    supabase,
+    to: email,
+    toName: firstName,
+    subject,
+    html,
+    signupId,
+    sentVia: "auto",
+    sentBy: null,
+  });
   return result.ok;
 }
 
@@ -151,9 +169,11 @@ export async function POST(request: Request) {
   // this route was built against: a Brevo failure (e.g. domain auth not
   // finished yet) must never fail the signup itself.
   try {
-    const sent = await sendConfirmationEmail(lang, firstName, email);
-    if (sent && inserted) {
-      await supabase.from("first20_signups").update({ confirmation_email_sent: true }).eq("id", inserted.id);
+    if (inserted) {
+      const sent = await sendConfirmationEmail(supabase, lang, firstName, email, inserted.id);
+      if (sent) {
+        await supabase.from("first20_signups").update({ confirmation_email_sent: true }).eq("id", inserted.id);
+      }
     }
   } catch {
     // Swallow — the signup already succeeded.

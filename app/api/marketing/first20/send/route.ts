@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
-import { isBrevoConfigured } from "@/lib/brevo";
+import { isMailSendConfigured } from "@/lib/mail-accounts";
 import { sendFirst20Email, findRecentSend, FIRST20_FOUNDER_TEST_EMAIL } from "@/lib/first20-send";
 import type { First20EmailType, First20Language } from "@/lib/supabase/types";
 
@@ -28,9 +28,10 @@ type Body = {
 };
 
 export async function POST(request: Request) {
-  if (!isBrevoConfigured()) {
+  const mailStatus = await isMailSendConfigured();
+  if (!mailStatus.configured) {
     return NextResponse.json(
-      { ok: false, error: "BREVO_API_KEY nincs beállítva a szerveren — kérj egyet a founder-től." },
+      { ok: false, error: `Nincs küldésre kész postafiók — hiányzik: ${mailStatus.missing.join(", ")}.` },
       { status: 500 }
     );
   }
