@@ -16,7 +16,7 @@ import {
   RotateCcw,
   Mail,
 } from "lucide-react";
-import type { First20Signup, First20Email, First20EmailType } from "@/lib/supabase/types";
+import type { First20Signup, First20Email, First20EmailType, First20Language } from "@/lib/supabase/types";
 import { renderFirst20Email } from "@/lib/first20-emails";
 import { FIRST20_EMAIL_TYPE_LABEL } from "@/lib/first20-signup-status";
 import { formatDate } from "@/lib/format";
@@ -59,6 +59,9 @@ const SEND_BUTTONS: {
     hint: () => null,
   },
 ];
+
+const LANGUAGES: First20Language[] = ["hu", "de", "en"];
+const LANG_LABEL: Record<First20Language, string> = { hu: "Magyar", de: "Német", en: "Angol" };
 
 const STATUS_BADGE: Record<First20Email["status"], { icon: typeof CheckCircle2; style: string; label: string }> = {
   sent: { icon: CheckCircle2, style: "bg-forest/10 text-forest", label: "Elküldve" },
@@ -197,6 +200,7 @@ function EmailPreviewModal({
 }) {
   const [customSubject, setCustomSubject] = useState("");
   const [customBody, setCustomBody] = useState("");
+  const [language, setLanguage] = useState<First20Language>(signup.language_choice);
   const [sending, setSending] = useState<"real" | "test" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -205,11 +209,11 @@ function EmailPreviewModal({
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const vars = {
     firstName: signup.first_name,
-    kitUrl: `${origin}/first20-kit/kit-${signup.language_choice}.pdf`,
+    kitUrl: `${origin}/first20-kit/kit-${language}.pdf`,
     feedbackUrl: `${origin}/first20/feedback/${signup.token ?? "…"}`,
     orderLanguage: signup.order_language,
   };
-  const preview = renderFirst20Email(type, signup.language_choice, vars, {
+  const preview = renderFirst20Email(type, language, vars, {
     privacyUrl: `${origin}/adatvedelem`,
     unsubscribeHref: "#",
     customSubject: customSubject || "(add meg a tárgyat)",
@@ -229,6 +233,7 @@ function EmailPreviewModal({
           type,
           mode,
           force,
+          language,
           customSubject: type === "custom" ? customSubject : undefined,
           customBody: type === "custom" ? customBody : undefined,
         }),
@@ -252,21 +257,45 @@ function EmailPreviewModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] overflow-y-auto bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8"
-      onClick={onClose}
-    >
-      <div
-        className="animate-fade-in card mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden sm:max-h-[calc(100vh-4rem)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border bg-ivory-dim/40 p-4">
+    // overflow-y-auto a backdropon, SEM max-height a kártyán, SEM belső
+    // (második) scroll-konténer — a fejléc és a lábléc sticky, a tartalom
+    // meg egyszerűen a backdroppal együtt görgethető. Korábban (ld. git
+    // history) egy max-h-[...vh] + belső overflow-y-auto kombó próbálta
+    // egyetlen képernyőre beszorítani az egészet, de rövid böngésző-
+    // ablaknál/Dock-takarásnál így sem fért ki minden — a Bezárás X és a
+    // Küldés gombok is levághattak, és egyszerre csak az egyik volt
+    // elérhető görgetéssel. Sticky fejléc/lábléc esetén mindkettő mindig
+    // a képernyőn marad, bármekkora is a tartalom vagy az ablak.
+    <div className="fixed inset-0 z-[60] overflow-y-auto bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8" onClick={onClose}>
+      <div className="animate-fade-in card mx-auto w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-2xl border-b border-border bg-ivory-dim p-4">
           <h3 className="flex items-center gap-2 font-serif text-lg text-forest">
             <Mail size={17} className="text-bronze" /> {FIRST20_EMAIL_TYPE_LABEL[type]}
           </h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-white" aria-label="Bezárás">
             <X size={18} />
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3 sm:px-5">
+          <span className="text-xs font-medium text-muted">Nyelv</span>
+          <div className="flex gap-1.5">
+            {LANGUAGES.map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => setLanguage(lang)}
+                className={`btn !py-1 text-xs ${language === lang ? "btn-bronze" : "btn-ghost"}`}
+              >
+                {LANG_LABEL[lang]}
+              </button>
+            ))}
+          </div>
+          {language !== signup.language_choice && (
+            <span className="text-[11px] text-muted">
+              (a jelentkező saját nyelve: {LANG_LABEL[signup.language_choice]})
+            </span>
+          )}
         </div>
 
         {type === "custom" && (
@@ -281,13 +310,8 @@ function EmailPreviewModal({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-ivory-dim/30 p-3 sm:p-5">
-          {/* min-h-0 kell, különben egy flex-1 gyerek nem zsugorodik a
-              rendelkezésre álló hely alá (a böngésző alapértelmezett
-              min-height: auto miatt) — az iframe fix magassága emiatt
-              kitolta a modal alját a kártya max-h-[92vh] korlátja és
-              overflow-hidden-je alól, és levágta a Küldés/Teszt gombokat.
-              Email-kliens-szerű fejléc, hogy ez egyértelműen egy valódi
+        <div className="bg-ivory-dim/30 p-3 sm:p-5">
+          {/* Email-kliens-szerű fejléc, hogy ez egyértelműen egy valódi
               levél előnézete legyen, ne csak egy nyers HTML-dobozka. */}
           <div className="rounded-t-lg border border-border bg-white px-4 py-3 text-xs">
             <div className="flex gap-2">
@@ -327,7 +351,7 @@ function EmailPreviewModal({
         {error && <p className="border-t border-border px-4 py-2 text-xs text-red-600">{error}</p>}
         {result && <p className="border-t border-border px-4 py-2 text-xs text-forest">{result.message}</p>}
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border p-4">
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 rounded-b-2xl border-t border-border bg-white p-4">
           <button
             type="button"
             className="btn btn-ghost"

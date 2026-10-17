@@ -93,15 +93,13 @@ export default function SignupDetailModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8"
-      onClick={onClose}
-    >
-      <div
-        className="animate-fade-in card mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden sm:max-h-[calc(100vh-4rem)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-3 border-b border-border p-4 sm:p-5">
+    // Sticky fejléc (lásd SignupEmailsTab.tsx EmailPreviewModal komment) —
+    // a Bezárás X mindig elérhető marad, akármekkora is a kiválasztott fül
+    // tartalma vagy a böngésző ablaka; nincs max-height-be szorítás, az
+    // egész modal a backdroppal együtt görgethető.
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-forest/40 px-2 py-4 backdrop-blur-[2px] sm:px-4 sm:py-8" onClick={onClose}>
+      <div className="animate-fade-in card mx-auto w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-2xl border-b border-border bg-white p-4 sm:p-5">
           <div className="min-w-0">
             <h2 className="truncate font-serif text-lg text-forest">
               {signup ? `${signup.first_name}${signup.partner_first_name ? ` & ${signup.partner_first_name}` : ""}` : "Jelentkező"}
@@ -125,7 +123,7 @@ export default function SignupDetailModal({
           ))}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-white p-4 sm:p-5">
+        <div className="rounded-b-2xl bg-white p-4 sm:p-5">
           {error && <ErrorBanner message={error} />}
           {loading || !signup ? (
             <Spinner />

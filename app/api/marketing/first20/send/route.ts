@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
 import { isBrevoConfigured } from "@/lib/brevo";
 import { sendFirst20Email, findRecentSend, FIRST20_FOUNDER_TEST_EMAIL } from "@/lib/first20-send";
-import type { First20EmailType } from "@/lib/supabase/types";
+import type { First20EmailType, First20Language } from "@/lib/supabase/types";
 
 // POST /api/marketing/first20/send — a jelentkező részletnézetének
 // "Küldés" gombja (előnézet + megerősítés után, lásd SignupEmailsTab).
@@ -13,6 +13,7 @@ import type { First20EmailType } from "@/lib/supabase/types";
 // all (deliberately — see supabase/schema.sql), and the browser session
 // JWT doesn't carry through to this server route either way.
 const VALID_TYPES: First20EmailType[] = ["kit", "reminder", "feedback", "order_confirmation", "custom"];
+const VALID_LANGUAGES: First20Language[] = ["hu", "de", "en"];
 
 type Body = {
   signupId?: string;
@@ -21,6 +22,9 @@ type Body = {
   force?: boolean;
   customSubject?: string;
   customBody?: string;
+  /** Opcionális nyelv-felülbírálás — ha hiányzik, a jelentkező saját
+   * language_choice-a dönt (lásd sendFirst20Email). */
+  language?: string;
 };
 
 export async function POST(request: Request) {
@@ -46,6 +50,10 @@ export async function POST(request: Request) {
   if (type === "custom" && !body?.customSubject?.trim()) {
     return NextResponse.json({ ok: false, error: "Saját levélhez tárgy is szükséges." }, { status: 400 });
   }
+  const language = body?.language as First20Language | undefined;
+  if (language && !VALID_LANGUAGES.includes(language)) {
+    return NextResponse.json({ ok: false, error: "Érvénytelen nyelv." }, { status: 400 });
+  }
 
   const { data: signup, error: signupError } = await supabase
     .from("first20_signups")
@@ -65,6 +73,7 @@ export async function POST(request: Request) {
       testOverrideEmail: FIRST20_FOUNDER_TEST_EMAIL,
       customSubject: body?.customSubject?.trim(),
       customBodyText: body?.customBody,
+      language,
     });
     return result.ok
       ? NextResponse.json({ ok: true, email: result.email, signup: result.signup })
@@ -91,6 +100,7 @@ export async function POST(request: Request) {
     sentBy: null,
     customSubject: body?.customSubject?.trim(),
     customBodyText: body?.customBody,
+    language,
   });
 
   return result.ok
