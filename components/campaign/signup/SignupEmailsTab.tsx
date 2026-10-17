@@ -21,6 +21,7 @@ import { renderFirst20Email } from "@/lib/first20-emails";
 import { FIRST20_EMAIL_TYPE_LABEL } from "@/lib/first20-signup-status";
 import { formatDate } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
+import EntityMailThreadsSection from "@/components/mail/EntityMailThreadsSection";
 
 const SEND_BUTTONS: {
   type: First20EmailType;
@@ -164,6 +165,10 @@ export default function SignupEmailsTab({
             })}
           </div>
         )}
+      </section>
+
+      <section>
+        <EntityMailThreadsSection entityType="signup" entityIds={[signup.id]} title="Levelek (Postafiók)" />
       </section>
 
       {activeType && (

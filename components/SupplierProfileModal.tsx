@@ -12,6 +12,7 @@ import PurchaseForm from "@/components/PurchaseForm";
 import PurchaseList from "@/components/PurchaseList";
 import ContactCorrespondence from "@/components/ContactCorrespondence";
 import BackButton from "@/components/BackButton";
+import EntityMailThreadsSection from "@/components/mail/EntityMailThreadsSection";
 
 const CONTRACT_STATUSES: ContractStatus[] = ["None", "Signed", "Failed", "Expired"];
 
@@ -399,6 +400,12 @@ export default function SupplierProfileModal({
                     onReplyDetected?.();
                   }}
                 />
+              </div>
+            )}
+
+            {!isNew && supplier && (
+              <div className="mt-3">
+                <EntityMailThreadsSection entityType="supplier" entityIds={[supplier.id]} />
               </div>
             )}
 

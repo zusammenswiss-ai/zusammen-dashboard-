@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Inbox, PlugZap, ListFilter, FileText, Tag } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import MailAccountsSection from "@/components/mail/MailAccountsSection";
@@ -29,6 +29,21 @@ const TABS: { key: Tab; label: string; icon: typeof Inbox }[] = [
  */
 export default function PostafiokPage() {
   const [tab, setTab] = useState<Tab>("inbox");
+  const [deepLinkThreadId, setDeepLinkThreadId] = useState<string | null>(null);
+
+  // Deep link a "Levelek" szakaszokból (kampány/jelentkező/rendelés/eset/
+  // beszállító oldaláról): /postafiok?thread=<id> — ugyanaz a minta, mint
+  // a kampány-oldal ?tab=signups&signup=<id> deep linkje.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const threadId = params.get("thread");
+    if (threadId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab("inbox");
+      setDeepLinkThreadId(threadId);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   return (
     <>
@@ -46,7 +61,7 @@ export default function PostafiokPage() {
         ))}
       </div>
 
-      {tab === "inbox" && <MailInbox />}
+      {tab === "inbox" && <MailInbox initialThreadId={deepLinkThreadId} />}
       {tab === "accounts" && <MailAccountsSection />}
       {tab === "rules" && <MailRulesSection />}
       {tab === "templates" && <MailTemplatesSection />}

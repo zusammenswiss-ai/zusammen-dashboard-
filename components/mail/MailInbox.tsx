@@ -35,7 +35,7 @@ type ThreadRow = {
  * "vissza" gombbal lépkedve — ugyanaz a drill-down minta, mint a
  * Dashboard több más mobilra optimalizált nézetén.
  */
-export default function MailInbox() {
+export default function MailInbox({ initialThreadId = null }: { initialThreadId?: string | null }) {
   const [areas, setAreas] = useState<MailArea[]>([]);
   const [view, setView] = useState<View>({ key: "all", label: "Összes", kind: "special" });
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -88,6 +88,15 @@ export default function MailInbox() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // "Levelek" szakaszokból érkező deep link (/postafiok?thread=<id>) —
+  // lásd app/(dashboard)/postafiok/page.tsx.
+  useEffect(() => {
+    if (!initialThreadId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedThreadId(initialThreadId);
+    setMobilePane("detail");
+  }, [initialThreadId]);
 
   function openThread(id: string) {
     setSelectedThreadId(id);

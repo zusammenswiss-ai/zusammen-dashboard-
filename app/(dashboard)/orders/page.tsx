@@ -10,6 +10,7 @@ import EmptyState from "@/components/EmptyState";
 import UndoToast from "@/components/UndoToast";
 import SearchBar from "@/components/SearchBar";
 import EmailComposeModal from "@/components/EmailComposeModal";
+import EntityMailThreadsSection from "@/components/mail/EntityMailThreadsSection";
 import { useUndoAction } from "@/lib/useUndoAction";
 import { formatDate } from "@/lib/format";
 import { formatMoney, CURRENCY_OPTIONS } from "@/lib/currency";
@@ -561,6 +562,9 @@ function OrderRow({
               onBlur={() => notes !== (order.notes ?? "") && onUpdate({ notes })}
               placeholder="Csomagolás, számlázás, egyeztetés…"
             />
+          </div>
+          <div className="sm:col-span-2">
+            <EntityMailThreadsSection entityType="order" entityIds={[order.id]} />
           </div>
         </div>
       )}
