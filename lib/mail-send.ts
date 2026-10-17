@@ -190,6 +190,18 @@ export async function sendAndLogMail(input: SendMailInput): Promise<SendMailResu
 
   let mailMessageId: string | null = null;
   if (threadId) {
+    // Kimenő levél egy "Kész"-re zárt szálba — a feladat 5/B/c pontja
+    // szerint a bejövő válasz újranyitja a lezárt szálat; ugyanez igaz
+    // egy általunk küldött válaszra is (findOrCreateSignupThread már
+    // intézi ezt, amikor maga oldja fel a szálat, de egy explicit
+    // threadId-vel érkező hívásnál — pl. válasz egy már ismert szálba —
+    // ezt itt külön kell megtenni).
+    const { data: threadRow } = await supabase.from("mail_threads").select("status").eq("id", threadId).maybeSingle();
+    if (threadRow?.status === "done") {
+      await supabase.from("mail_threads").update({ status: "in_progress", closed_at: null, closed_by: null }).eq("id", threadId);
+      await supabase.from("mail_activity").insert({ thread_id: threadId, actor: "system", action: "reopened", detail: { reason: "outgoing_reply" } });
+    }
+
     const { data: row, error: insertError } = await supabase
       .from("mail_messages")
       .insert({
