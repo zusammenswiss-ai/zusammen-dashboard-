@@ -1,4 +1,6 @@
-// Szerver-only — ez a fájl küld valódi Brevo-hívást és ír a
+// Szerver-only — ez a fájl küld a Postafiók modulon keresztül (lásd
+// lib/mail-send.ts — NEM Brevón, a feladat "Zusammen-First20-Jelentkezok-
+// Email-Code-Prompt" 2) pontja helyett ez a modul küld) és ír a
 // first20_emails/first20_signups táblákba, ezért csak API route-okból
 // (app/api/marketing/first20/send, app/api/cron/first20-emails) szabad
 // importálni, soha "use client" komponensből. A tényleges sablon-
@@ -7,8 +9,8 @@
 // dupla-küldés elleni védelmet végzi.
 import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, First20Signup, First20Email, First20EmailType, First20Language } from "@/lib/supabase/types";
-import { sendBrevoEmail } from "@/lib/brevo";
+import type { ServerDatabase, First20Signup, First20Email, First20EmailType, First20Language } from "@/lib/supabase/types";
+import { sendAndLogMail } from "@/lib/mail-send";
 import { renderFirst20Email } from "@/lib/first20-emails";
 import { legalDocumentUrl } from "@/lib/legal-links";
 import { SITE_URL } from "@/lib/site-url";
@@ -34,7 +36,7 @@ function feedbackUrl(token: string): string {
  * ha valamiért mégsem lenne token (pl. az /api/first20/signup route-ot
  * valaki megkerülve, direkt SQL-lel vett fel egy sort). */
 export async function ensureSignupToken(
-  supabase: SupabaseClient<Database>,
+  supabase: SupabaseClient<ServerDatabase>,
   signup: First20Signup
 ): Promise<string> {
   if (signup.token) return signup.token;
@@ -53,7 +55,7 @@ export async function ensureSignupToken(
  * jelentkezőhöz — a "Küldés" gomb ez alapján kér explicit megerősítést
  * ismételt küldés előtt. */
 export async function findRecentSend(
-  supabase: SupabaseClient<Database>,
+  supabase: SupabaseClient<ServerDatabase>,
   signupId: string,
   type: First20EmailType
 ): Promise<First20Email | null> {
@@ -72,7 +74,7 @@ export async function findRecentSend(
 }
 
 type SendParams = {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient<ServerDatabase>;
   signup: First20Signup;
   type: First20EmailType;
   trigger: "manual" | "auto";
@@ -145,13 +147,23 @@ export async function sendFirst20Email(params: SendParams): Promise<SendResult> 
     return { ok: false, error: insertError?.message || "Nem sikerült naplózni az e-mailt." };
   }
 
-  const result = await sendBrevoEmail({ to: recipientEmail, toName: recipientName, subject: `${subject}${isTest ? " [TESZT]" : ""}`, html });
+  const result = await sendAndLogMail({
+    supabase,
+    to: recipientEmail,
+    toName: recipientName,
+    subject: `${subject}${isTest ? " [TESZT]" : ""}`,
+    html,
+    signupId: isTest ? null : signup.id,
+    sentVia: "campaign",
+    sentBy,
+    skipLogging: isTest,
+  });
 
   const { data: updatedEmailRow } = await supabase
     .from("first20_emails")
     .update(
       result.ok
-        ? { status: "sent", sent_at: new Date().toISOString(), error: null }
+        ? { status: "sent", sent_at: new Date().toISOString(), error: null, provider_message_id: result.messageId }
         : { status: "failed", error: result.error }
     )
     .eq("id", emailRow.id)

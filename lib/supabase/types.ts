@@ -114,6 +114,10 @@ export interface TaskItem {
   // "set null", nem cascade: a jelentkező törlése a feladatot nem törli,
   // csak a kapcsolatát szünteti meg (lásd supabase/schema.sql).
   signup_id: string | null;
+  // Postafiók — 5/B/f pont: automatikus vagy kézi "Feladat létrehozása"
+  // egy levélszálból. "set null", nem cascade, ugyanazon az okon, mint
+  // signup_id fent — a szál törlése nem viszi magával a feladatot.
+  mail_thread_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1031,6 +1035,216 @@ export type First20SignupNoteInsert = Partial<Omit<First20SignupNote, "id" | "cr
 };
 export type First20SignupNoteUpdate = Partial<Omit<First20SignupNote, "id" | "signup_id" | "created_at">>;
 
+// =====================================================================
+// Postafiók — saját Infomaniak IMAP/SMTP postafiókok, FELVÁLTVA a Brevót
+// a First 20 Jelentkezők fülön. Lásd supabase/schema.sql a mail_* táblák
+// részletes kommentjeivel. mail_accounts (a valódi secretet tartó tábla)
+// NEM itt, hanem lentebb, a ServerDatabase blokkban van regisztrálva —
+// lásd ott a kommentet.
+// =====================================================================
+
+// mail_areas — ÚJ MINTA: adattábla, nem hardcode-olt union, mert a
+// feladat explicit kéri a kód nélküli bővíthetőséget (lásd
+// schema.sql). `key` a stabil azonosító (mail_rules jsonb-ben,
+// mail_threads.area FK célpontjaként), `label` a szerkeszthető magyar
+// név.
+export interface MailArea {
+  id: string;
+  key: string;
+  label: string;
+  sort_order: number;
+  is_default: boolean;
+  auto_task_enabled: boolean;
+  auto_task_due_days: number | null;
+  created_at: string;
+}
+export type MailAreaInsert = Partial<Omit<MailArea, "id" | "created_at">> & { key: string; label: string };
+export type MailAreaUpdate = Partial<Omit<MailArea, "id" | "key" | "created_at">>;
+
+export type MailThreadStatus = "new" | "in_progress" | "waiting" | "done";
+export type MailThreadPriority = "low" | "normal" | "urgent";
+
+export interface MailThread {
+  id: string;
+  subject: string;
+  area: string;
+  // Igaz, ha a terület kézzel lett beállítva (Postafiók UI-ból) — egy
+  // szabály ezután soha nem írja felül (5/B/e pont utolsó mondata).
+  area_is_manual: boolean;
+  status: MailThreadStatus;
+  owner: string | null;
+  owner_is_manual: boolean;
+  priority: MailThreadPriority;
+  last_message_at: string | null;
+  last_inbound_at: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type MailThreadInsert = Partial<Omit<MailThread, "id" | "created_at" | "updated_at">>;
+export type MailThreadUpdate = Partial<Omit<MailThread, "id" | "created_at" | "updated_at">>;
+
+export type MailMessageDirection = "in" | "out";
+export type MailMessageStatus = "queued" | "sent" | "failed";
+export type MailMessageSentVia = "manual" | "campaign" | "support" | "auto";
+
+// Csak a service-role kliens ír bele (IMAP-szinkron, küldő route) —
+// a Dashboard csak olvassa, ugyanaz a minta, mint First20Email.
+export interface MailMessage {
+  id: string;
+  thread_id: string;
+  account_id: string;
+  direction: MailMessageDirection;
+  folder: string;
+  imap_uid: number | null;
+  message_id: string | null;
+  in_reply_to: string | null;
+  references_header: string | null;
+  from_addr: string | null;
+  from_name: string | null;
+  to_addrs: string[];
+  cc_addrs: string[];
+  subject: string | null;
+  body_text: string | null;
+  body_html_sanitized: string | null;
+  received_at: string | null;
+  read_at: string | null;
+  signup_id: string | null;
+  has_attachments: boolean;
+  attachments_meta: { name: string; size: number; contentType: string | null; partId: string }[];
+  status: MailMessageStatus;
+  error: string | null;
+  sent_via: MailMessageSentVia | null;
+  sent_by: string | null;
+  created_at: string;
+}
+export type MailMessageInsert = Partial<Omit<MailMessage, "id" | "created_at">> & {
+  thread_id: string;
+  account_id: string;
+  direction: MailMessageDirection;
+  folder: string;
+};
+export type MailMessageUpdate = Partial<Omit<MailMessage, "id" | "thread_id" | "account_id" | "created_at">>;
+
+export type MailThreadLinkEntityType = "campaign" | "signup" | "order" | "support_ticket" | "supplier" | "product" | "document";
+
+export interface MailThreadLink {
+  id: string;
+  thread_id: string;
+  entity_type: MailThreadLinkEntityType;
+  entity_id: string;
+  created_at: string;
+}
+export type MailThreadLinkInsert = Partial<Omit<MailThreadLink, "id" | "created_at">> & {
+  thread_id: string;
+  entity_type: MailThreadLinkEntityType;
+  entity_id: string;
+};
+
+export interface MailLabel {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+export type MailLabelInsert = Partial<Omit<MailLabel, "id" | "created_at">> & { name: string };
+export type MailLabelUpdate = Partial<Omit<MailLabel, "id" | "created_at">>;
+
+export interface MailThreadLabel {
+  thread_id: string;
+  label_id: string;
+}
+export type MailThreadLabelInsert = MailThreadLabel;
+
+// mail_rules.conditions/actions jsonb alakja — lásd schema.sql
+// kommentjét. Az app réteg (lib/mail-rules.ts, később fázisban)
+// értelmezi; itt csak a tárolt alak van rögzítve típusként.
+export type MailRuleConditionType = "sender_known" | "sender_domain" | "sender_address" | "subject_contains" | "account_id" | "has_attachment";
+export type MailRuleActionType = "set_area" | "set_label" | "set_owner" | "set_priority" | "link_known_sender" | "create_task" | "mark_unread";
+export interface MailRuleCondition {
+  type: MailRuleConditionType;
+  value?: string;
+}
+export interface MailRuleAction {
+  type: MailRuleActionType;
+  value?: string;
+}
+
+export interface MailRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  sort_order: number;
+  conditions: MailRuleCondition[];
+  actions: MailRuleAction[];
+  created_at: string;
+  updated_at: string;
+}
+export type MailRuleInsert = Partial<Omit<MailRule, "id" | "created_at" | "updated_at">> & { name: string };
+export type MailRuleUpdate = Partial<Omit<MailRule, "id" | "created_at" | "updated_at">>;
+
+export interface MailNote {
+  id: string;
+  thread_id: string;
+  body: string;
+  author: string | null;
+  created_at: string;
+}
+export type MailNoteInsert = Partial<Omit<MailNote, "id" | "created_at">> & { thread_id: string; body: string };
+
+// Csak a service-role kliens ír bele (lásd schema.sql kommentjét: a
+// napló nem lenne hiteles, ha a böngészőből bárki közvetlenül írhatna
+// bele) — a Dashboard csak olvassa.
+export interface MailActivity {
+  id: string;
+  thread_id: string;
+  actor: string | null;
+  action: string;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+export type MailActivityInsert = Partial<Omit<MailActivity, "id" | "created_at">> & { thread_id: string; action: string };
+
+export type MailTemplateType = "standard" | "support_reply";
+
+export interface MailTemplate {
+  id: string;
+  area: string | null;
+  name: string;
+  type: MailTemplateType;
+  subject: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+export type MailTemplateInsert = Partial<Omit<MailTemplate, "id" | "created_at" | "updated_at">> & { name: string; body: string };
+export type MailTemplateUpdate = Partial<Omit<MailTemplate, "id" | "created_at" | "updated_at">>;
+
+// Egyetlen sor, mint TogetherSettings/CompanySettings — lásd
+// schema.sql kommentjét, nincs előre beszúrt sor.
+export interface MailSettings {
+  id: string;
+  hourly_send_limit: number;
+  sync_lookback_days: number;
+  last_cron_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type MailSettingsInsert = Partial<Omit<MailSettings, "id" | "created_at" | "updated_at">>;
+export type MailSettingsUpdate = Partial<Omit<MailSettings, "id" | "created_at" | "updated_at">>;
+
+// mail_sync_state — csak olvasható a Dashboardból ("utoljára
+// szinkronizálva" kijelzés), csak a service-role szinkron route ír bele.
+export interface MailSyncState {
+  id: string;
+  account_id: string;
+  folder: string;
+  last_uid: number;
+  last_synced_at: string | null;
+}
+export type MailSyncStateInsert = Partial<Omit<MailSyncState, "id">> & { account_id: string; folder: string };
+
 // Service-role-only — soha nem kerül a Database (anon-elérhető) típusba,
 // lásd lib/supabase/serverClient.ts.
 export interface First20RateLimit {
@@ -1448,6 +1662,51 @@ export interface EmailSendConfig {
 export type EmailSendConfigInsert = Partial<Omit<EmailSendConfig, "id" | "updated_at">>;
 export type EmailSendConfigUpdate = Partial<Omit<EmailSendConfig, "id" | "updated_at">>;
 
+// mail_accounts — same treatment as gmail_connection/email_send_config
+// above: a real secret (the Infomaniak IMAP/SMTP password), no anon RLS
+// policy at all, encrypted at rest with lib/mail-crypto.ts. The browser
+// never receives password_encrypted — the API routes that serve
+// MailAccount to the Postafiók UI omit that field from the response
+// (see MailAccountSummary below, which the routes actually return).
+export type MailSecureMode = "tls" | "starttls" | "none";
+
+export interface MailAccount {
+  id: string;
+  name: string;
+  email: string;
+  from_name: string | null;
+  imap_host: string;
+  imap_port: number;
+  imap_secure: MailSecureMode;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_secure: MailSecureMode;
+  username: string;
+  password_encrypted: string;
+  signature_html: string | null;
+  signature_text: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  last_test_at: string | null;
+  last_test_ok: boolean | null;
+  last_test_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type MailAccountInsert = Partial<Omit<MailAccount, "id" | "created_at" | "updated_at">> & {
+  name: string;
+  email: string;
+  username: string;
+  password_encrypted: string;
+};
+export type MailAccountUpdate = Partial<Omit<MailAccount, "id" | "created_at" | "updated_at">>;
+
+/** A MailAccount a böngészőnek adható alakja — password_encrypted
+ * kihagyva. Az UI ebből tudja, hogy "van beállítva jelszó" anélkül,
+ * hogy visszakapná (lásd a feladat "a jelszó sosem kerül a böngészőbe
+ * vissza" követelményét). */
+export type MailAccountSummary = Omit<MailAccount, "password_encrypted"> & { has_password: boolean };
+
 // telegram_config — same treatment as email_send_config above (real
 // secret, service-role only). Backs Beállítások → "Telegram" — see
 // supabase/schema.sql.
@@ -1537,6 +1796,12 @@ export interface ServerDatabase {
         Row: First20RateLimit;
         Insert: First20RateLimitInsert;
         Update: never;
+        Relationships: [];
+      };
+      mail_accounts: {
+        Row: MailAccount;
+        Insert: MailAccountInsert;
+        Update: MailAccountUpdate;
         Relationships: [];
       };
     };
@@ -1898,6 +2163,78 @@ export interface Database {
         Update: Partial<EmailUnsubscribe>;
         Relationships: [];
       };
+      mail_areas: {
+        Row: MailArea;
+        Insert: MailAreaInsert;
+        Update: MailAreaUpdate;
+        Relationships: [];
+      };
+      mail_settings: {
+        Row: MailSettings;
+        Insert: MailSettingsInsert;
+        Update: MailSettingsUpdate;
+        Relationships: [];
+      };
+      mail_sync_state: {
+        Row: MailSyncState;
+        Insert: MailSyncStateInsert;
+        Update: never;
+        Relationships: [];
+      };
+      mail_threads: {
+        Row: MailThread;
+        Insert: MailThreadInsert;
+        Update: MailThreadUpdate;
+        Relationships: [];
+      };
+      mail_messages: {
+        Row: MailMessage;
+        Insert: MailMessageInsert;
+        Update: MailMessageUpdate;
+        Relationships: [];
+      };
+      mail_thread_links: {
+        Row: MailThreadLink;
+        Insert: MailThreadLinkInsert;
+        Update: never;
+        Relationships: [];
+      };
+      mail_labels: {
+        Row: MailLabel;
+        Insert: MailLabelInsert;
+        Update: MailLabelUpdate;
+        Relationships: [];
+      };
+      mail_thread_labels: {
+        Row: MailThreadLabel;
+        Insert: MailThreadLabelInsert;
+        Update: never;
+        Relationships: [];
+      };
+      mail_rules: {
+        Row: MailRule;
+        Insert: MailRuleInsert;
+        Update: MailRuleUpdate;
+        Relationships: [];
+      };
+      mail_notes: {
+        Row: MailNote;
+        Insert: MailNoteInsert;
+        Update: never;
+        Relationships: [];
+      };
+      mail_activity: {
+        Row: MailActivity;
+        Insert: MailActivityInsert;
+        Update: never;
+        Relationships: [];
+      };
+      mail_templates: {
+        Row: MailTemplate;
+        Insert: MailTemplateInsert;
+        Update: MailTemplateUpdate;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -1964,6 +2301,18 @@ export const ANON_TABLE_NAMES = [
   "email_templates",
   "newsletter_subscribers",
   "email_unsubscribes",
+  "mail_areas",
+  "mail_settings",
+  "mail_sync_state",
+  "mail_threads",
+  "mail_messages",
+  "mail_thread_links",
+  "mail_labels",
+  "mail_thread_labels",
+  "mail_rules",
+  "mail_notes",
+  "mail_activity",
+  "mail_templates",
   "company_settings",
   "service_accounts",
   "rituals",

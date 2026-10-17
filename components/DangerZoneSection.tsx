@@ -29,6 +29,14 @@ const CONFIRM_WORD = "TÖRLÉS";
 // access. protocols is kept too — a jegyzőkönyv-történet is a governance
 // record, not disposable business content; "minden adat törlése" here
 // would be a surprising way to lose meeting history.
+// A mail_areas/mail_settings/mail_rules/mail_labels/mail_templates
+// ötös ugyanazon az okon van kivéve, mint company_settings/
+// together_settings fent: Postafiók KONFIGURÁCIÓ (terület-lista,
+// szinkron/küldési limitek, besorolási szabályok, címke-definíciók,
+// gyorsválasz-sablonok), nem személyes levéltartalom — egy törlés itt
+// a postafiók-beállítást nullázná vissza, nem a leveleket. A
+// levelek/szálak/jegyzetek viszont a WIPE_TABLES-ben maradnak, mert a
+// feladat explicit személyes adatnak tekinti őket.
 const KEPT_TABLES = new Set([
   "together_settings",
   "company_settings",
@@ -36,6 +44,11 @@ const KEPT_TABLES = new Set([
   "legal_documents",
   "user_roles",
   "protocols",
+  "mail_areas",
+  "mail_settings",
+  "mail_rules",
+  "mail_labels",
+  "mail_templates",
 ]);
 const WIPE_TABLES = ANON_TABLE_NAMES.filter((t) => !KEPT_TABLES.has(t));
 

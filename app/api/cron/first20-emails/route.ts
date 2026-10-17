@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/serverClient";
-import { isBrevoConfigured } from "@/lib/brevo";
+import { isMailSendConfigured } from "@/lib/mail-accounts";
 import { sendFirst20Email } from "@/lib/first20-send";
 import { errorMessage } from "@/lib/errors";
 
@@ -52,8 +52,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, skipped: true, reason: "Automatikus küldés kikapcsolva minden First 20 kampányon." });
   }
 
-  if (!isBrevoConfigured()) {
-    return NextResponse.json({ ok: false, error: "BREVO_API_KEY nincs beállítva a szerveren." }, { status: 500 });
+  const mailStatus = await isMailSendConfigured();
+  if (!mailStatus.configured) {
+    return NextResponse.json({ ok: false, error: `Nincs küldésre kész postafiók — hiányzik: ${mailStatus.missing.join(", ")}.` }, { status: 500 });
   }
 
   const reminderCutoff = new Date(Date.now() - REMINDER_AFTER_MS).toISOString();

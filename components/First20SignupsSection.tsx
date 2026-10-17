@@ -60,7 +60,7 @@ export default function First20SignupsSection({
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [brevoConfigured, setBrevoConfigured] = useState<boolean | null>(null);
+  const [mailConfigured, setMailConfigured] = useState<boolean | null>(null);
   const [autoSendSaving, setAutoSendSaving] = useState(false);
 
   const supabase = getSupabaseClient();
@@ -82,10 +82,10 @@ export default function First20SignupsSection({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin);
     if (supabase) void load();
-    fetch("/api/marketing/brevo-status")
+    fetch("/api/mail/send-status")
       .then((res) => res.json())
-      .then((data) => setBrevoConfigured(data.configured))
-      .catch(() => setBrevoConfigured(false));
+      .then((data) => setMailConfigured(data.configured))
+      .catch(() => setMailConfigured(false));
   }, [supabase, load]);
 
   useEffect(() => {
@@ -148,12 +148,12 @@ export default function First20SignupsSection({
 
   return (
     <div className="flex flex-col gap-5">
-      {brevoConfigured === false && (
+      {mailConfigured === false && (
         <div className="flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span>
-            Brevo nincs beállítva — a <code>BREVO_API_KEY</code> szerver környezeti változó hiányzik, ezért az e-mail küldés ki van
-            kapcsolva. Egy jelentkező megnyitásakor a sablon-előnézet attól is működik.
+            Nincs küldésre kész postafiók — állíts be egyet a Postafiók → Fiókok fülön, addig az e-mail küldés ki van kapcsolva. Egy
+            jelentkező megnyitásakor a sablon-előnézet attól is működik.
           </span>
         </div>
       )}

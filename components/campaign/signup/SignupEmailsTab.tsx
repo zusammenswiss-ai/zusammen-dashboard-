@@ -78,25 +78,24 @@ export default function SignupEmailsTab({
   emails: First20Email[];
   onSent: () => void;
 }) {
-  const [brevoStatus, setBrevoStatus] = useState<{ configured: boolean; missing: string[] } | null>(null);
+  const [mailStatus, setMailStatus] = useState<{ configured: boolean; missing: string[] } | null>(null);
   const [activeType, setActiveType] = useState<First20EmailType | null>(null);
 
   useEffect(() => {
-    fetch("/api/marketing/brevo-status")
+    fetch("/api/mail/send-status")
       .then((res) => res.json())
-      .then(setBrevoStatus)
-      .catch(() => setBrevoStatus({ configured: false, missing: ["BREVO_API_KEY"] }));
+      .then(setMailStatus)
+      .catch(() => setMailStatus({ configured: false, missing: ["MAIL_ENCRYPTION_KEY"] }));
   }, []);
 
   return (
     <div className="flex flex-col gap-6">
-      {brevoStatus && !brevoStatus.configured && (
+      {mailStatus && !mailStatus.configured && (
         <div className="flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span>
-            Brevo nincs beállítva — hiányzó környezeti változó
-            {brevoStatus.missing.length > 1 ? "k" : ""}: <code>{brevoStatus.missing.join(", ")}</code>. Kérj egy API kulcsot a
-            founder-től (Brevo → Settings → SMTP &amp; API), és állítsd be Vercelen. Addig az Előnézet működik, a Küldés nem.
+            Nincs küldésre kész postafiók — hiányzik: <code>{mailStatus.missing.join(", ")}</code>. Állítsd be a Postafiók → Fiókok
+            fülön (lásd a Postafiók oldalt). Addig az Előnézet működik, a Küldés nem.
           </span>
         </div>
       )}
@@ -171,7 +170,7 @@ export default function SignupEmailsTab({
         <EmailPreviewModal
           signup={signup}
           type={activeType}
-          brevoConfigured={brevoStatus?.configured ?? false}
+          mailConfigured={mailStatus?.configured ?? false}
           onClose={() => setActiveType(null)}
           onSent={() => {
             setActiveType(null);
@@ -188,13 +187,13 @@ const FOUNDER_TEST_EMAIL = "keresztesibarbara5@gmail.com";
 function EmailPreviewModal({
   signup,
   type,
-  brevoConfigured,
+  mailConfigured,
   onClose,
   onSent,
 }: {
   signup: First20Signup;
   type: First20EmailType;
-  brevoConfigured: boolean;
+  mailConfigured: boolean;
   onClose: () => void;
   onSent: () => void;
 }) {
@@ -335,9 +334,9 @@ function EmailPreviewModal({
           </div>
         </div>
 
-        {!brevoConfigured && (
+        {!mailConfigured && (
           <div className="flex items-start gap-2 border-t border-border bg-yellow-50 p-3 text-xs text-yellow-800">
-            <AlertTriangle size={13} className="mt-0.5 shrink-0" /> Brevo nincs beállítva — a küldés most nem fog működni.
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" /> Nincs küldésre kész postafiók — a küldés most nem fog működni.
           </div>
         )}
         {duplicateWarning && (
@@ -364,7 +363,7 @@ function EmailPreviewModal({
             type="button"
             className="btn btn-primary"
             onClick={() => send("real")}
-            disabled={sending !== null || !brevoConfigured || (type === "custom" && !customSubject.trim())}
+            disabled={sending !== null || !mailConfigured || (type === "custom" && !customSubject.trim())}
           >
             <Send size={15} /> {sending === "real" ? "Küldés…" : "Küldés"}
           </button>

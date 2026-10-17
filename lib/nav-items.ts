@@ -22,6 +22,7 @@ import {
   Palette,
   Headset,
   ClipboardList,
+  Inbox,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,6 +43,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/products", label: "Termékek", icon: Tag },
       { href: "/orders", label: "Vevői rendelések", icon: Package },
       { href: "/support", label: "Ügyfélszolgálat", icon: Headset },
+      // Postafiók — saját Infomaniak IMAP/SMTP postafiókok, külön a
+      // meglévő /inbox "Postaláda"-tól (az egy különálló, csak-olvasható
+      // személyes Gmail-integráció, lásd supabase/schema.sql
+      // gmail_connection kommentjét) — szándékosan más ikon (Inbox, nem
+      // Mail), hogy a két hasonló nevű elem ne keveredjen.
+      { href: "/postafiok", label: "Postafiók", icon: Inbox },
       { href: "/finance", label: "Pénzügyek", icon: Calculator },
     ],
   },
