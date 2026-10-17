@@ -10,13 +10,16 @@ import {
   StickyNote,
   ListTodo,
   Download,
+  Tag,
+  Check,
 } from "lucide-react";
-import type { MailMessage, MailNote, MailThread, MailThreadLink, MailLabel, MailArea, MailThreadStatus, MailThreadPriority } from "@/lib/supabase/types";
+import type { MailMessage, MailNote, MailThread, MailThreadLink, MailLabel, MailArea, MailTemplate, MailThreadStatus, MailThreadPriority } from "@/lib/supabase/types";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Spinner, ErrorBanner } from "@/components/Feedback";
 import { formatDate } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { MAIL_STATUS_LABEL, MAIL_PRIORITY_LABEL, MAIL_ENTITY_TYPE_LABEL } from "@/lib/mail-ui";
+import { fillMailTemplate } from "@/lib/mail-template-vars";
 import QuickTaskModal from "@/components/QuickTaskModal";
 
 type ThreadDetail = {
@@ -132,6 +135,7 @@ export default function MailThreadView({ threadId, onBack, onChanged }: { thread
             {MAIL_ENTITY_TYPE_LABEL[l.entity_type] || l.entity_type}
           </span>
         ))}
+        <LabelPicker threadId={threadId} currentLabels={detail.labels} onChanged={load} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
@@ -155,7 +159,12 @@ export default function MailThreadView({ threadId, onBack, onChanged }: { thread
         )}
       </div>
 
-      <ReplyAndNoteComposer threadId={threadId} onSent={load} />
+      <ReplyAndNoteComposer
+        threadId={threadId}
+        area={thread.area}
+        templateVars={{ firstName: [...messages].reverse().find((m) => m.direction === "in")?.from_name ?? null, subject: thread.subject }}
+        onSent={load}
+      />
 
       {showTaskModal && (
         <QuickTaskModal
@@ -225,11 +234,95 @@ function MessageBubble({ message }: { message: MailMessage }) {
   );
 }
 
-function ReplyAndNoteComposer({ threadId, onSent }: { threadId: string; onSent: () => void }) {
+function LabelPicker({ threadId, currentLabels, onChanged }: { threadId: string; currentLabels: MailLabel[]; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [allLabels, setAllLabels] = useState<MailLabel[]>([]);
+  const supabase = getSupabaseClient();
+
+  async function loadAll() {
+    const res = await fetch("/api/mail/labels");
+    const data = await res.json();
+    if (data.ok) setAllLabels(data.labels);
+  }
+
+  async function toggle(labelId: string, active: boolean) {
+    if (!supabase) return;
+    if (active) await supabase.from("mail_thread_labels").delete().eq("thread_id", threadId).eq("label_id", labelId);
+    else await supabase.from("mail_thread_labels").upsert({ thread_id: threadId, label_id: labelId });
+    onChanged();
+  }
+
+  return (
+    <div className="relative">
+      {currentLabels.map((l) => (
+        <span key={l.id} className="badge mr-1 text-white" style={{ backgroundColor: l.color }}>
+          {l.name}
+        </span>
+      ))}
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => !v);
+          if (!open) void loadAll();
+        }}
+        className="btn btn-ghost !px-1.5 !py-0.5 text-xs"
+      >
+        <Tag size={11} /> Címke
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-border bg-white p-1.5 shadow-lg">
+          {allLabels.length === 0 && <p className="p-2 text-[11px] text-muted">Nincs még címke a Postafiók → Címkék fülön.</p>}
+          {allLabels.map((l) => {
+            const active = currentLabels.some((c) => c.id === l.id);
+            return (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => void toggle(l.id, active)}
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs hover:bg-ivory-dim"
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />
+                {l.name}
+                {active && <Check size={11} className="ml-auto text-forest" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReplyAndNoteComposer({
+  threadId,
+  area,
+  templateVars,
+  onSent,
+}: {
+  threadId: string;
+  area: string;
+  templateVars: { firstName: string | null; subject: string };
+  onSent: () => void;
+}) {
   const [mode, setMode] = useState<"reply" | "note">("reply");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<MailTemplate[]>([]);
+
+  useEffect(() => {
+    fetch("/api/mail/templates")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok) setTemplates(data.templates.filter((t: MailTemplate) => !t.area || t.area === area));
+      })
+      .catch(() => {});
+  }, [area]);
+
+  function insertTemplate(templateId: string) {
+    const t = templates.find((x) => x.id === templateId);
+    if (t) setBody((prev) => (prev ? `${prev}\n\n${fillMailTemplate(t.body, templateVars)}` : fillMailTemplate(t.body, templateVars)));
+  }
 
   async function send() {
     if (!body.trim()) return;
@@ -265,13 +358,30 @@ function ReplyAndNoteComposer({ threadId, onSent }: { threadId: string; onSent: 
 
   return (
     <div className="border-t border-border p-3">
-      <div className="mb-2 flex gap-1.5">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <button type="button" onClick={() => setMode("reply")} className={`btn !py-1 text-xs ${mode === "reply" ? "btn-bronze" : "btn-ghost"}`}>
           <Send size={12} /> Válasz
         </button>
         <button type="button" onClick={() => setMode("note")} className={`btn !py-1 text-xs ${mode === "note" ? "btn-bronze" : "btn-ghost"}`}>
           <StickyNote size={12} /> Belső jegyzet
         </button>
+        {mode === "reply" && templates.length > 0 && (
+          <select
+            className="select !h-7 ml-auto !py-0 text-xs"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) insertTemplate(e.target.value);
+              e.target.value = "";
+            }}
+          >
+            <option value="">Sablon beszúrása…</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
       <textarea

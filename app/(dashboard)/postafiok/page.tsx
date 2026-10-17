@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { Inbox, PlugZap, ListFilter, FileText, Tag } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import EmptyState from "@/components/EmptyState";
 import MailAccountsSection from "@/components/mail/MailAccountsSection";
 import MailSyncButton from "@/components/mail/MailSyncButton";
 import MailInbox from "@/components/mail/MailInbox";
 import MailRulesSection from "@/components/mail/MailRulesSection";
+import MailTemplatesSection from "@/components/mail/MailTemplatesSection";
+import MailLabelsSection from "@/components/mail/MailLabelsSection";
 
 type Tab = "inbox" | "accounts" | "rules" | "templates" | "labels";
 
@@ -21,13 +22,10 @@ const TABS: { key: Tab; label: string; icon: typeof Inbox }[] = [
 
 /**
  * Postafiók — saját Infomaniak IMAP/SMTP postafiókok a Dashboardból.
- * Fázisokban épül (lásd a PR-eket): Fiókok, IMAP-szinkron, és a
- * Postaláda fül (nézetek/szállista/szálnézet, válasz+belső jegyzet,
- * "Feladat" gomb, csatolmány-letöltés) már élesek. Szabályok/Sablonok/
- * Címkék fülek (a besorolási szabálymotor UI-ja, gyorsválasz-sablonok,
- * szabadon létrehozható címkék) a következő fázisokban készülnek — a
- * végleges útvonal-struktúra már most áll, hogy ne kelljen később
- * linket/útvonalat váltani.
+ * Fázisokban épült (lásd a PR-eket): Fiókok, IMAP-szinkron, Postaláda
+ * (nézetek/szállista/szálnézet, válasz+belső jegyzet, "Feladat" gomb,
+ * csatolmány-letöltés, címkézés, sablonbeszúrás), a besorolási
+ * szabálymotor UI-ja, és a gyorsválasz-sablonok/címkék karbantartása.
  */
 export default function PostafiokPage() {
   const [tab, setTab] = useState<Tab>("inbox");
@@ -51,10 +49,8 @@ export default function PostafiokPage() {
       {tab === "inbox" && <MailInbox />}
       {tab === "accounts" && <MailAccountsSection />}
       {tab === "rules" && <MailRulesSection />}
-      {tab === "templates" && (
-        <EmptyState icon={FileText} title="A gyorsválasz-sablonok hamarosan elkészülnek" description="Területenkénti, változókkal ({{first_name}} stb.) kitölthető válaszsablonok." />
-      )}
-      {tab === "labels" && <EmptyState icon={Tag} title="A címkék hamarosan elkészülnek" description="Szabadon létrehozható, színes címkék a levélszálakhoz." />}
+      {tab === "templates" && <MailTemplatesSection />}
+      {tab === "labels" && <MailLabelsSection />}
     </>
   );
 }
