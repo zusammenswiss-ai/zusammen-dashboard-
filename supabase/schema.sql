@@ -3294,4 +3294,411 @@ alter table public.tasks add column if not exists signup_id uuid references publ
 create index if not exists documents_signup_id_idx on public.documents (signup_id);
 create index if not exists tasks_signup_id_idx on public.tasks (signup_id);
 
+-- =====================================================================
+-- Postafiók — saját Infomaniak IMAP/SMTP postafiókok a Dashboardból,
+-- FELVÁLTVA a Brevót a First 20 Jelentkezők fülön (lib/first20-send.ts
+-- mostantól ezen keresztül küld, nem a Brevo API-n). Ez NEM a meglévő
+-- gmail_connection/inbox olvasószolgáltatás kiváltása — az egy különálló,
+-- személyes Gmail-integráció (OAuth, csak olvasás), ez itt a
+-- das-zusammen.ch domain saját, jelszavas IMAP/SMTP postafiókjai, külön
+-- "Postafiók" navigációs ponttal, hogy a két hasonló nevű funkció ne
+-- keveredjen.
+--
+-- Újrafelhasznált minták (lásd a repo-n belüli felmérést, nem máshol
+-- dokumentált): a titkosítás ugyanaz az AES-256-GCM séma, mint
+-- lib/token-crypto.ts-ben (gmail_connection.encrypted_refresh_token,
+-- email_send_config.resend_api_key_encrypted), de külön kulccsal
+-- (MAIL_ENCRYPTION_KEY) és külön lib/mail-crypto.ts modullal, ahogy a
+-- feladat explicit kéri — lásd ott a kommentet, miért nem ugyanaz a
+-- TOKEN_ENCRYPTION_KEY. Az "authenticated full access" / "authenticated
+-- read" / RLS-bekapcsolva-policy-nélkül hármas pontosan a meglévő
+-- first20_emails / first20_signup_notes / gmail_connection mintáit
+-- követi lentebb, táblánként megjegyezve, miért az adott variáns.
+--
+-- mail_areas ÚJ MINTA ebben a kódbázisban: minden eddigi státusz/
+-- kategória lista (TaskStatus, CampaignType, SupportChannel stb.) kemény
+-- `check` megszorítás + egy párhuzamos TS union — DE a feladat explicit
+-- kéri, hogy a "terület" lista "adatként kezelt" legyen, kód nélkül
+-- bővíthető (lásd 5/B/a és 5/B/m pont), ezért ez egy valódi tábla, nem
+-- check constraint. Szándékos eltérés, nem a megszokott házi stílus.
+-- =====================================================================
+
+create table if not exists public.mail_areas (
+  id uuid primary key default gen_random_uuid(),
+  -- Stabil, kód által is hivatkozott azonosító (pl. mail_rules
+  -- feltételek/műveletek jsonb-jében), különválasztva a szerkeszthető
+  -- magyar `label`-től.
+  key text not null unique,
+  label text not null,
+  sort_order int not null default 0,
+  -- Pontosan egy sor lehet alapértelmezett (Besorolatlan) — ez a
+  -- fallback terület minden új szálhoz, amíg szabály vagy kézi besorolás
+  -- felül nem írja. Az app rétegben ellenőrzött egyediség, nem DB
+  -- constraint, hogy a sor törölhető/újra-jelölhető maradjon.
+  is_default boolean not null default false,
+  -- 5/B/f pont: "az automatikus létrehozást területenként ki/be lehet
+  -- kapcsolni", határidő "területenként állítható (alapérték: ...)".
+  auto_task_enabled boolean not null default true,
+  auto_task_due_days int,
+  created_at timestamptz not null default now()
+);
+
+alter table public.mail_areas enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_areas;
+create policy "authenticated full access" on public.mail_areas for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+insert into public.mail_areas (key, label, sort_order, is_default, auto_task_enabled, auto_task_due_days)
+values
+  ('unsorted', 'Besorolatlan', 0, true, false, null),
+  ('marketing', 'Marketing', 10, false, true, 2),
+  ('support', 'Ügyfélszolgálat', 20, false, true, 1),
+  ('orders', 'Vevői rendelések', 30, false, true, null),
+  ('suppliers', 'Beszállítók', 40, false, true, 3),
+  ('finance', 'Pénzügyek', 50, false, true, null),
+  ('other', 'Egyéb', 60, false, false, null)
+on conflict (key) do nothing;
+
+-- Postafiókok — a jelszó (password_encrypted) lib/mail-crypto.ts-sel
+-- titkosítva, csak a szerver (service-role kliens) olvassa vissza; a
+-- böngésző sosem kapja meg sem a jelszót, sem a dekódolt alakját (lásd
+-- app/api/mail/accounts route-ok — a GET válaszból a password_encrypted
+-- mező kimarad). Ugyanaz a kezelés, mint gmail_connection/
+-- email_send_config/telegram_config: RLS bekapcsolva, policy nélkül.
+create table if not exists public.mail_accounts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  from_name text,
+  imap_host text not null default 'mail.infomaniak.com',
+  imap_port int not null default 993,
+  imap_secure text not null default 'tls' check (imap_secure in ('tls', 'starttls', 'none')),
+  smtp_host text not null default 'mail.infomaniak.com',
+  smtp_port int not null default 465,
+  smtp_secure text not null default 'tls' check (smtp_secure in ('tls', 'starttls', 'none')),
+  username text not null,
+  password_encrypted text not null,
+  signature_html text,
+  signature_text text,
+  -- Pontosan egy fiók lehet alapértelmezett (a levélküldő UI ezt
+  -- ajánlja fel előre kiválasztva) — app rétegben kikényszerítve, mint
+  -- mail_areas.is_default-nál.
+  is_default boolean not null default false,
+  is_active boolean not null default true,
+  last_test_at timestamptz,
+  last_test_ok boolean,
+  last_test_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.mail_accounts enable row level security;
+
+drop trigger if exists set_updated_at on public.mail_accounts;
+create trigger set_updated_at before update on public.mail_accounts
+  for each row execute function public.set_updated_at();
+
+-- Fiókonkénti/mappánkénti utolsó szinkronizált IMAP UID — ez teszi
+-- lehetővé az inkrementális szinkront (5/B/3 pont: "UID alapon
+-- inkrementálisan"). Csak a szerver írja (app/api/mail/sync), a
+-- Dashboard "utoljára szinkronizálva" kijelzéshez olvashatja.
+create table if not exists public.mail_sync_state (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.mail_accounts(id) on delete cascade,
+  folder text not null check (folder in ('INBOX', 'Sent')),
+  last_uid bigint not null default 0,
+  last_synced_at timestamptz,
+  unique (account_id, folder)
+);
+
+alter table public.mail_sync_state enable row level security;
+
+drop policy if exists "authenticated read" on public.mail_sync_state;
+create policy "authenticated read" on public.mail_sync_state for select
+  using (auth.uid() is not null);
+
+-- Globális postafiók-beállítások — egyetlen sor, ugyanaz a minta, mint
+-- together_settings/company_settings: nincs előre beszúrt sor, a
+-- Beállítások UI (és a küldő/szinkron route-ok hiányzó sor esetén
+-- kódban default 20 / 30 értékkel) hozza létre upsert-tel az első
+-- mentéskor. Nem titok, ezért a szokásos "authenticated full access".
+create table if not exists public.mail_settings (
+  id uuid primary key default gen_random_uuid(),
+  hourly_send_limit int not null default 20,
+  sync_lookback_days int not null default 30,
+  last_cron_sync_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.mail_settings enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_settings;
+create policy "authenticated full access" on public.mail_settings for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.mail_settings;
+create trigger set_updated_at before update on public.mail_settings
+  for each row execute function public.set_updated_at();
+
+-- Levélszálak — a Postafiók modul gerince (5/B pont). `area`/`owner`
+-- "_is_manual" párja biztosítja, hogy a kézi besorolás mindig felülírja
+-- az automatikát, és egy szabály később SOHA ne írja át a kézzel
+-- beállított mezőt (5/B/e pont utolsó mondata) — a szabálymotor ezt a
+-- flaget nézi meg alkalmazás előtt.
+create table if not exists public.mail_threads (
+  id uuid primary key default gen_random_uuid(),
+  subject text not null default '',
+  area text not null default 'unsorted' references public.mail_areas (key) on update cascade,
+  area_is_manual boolean not null default false,
+  status text not null default 'new' check (status in ('new', 'in_progress', 'waiting', 'done')),
+  owner text,
+  owner_is_manual boolean not null default false,
+  priority text not null default 'normal' check (priority in ('low', 'normal', 'urgent')),
+  last_message_at timestamptz,
+  last_inbound_at timestamptz,
+  closed_at timestamptz,
+  closed_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists mail_threads_area_idx on public.mail_threads (area);
+create index if not exists mail_threads_status_idx on public.mail_threads (status);
+create index if not exists mail_threads_last_message_idx on public.mail_threads (last_message_at desc);
+
+alter table public.mail_threads enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_threads;
+create policy "authenticated full access" on public.mail_threads for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.mail_threads;
+create trigger set_updated_at before update on public.mail_threads
+  for each row execute function public.set_updated_at();
+
+-- Üzenetek — bejövő (IMAP-szinkronból) és kimenő (küldéskor írva) is
+-- ugyanabba a táblába kerül, `direction` különbözteti meg, pontosan
+-- ahogy a feladat 3. pontja kéri. A service-role-only írás (lásd lentebb
+-- "authenticated read" RLS) ugyanaz a indoklás, mint first20_emails-nél:
+-- az IMAP-szinkron és a küldő route szerveroldalon fut, a böngésző
+-- sosem ír ide közvetlenül fabrikált sort.
+create table if not exists public.mail_messages (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references public.mail_threads(id) on delete cascade,
+  account_id uuid not null references public.mail_accounts(id) on delete cascade,
+  direction text not null check (direction in ('in', 'out')),
+  folder text not null,
+  imap_uid bigint,
+  message_id text,
+  in_reply_to text,
+  references_header text,
+  from_addr text,
+  from_name text,
+  to_addrs text[] not null default '{}',
+  cc_addrs text[] not null default '{}',
+  subject text,
+  body_text text,
+  body_html_sanitized text,
+  received_at timestamptz,
+  read_at timestamptz,
+  signup_id uuid references public.first20_signups(id) on delete set null,
+  has_attachments boolean not null default false,
+  attachments_meta jsonb not null default '[]'::jsonb,
+  status text not null default 'sent' check (status in ('queued', 'sent', 'failed')),
+  error text,
+  -- "ki küldte" (5/B/d pont) — sent_via a forrás (kézzel/kampányból/
+  -- ügyfélszolgálatból/automatikusan), sent_by a felhasználó/fiók
+  -- azonosító. Bejövő üzenetnél mindkettő NULL.
+  sent_via text check (sent_via in ('manual', 'campaign', 'support', 'auto')),
+  sent_by text,
+  created_at timestamptz not null default now()
+);
+
+-- Dedup-védelem IMAP-szinkronhoz: ugyanaz a (fiók, mappa, UID) hármas
+-- nem kerülhet be kétszer (a feladat 3. pontja explicit kéri). Csak a
+-- nem-NULL UID-okra vonatkozik — egy kézzel beírt/küldött sor UID
+-- nélkül is érvényes.
+create unique index if not exists mail_messages_account_folder_uid_idx
+  on public.mail_messages (account_id, folder, imap_uid) where imap_uid is not null;
+create index if not exists mail_messages_message_id_idx on public.mail_messages (message_id);
+create index if not exists mail_messages_thread_idx on public.mail_messages (thread_id, received_at);
+create index if not exists mail_messages_signup_idx on public.mail_messages (signup_id);
+
+alter table public.mail_messages enable row level security;
+
+drop policy if exists "authenticated read" on public.mail_messages;
+create policy "authenticated read" on public.mail_messages for select
+  using (auth.uid() is not null);
+
+-- Kapcsolódó elemek — EGY szálhoz TÖBB kapcsolat is tartozhat (5/B/b
+-- pont: "szálanként több is lehet"), ezért ez egy valódi polimorf
+-- kapcsolótábla, NEM a kódbázis megszokott mintája (lásd `documents`:
+-- egy sablon kártyán nullable FK-oszloponként egy-egy szülő típus) —
+-- az tudatosan egy-szülős modell, ez itt tudatosan több-szülős.
+create table if not exists public.mail_thread_links (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references public.mail_threads(id) on delete cascade,
+  entity_type text not null check (
+    entity_type in ('campaign', 'signup', 'order', 'support_ticket', 'supplier', 'product', 'document')
+  ),
+  entity_id uuid not null,
+  created_at timestamptz not null default now(),
+  unique (thread_id, entity_type, entity_id)
+);
+
+create index if not exists mail_thread_links_entity_idx on public.mail_thread_links (entity_type, entity_id);
+
+alter table public.mail_thread_links enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_thread_links;
+create policy "authenticated full access" on public.mail_thread_links for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Címkék — szabadon létrehozható, színes (5/B/c pont).
+create table if not exists public.mail_labels (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  color text not null default '#9a6a39',
+  created_at timestamptz not null default now()
+);
+
+alter table public.mail_labels enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_labels;
+create policy "authenticated full access" on public.mail_labels for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+create table if not exists public.mail_thread_labels (
+  thread_id uuid not null references public.mail_threads(id) on delete cascade,
+  label_id uuid not null references public.mail_labels(id) on delete cascade,
+  primary key (thread_id, label_id)
+);
+
+alter table public.mail_thread_labels enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_thread_labels;
+create policy "authenticated full access" on public.mail_thread_labels for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Szabálymotor (5/B/e pont) — egyszerű, adatvezérelt: `conditions`/
+-- `actions` jsonb tömbök, az alkalmazás réteg (lib/mail-rules.ts, később
+-- fázisban) értelmezi és alkalmazza szinkronkor. Ugyanaz a "jsonb a
+-- rugalmas, ritkán lekérdezett struktúrához" minta, mint pl.
+-- campaigns.unlock_history-nál. A pontos conditions/actions alak:
+--   condition: {"type": "sender_known"|"sender_domain"|"sender_address"
+--     |"subject_contains"|"account_id"|"has_attachment", "value": text}
+--   action: {"type": "set_area"|"set_label"|"set_owner"|"set_priority"
+--     |"link_known_sender"|"create_task"|"mark_unread", "value": text}
+-- (Az alapértelmezett szabályok lent minta-adatként vannak felvéve,
+-- hogy a feladat 5/B/e pontjának "beállítás szabályok (kapcsold be)"
+-- kérése már a séma szintjén létezzen — a tényleges kiértékelő motor
+-- egy következő fázisban készül, eddig a sorok inertek.)
+create table if not exists public.mail_rules (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  enabled boolean not null default true,
+  sort_order int not null default 0,
+  conditions jsonb not null default '[]'::jsonb,
+  actions jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.mail_rules enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_rules;
+create policy "authenticated full access" on public.mail_rules for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.mail_rules;
+create trigger set_updated_at before update on public.mail_rules
+  for each row execute function public.set_updated_at();
+
+insert into public.mail_rules (name, enabled, sort_order, conditions, actions)
+select * from (values
+  ('First 20 jelentkező', true, 10,
+    '[{"type":"sender_known","value":"signup"}]'::jsonb,
+    '[{"type":"set_area","value":"marketing"},{"type":"link_known_sender"}]'::jsonb),
+  ('Vevői rendelés ügyfele', true, 20,
+    '[{"type":"sender_known","value":"customer"}]'::jsonb,
+    '[{"type":"set_area","value":"orders"},{"type":"link_known_sender"}]'::jsonb),
+  ('Beszállító címe', true, 30,
+    '[{"type":"sender_known","value":"supplier"}]'::jsonb,
+    '[{"type":"set_area","value":"suppliers"},{"type":"link_known_sender"}]'::jsonb)
+) as seed(name, enabled, sort_order, conditions, actions)
+where not exists (select 1 from public.mail_rules);
+
+-- Belső jegyzetek — ugyanaz a minta, mint first20_signup_notes.
+create table if not exists public.mail_notes (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references public.mail_threads(id) on delete cascade,
+  body text not null,
+  author text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mail_notes_thread_idx on public.mail_notes (thread_id, created_at desc);
+
+alter table public.mail_notes enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_notes;
+create policy "authenticated full access" on public.mail_notes for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- Tevékenységnapló — NEM állítható elő utólag az üzenetekből/
+-- jegyzetekből (ellentétben pl. SignupTimelineTab-bal, ami kliensoldalon
+-- fésüli össze a már betöltött adatokat): ez metaadat-változásokat
+-- naplóz (besorolás, hozzárendelés, felelős-váltás, feladat-létrehozás,
+-- lezárás, kézi felülírás — 5/B/h pont), amik maguktól az üzenetektől
+-- függetlenek. A szerver route-ok írják (service role), hogy a napló ne
+-- legyen kézzel meghamisítható.
+create table if not exists public.mail_activity (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references public.mail_threads(id) on delete cascade,
+  actor text,
+  action text not null,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mail_activity_thread_idx on public.mail_activity (thread_id, created_at);
+
+alter table public.mail_activity enable row level security;
+
+drop policy if exists "authenticated read" on public.mail_activity;
+create policy "authenticated read" on public.mail_activity for select
+  using (auth.uid() is not null);
+
+-- Gyors válaszok (sablonok), területenként — 5/B/i pont. `area` NULL =
+-- bármelyik területről használható.
+create table if not exists public.mail_templates (
+  id uuid primary key default gen_random_uuid(),
+  area text references public.mail_areas (key) on delete set null,
+  name text not null,
+  type text not null default 'standard' check (type in ('standard', 'support_reply')),
+  subject text,
+  body text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.mail_templates enable row level security;
+
+drop policy if exists "authenticated full access" on public.mail_templates;
+create policy "authenticated full access" on public.mail_templates for all
+  using (auth.uid() is not null) with check (auth.uid() is not null);
+
+drop trigger if exists set_updated_at on public.mail_templates;
+create trigger set_updated_at before update on public.mail_templates
+  for each row execute function public.set_updated_at();
+
+-- Automatikus feladat egy szálból (5/B/f pont) — ugyanaz a minta, mint
+-- tasks.signup_id/campaign_id/collection_card_id: "set null", nem
+-- cascade, hogy egy szál törlése ne vigye magával a feladatot.
+alter table public.tasks add column if not exists mail_thread_id uuid references public.mail_threads(id) on delete set null;
+
+create index if not exists tasks_mail_thread_id_idx on public.tasks (mail_thread_id);
+
 NOTIFY pgrst, 'reload schema';
