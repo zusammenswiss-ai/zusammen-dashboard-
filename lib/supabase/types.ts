@@ -1161,7 +1161,15 @@ export type MailThreadLabelInsert = MailThreadLabel;
 // kommentjét. Az app réteg (lib/mail-rules.ts, később fázisban)
 // értelmezi; itt csak a tárolt alak van rögzítve típusként.
 export type MailRuleConditionType = "sender_known" | "sender_domain" | "sender_address" | "subject_contains" | "account_id" | "has_attachment";
-export type MailRuleActionType = "set_area" | "set_label" | "set_owner" | "set_priority" | "link_known_sender" | "create_task" | "mark_unread";
+export type MailRuleActionType =
+  | "set_area"
+  | "set_label"
+  | "set_owner"
+  | "set_priority"
+  | "link_known_sender"
+  | "create_task"
+  | "create_support_ticket"
+  | "mark_unread";
 export interface MailRuleCondition {
   type: MailRuleConditionType;
   value?: string;

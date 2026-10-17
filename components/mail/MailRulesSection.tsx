@@ -24,6 +24,7 @@ const ACTION_TYPES: { value: MailRuleAction["type"]; label: string; needsValue: 
   { value: "set_priority", label: "Prioritás beállítása", needsValue: true },
   { value: "link_known_sender", label: "Kapcsolás az ismert feladóhoz", needsValue: false },
   { value: "create_task", label: "Feladat létrehozása", needsValue: false },
+  { value: "create_support_ticket", label: "Ügyfélszolgálati eset nyitása", needsValue: false },
   { value: "mark_unread", label: "Maradjon olvasatlan", needsValue: false },
 ];
 

@@ -16,6 +16,7 @@ export async function GET(request: Request) {
   const status = url.searchParams.get("status");
   const unreadOnly = url.searchParams.get("unread") === "true";
   const linked = url.searchParams.get("linked"); // "true" | "false" | null
+  const q = url.searchParams.get("q")?.trim().toLowerCase() || null;
 
   let query = supabase.from("mail_threads").select("*").order("last_message_at", { ascending: false, nullsFirst: false }).limit(200);
   if (area) query = query.eq("area", area);
@@ -68,6 +69,19 @@ export async function GET(request: Request) {
   if (unreadOnly) rows = rows.filter((r) => r.has_unread);
   if (linked === "true") rows = rows.filter((r) => r.signup_id || r.links.length > 0);
   if (linked === "false") rows = rows.filter((r) => !r.signup_id && r.links.length === 0);
+  if (q) {
+    rows = rows.filter((r) => {
+      const messages = byThread.get(r.id) ?? [];
+      const haystack = [
+        r.subject,
+        ...messages.flatMap((m) => [m.from_addr, m.from_name, m.subject, m.body_text]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }
 
   return NextResponse.json({ ok: true, threads: rows });
 }

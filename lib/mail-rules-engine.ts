@@ -123,6 +123,9 @@ export async function applyRuleActions(
       case "create_task":
         await createAutoTaskIfNeeded(supabase, threadId, update.area as string | undefined, thread.subject, ruleName);
         break;
+      case "create_support_ticket":
+        await createSupportTicketIfNeeded(supabase, threadId, thread.subject, ruleName);
+        break;
       // "mark_unread": nincs külön teendő — egy új bejövő levél eleve
       // olvasatlan (read_at NULL), ez a művelet csak kompatibilitási
       // helyőrző a feladat action-listájából.
@@ -183,4 +186,54 @@ async function createAutoTaskIfNeeded(
     notes: `Automatikusan létrehozva a "${ruleName}" Postafiók-szabály alapján.`,
   });
   await supabase.from("mail_activity").insert({ thread_id: threadId, actor: `rule:${ruleName}`, action: "task_created", detail: { title: `Válasz: ${subject}` } });
+}
+
+/** A feladat 5/B/e pontjának "ügyfélszolgálati címre érkező levél →
+ * új eset" alapszabálya. Szálanként legfeljebb egy esetet nyit (ha a
+ * szál már kapcsolva van egy support_tickets sorhoz, nem csinál
+ * újat) — ugyanaz a "ne duplikálj" elv, mint a feladat-létrehozásnál. */
+async function createSupportTicketIfNeeded(
+  supabase: SupabaseClient<ServerDatabase>,
+  threadId: string,
+  subject: string,
+  ruleName: string
+): Promise<void> {
+  const { data: existingLink } = await supabase
+    .from("mail_thread_links")
+    .select("entity_id")
+    .eq("thread_id", threadId)
+    .eq("entity_type", "support_ticket")
+    .limit(1)
+    .maybeSingle();
+  if (existingLink) return;
+
+  const { data: latestInbound } = await supabase
+    .from("mail_messages")
+    .select("from_addr, from_name")
+    .eq("thread_id", threadId)
+    .eq("direction", "in")
+    .order("received_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: ticket, error: ticketError } = await supabase
+    .from("support_tickets")
+    .insert({
+      customer_name: latestInbound?.from_name || latestInbound?.from_addr || "Ismeretlen feladó",
+      contact: latestInbound?.from_addr ?? null,
+      channel: "Email",
+      topic: "Egyéb",
+      notes: `Automatikusan létrehozva a Postafiók "${subject}" szála alapján ("${ruleName}" szabály).`,
+    })
+    .select("id")
+    .single();
+  if (ticketError || !ticket) return;
+
+  await supabase.from("mail_thread_links").upsert(
+    { thread_id: threadId, entity_type: "support_ticket", entity_id: ticket.id },
+    { onConflict: "thread_id,entity_type,entity_id" }
+  );
+  await supabase
+    .from("mail_activity")
+    .insert({ thread_id: threadId, actor: `rule:${ruleName}`, action: "support_ticket_created", detail: { ticket_id: ticket.id } });
 }
